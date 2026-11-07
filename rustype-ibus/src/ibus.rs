@@ -64,7 +64,15 @@ fn bool_variant(w: &mut Writer, v: bool) {
     w.boolean(v);
 }
 
-fn write_prop(w: &mut Writer, key: &str, ptype: u32, label: &str, icon: &str, state: u32) {
+fn write_prop(
+    w: &mut Writer,
+    key: &str,
+    ptype: u32,
+    label: &str,
+    icon: &str,
+    state: u32,
+    symbol: &str,
+) {
     w.signature("(sa{sv}suvsvbbuvv)");
     w.struct_start();
     w.string("IBusProperty");
@@ -86,8 +94,8 @@ fn write_prop(w: &mut Writer, key: &str, ptype: u32, label: &str, icon: &str, st
     w.array_end(a1);
     let a2 = w.array_start(1);
     w.array_end(a2);
-    // symbol: empty IBusText or label for InputMode
-    write_text(w, label, false);
+    // symbol: field 12
+    write_text(w, symbol, false);
 }
 
 fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::InputMethod) {
@@ -98,28 +106,25 @@ fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::I
     w.array_end(a);
     let props = w.array_start(1);
 
-    // 1. Toggle switch: Bật tiếng Việt
-    let toggle_label = if enabled {
-        "Bật tiếng Việt"
-    } else {
-        "Bật tiếng Việt (Đang tắt)"
-    };
+    // 1. Toggle switch & Indicator symbol: InputMode
     let toggle_state = if enabled {
         PROP_STATE_CHECKED
     } else {
         PROP_STATE_UNCHECKED
     };
+    let sym = if enabled { "VN" } else { "EN" };
     write_prop(
         w,
-        "prop_toggle",
+        "InputMode",
         PROP_TYPE_TOGGLE,
-        toggle_label,
+        "Bật tiếng Việt",
         "",
         toggle_state,
+        sym,
     );
 
     // 2. Separator
-    write_prop(w, "prop_sep1", PROP_TYPE_SEPARATOR, "", "", 0);
+    write_prop(w, "prop_sep1", PROP_TYPE_SEPARATOR, "", "", 0, "");
 
     // 3. Radio Telex
     let telex_state = if method == rustype_core::telex::InputMethod::Telex {
@@ -134,6 +139,7 @@ fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::I
         "Kiểu gõ Telex",
         "",
         telex_state,
+        "",
     );
 
     // 4. Radio VNI
@@ -142,10 +148,18 @@ fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::I
     } else {
         PROP_STATE_UNCHECKED
     };
-    write_prop(w, "prop_vni", PROP_TYPE_RADIO, "Kiểu gõ VNI", "", vni_state);
+    write_prop(
+        w,
+        "prop_vni",
+        PROP_TYPE_RADIO,
+        "Kiểu gõ VNI",
+        "",
+        vni_state,
+        "",
+    );
 
     // 5. Separator
-    write_prop(w, "prop_sep2", PROP_TYPE_SEPARATOR, "", "", 0);
+    write_prop(w, "prop_sep2", PROP_TYPE_SEPARATOR, "", "", 0, "");
 
     // 6. Settings
     write_prop(
@@ -155,11 +169,8 @@ fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::I
         "Cài đặt Rustype...",
         "preferences-system",
         0,
+        "",
     );
-
-    // 7. InputMode (Dynamically sets panel text to "VN" or "EN" in GNOME Shell)
-    let mode_str = if enabled { "VN" } else { "EN" };
-    write_prop(w, "InputMode", PROP_TYPE_NORMAL, mode_str, "", 0);
 
     w.array_end(props);
 }
@@ -174,9 +185,10 @@ fn emit_update_prop(
     label: &str,
     icon: &str,
     state: u32,
+    symbol: &str,
 ) {
     let mut pw = Writer::new();
-    write_prop(&mut pw, key, ptype, label, icon, state);
+    write_prop(&mut pw, key, ptype, label, icon, state, symbol);
     conn.signal(batch, path, ENGINE_IFACE, "UpdateProperty", "v", &pw.buf);
 }
 
@@ -512,36 +524,22 @@ impl Service {
                 );
 
                 // Update switch & panel indicator for current app state
-                let toggle_label = if enabled {
-                    "Bật tiếng Việt"
-                } else {
-                    "Bật tiếng Việt (Đang tắt)"
-                };
                 let toggle_state = if enabled {
                     PROP_STATE_CHECKED
                 } else {
                     PROP_STATE_UNCHECKED
                 };
-                emit_update_prop(
-                    &mut self.conn,
-                    batch,
-                    path,
-                    "prop_toggle",
-                    PROP_TYPE_TOGGLE,
-                    toggle_label,
-                    "",
-                    toggle_state,
-                );
-                let mode_str = if enabled { "VN" } else { "EN" };
+                let sym = if enabled { "VN" } else { "EN" };
                 emit_update_prop(
                     &mut self.conn,
                     batch,
                     path,
                     "InputMode",
-                    PROP_TYPE_NORMAL,
-                    mode_str,
+                    PROP_TYPE_TOGGLE,
+                    "Bật tiếng Việt",
                     "",
-                    0,
+                    toggle_state,
+                    sym,
                 );
             }
             (ENGINE_IFACE, "FocusOut" | "FocusOutId" | "Reset" | "Disable") => {
@@ -565,7 +563,7 @@ impl Service {
                 let name = r.string().unwrap_or_default();
                 let state = r.u32().unwrap_or(0);
                 match name.as_str() {
-                    "prop_toggle" => {
+                    "InputMode" => {
                         let ime = self.engines.get_mut(path).unwrap();
                         let cur_enabled = ime.is_enabled();
                         let new_state = if state == PROP_STATE_CHECKED {
@@ -580,139 +578,91 @@ impl Service {
                         }
                         ime.set_enabled(new_state, &mut outs);
 
-                        let toggle_label = if new_state {
-                            "Bật tiếng Việt"
-                        } else {
-                            "Bật tiếng Việt (Đang tắt)"
-                        };
                         let toggle_state = if new_state {
                             PROP_STATE_CHECKED
                         } else {
                             PROP_STATE_UNCHECKED
                         };
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_toggle",
-                            PROP_TYPE_TOGGLE,
-                            toggle_label,
-                            "",
-                            toggle_state,
-                        );
-                        let mode_str = if new_state { "VN" } else { "EN" };
+                        let sym = if new_state { "VN" } else { "EN" };
                         emit_update_prop(
                             &mut self.conn,
                             batch,
                             path,
                             "InputMode",
-                            PROP_TYPE_NORMAL,
-                            mode_str,
+                            PROP_TYPE_TOGGLE,
+                            "Bật tiếng Việt",
                             "",
-                            0,
+                            toggle_state,
+                            sym,
                         );
                     }
                     "prop_telex" => {
-                        self.config.current.telex.input_method =
-                            rustype_core::telex::InputMethod::Telex;
-                        crate::config::update_input_method(rustype_core::telex::InputMethod::Telex);
-                        for engine in self.engines.values_mut() {
-                            engine.apply_config(&self.config.current);
+                        if state == PROP_STATE_CHECKED {
+                            self.config.current.telex.input_method =
+                                rustype_core::telex::InputMethod::Telex;
+                            crate::config::update_input_method(
+                                rustype_core::telex::InputMethod::Telex,
+                            );
+                            for engine in self.engines.values_mut() {
+                                engine.apply_config(&self.config.current);
+                            }
+                            emit_update_prop(
+                                &mut self.conn,
+                                batch,
+                                path,
+                                "prop_telex",
+                                PROP_TYPE_RADIO,
+                                "Kiểu gõ Telex",
+                                "",
+                                PROP_STATE_CHECKED,
+                                "",
+                            );
+                            emit_update_prop(
+                                &mut self.conn,
+                                batch,
+                                path,
+                                "prop_vni",
+                                PROP_TYPE_RADIO,
+                                "Kiểu gõ VNI",
+                                "",
+                                PROP_STATE_UNCHECKED,
+                                "",
+                            );
                         }
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_telex",
-                            PROP_TYPE_RADIO,
-                            "Kiểu gõ Telex",
-                            "",
-                            PROP_STATE_CHECKED,
-                        );
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_vni",
-                            PROP_TYPE_RADIO,
-                            "Kiểu gõ VNI",
-                            "",
-                            PROP_STATE_UNCHECKED,
-                        );
                     }
                     "prop_vni" => {
-                        self.config.current.telex.input_method =
-                            rustype_core::telex::InputMethod::Vni;
-                        crate::config::update_input_method(rustype_core::telex::InputMethod::Vni);
-                        for engine in self.engines.values_mut() {
-                            engine.apply_config(&self.config.current);
-                        }
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_telex",
-                            PROP_TYPE_RADIO,
-                            "Kiểu gõ Telex",
-                            "",
-                            PROP_STATE_UNCHECKED,
-                        );
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_vni",
-                            PROP_TYPE_RADIO,
-                            "Kiểu gõ VNI",
-                            "",
-                            PROP_STATE_CHECKED,
-                        );
-                    }
-                    "prop_method" => {
-                        let next_method = match self.config.current.telex.input_method {
-                            rustype_core::telex::InputMethod::Telex => {
-                                rustype_core::telex::InputMethod::Vni
+                        if state == PROP_STATE_CHECKED {
+                            self.config.current.telex.input_method =
+                                rustype_core::telex::InputMethod::Vni;
+                            crate::config::update_input_method(
+                                rustype_core::telex::InputMethod::Vni,
+                            );
+                            for engine in self.engines.values_mut() {
+                                engine.apply_config(&self.config.current);
                             }
-                            rustype_core::telex::InputMethod::Vni => {
-                                rustype_core::telex::InputMethod::Telex
-                            }
-                        };
-                        self.config.current.telex.input_method = next_method;
-                        crate::config::update_input_method(next_method);
-                        for engine in self.engines.values_mut() {
-                            engine.apply_config(&self.config.current);
+                            emit_update_prop(
+                                &mut self.conn,
+                                batch,
+                                path,
+                                "prop_telex",
+                                PROP_TYPE_RADIO,
+                                "Kiểu gõ Telex",
+                                "",
+                                PROP_STATE_UNCHECKED,
+                                "",
+                            );
+                            emit_update_prop(
+                                &mut self.conn,
+                                batch,
+                                path,
+                                "prop_vni",
+                                PROP_TYPE_RADIO,
+                                "Kiểu gõ VNI",
+                                "",
+                                PROP_STATE_CHECKED,
+                                "",
+                            );
                         }
-                        let telex_state = if next_method == rustype_core::telex::InputMethod::Telex
-                        {
-                            PROP_STATE_CHECKED
-                        } else {
-                            PROP_STATE_UNCHECKED
-                        };
-                        let vni_state = if next_method == rustype_core::telex::InputMethod::Vni {
-                            PROP_STATE_CHECKED
-                        } else {
-                            PROP_STATE_UNCHECKED
-                        };
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_telex",
-                            PROP_TYPE_RADIO,
-                            "Kiểu gõ Telex",
-                            "",
-                            telex_state,
-                        );
-                        emit_update_prop(
-                            &mut self.conn,
-                            batch,
-                            path,
-                            "prop_vni",
-                            PROP_TYPE_RADIO,
-                            "Kiểu gõ VNI",
-                            "",
-                            vni_state,
-                        );
                     }
                     "prop_settings" => {
                         let candidates = [
@@ -858,11 +808,12 @@ mod tests {
         let mut w = Writer::new();
         write_prop(
             &mut w,
-            "prop_toggle",
+            "InputMode",
             PROP_TYPE_TOGGLE,
             "Bật tiếng Việt",
             "",
             PROP_STATE_CHECKED,
+            "VN",
         );
         let end = w.buf.len();
         let mut r = Reader::new(&w.buf, false);
@@ -879,5 +830,31 @@ mod tests {
         let msg = crate::dbus::read_message(&mut &blob[..]).unwrap();
         assert_eq!(msg.member.as_deref(), Some("UpdateProperty"));
         assert_eq!(msg.signature, "v");
+    }
+
+    #[test]
+    fn radio_properties_ignore_unchecked_activate() {
+        let mut cfg = crate::config::Config::default();
+        cfg.telex.input_method = rustype_core::telex::InputMethod::Vni;
+
+        // When prop_telex is activated with CHECKED (1), method becomes Telex
+        let telex_activate_state = PROP_STATE_CHECKED;
+        if telex_activate_state == PROP_STATE_CHECKED {
+            cfg.telex.input_method = rustype_core::telex::InputMethod::Telex;
+        }
+        assert_eq!(
+            cfg.telex.input_method,
+            rustype_core::telex::InputMethod::Telex
+        );
+
+        // When GNOME Shell subsequently emits prop_vni with UNCHECKED (0), it must NOT revert to Vni
+        let vni_uncheck_state = PROP_STATE_UNCHECKED;
+        if vni_uncheck_state == PROP_STATE_CHECKED {
+            cfg.telex.input_method = rustype_core::telex::InputMethod::Vni;
+        }
+        assert_eq!(
+            cfg.telex.input_method,
+            rustype_core::telex::InputMethod::Telex
+        );
     }
 }
