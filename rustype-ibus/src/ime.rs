@@ -50,6 +50,17 @@ enum Show {
     Backspace,
 }
 
+fn is_chromium_based(app_id: Option<&str>) -> bool {
+    let Some(id) = app_id else { return false };
+    let lower = id.to_lowercase();
+    lower.contains("chrome")
+        || lower.contains("chromium")
+        || lower.contains("brave")
+        || lower.contains("edge")
+        || lower.contains("vivaldi")
+        || lower.contains("opera")
+}
+
 pub struct Ime {
     telex: Telex,
     mode: Mode,
@@ -62,6 +73,7 @@ pub struct Ime {
     anchor_pos: Option<u32>,
     has_selection: bool,
     enabled: bool,
+    backspace_keycode: u32,
 }
 
 fn is_modifier_key(keyval: u32) -> bool {
@@ -83,6 +95,7 @@ impl Ime {
             anchor_pos: None,
             has_selection: false,
             enabled: true,
+            backspace_keycode: 22,
         }
     }
 
@@ -113,11 +126,17 @@ impl Ime {
 
     /// Fresh state after an internal error, keeping what the app told us.
     pub fn recover(&mut self, cfg: &Config) {
-        let (caps, purpose, app_id) = (self.caps, self.purpose, self.app_id.clone());
+        let (caps, purpose, app_id, backspace_keycode) = (
+            self.caps,
+            self.purpose,
+            self.app_id.clone(),
+            self.backspace_keycode,
+        );
         *self = Ime::new(cfg);
         self.caps = caps;
         self.purpose = purpose;
         self.app_id = app_id;
+        self.backspace_keycode = backspace_keycode;
     }
 
     pub fn set_capabilities(&mut self, caps: u32) {
@@ -164,10 +183,10 @@ impl Ime {
             let surrounding = self.caps & CAP_SURROUNDING_TEXT != 0;
             self.show = match self.mode {
                 Mode::Preedit => Show::Preedit,
+                Mode::Direct => Show::Backspace,
+                Mode::Auto if is_chromium_based(self.app_id.as_deref()) => Show::Backspace,
                 Mode::Auto if surrounding => Show::Surrounding,
                 Mode::Auto => Show::Preedit,
-                Mode::Direct if surrounding => Show::Surrounding,
-                Mode::Direct => Show::Backspace,
             };
         }
         self.show
@@ -180,12 +199,12 @@ impl Ime {
                     for _ in 0..backspaces {
                         out.push(Out::ForwardKey {
                             keyval: KEY_BACKSPACE,
-                            keycode: 14,
+                            keycode: self.backspace_keycode,
                             state: 0,
                         });
                         out.push(Out::ForwardKey {
                             keyval: KEY_BACKSPACE,
-                            keycode: 14,
+                            keycode: self.backspace_keycode,
                             state: RELEASE_MASK,
                         });
                     }
@@ -244,7 +263,7 @@ impl Ime {
     pub fn process_key(
         &mut self,
         keyval: u32,
-        _keycode: u32,
+        keycode: u32,
         state: u32,
         out: &mut Vec<Out>,
     ) -> bool {
@@ -261,6 +280,9 @@ impl Ime {
 
         let show = self.pick_show();
         if keyval == KEY_BACKSPACE {
+            if keycode != 0 {
+                self.backspace_keycode = keycode;
+            }
             return self.backspace(show, out);
         }
         if (0x20..=0x7e).contains(&keyval) {
@@ -470,5 +492,65 @@ mod tests {
         let handled = ime.process_key('w' as u32, 0, 0, &mut out);
         assert!(!handled);
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn direct_mode_uses_backspace_even_with_surrounding() {
+        let cfg = Config {
+            mode: Mode::Direct,
+            ..Default::default()
+        };
+        let mut ime = Ime::new(&cfg);
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        let mut out = Vec::new();
+        // Type 'a'
+        ime.process_key('a' as u32, 0, 0, &mut out);
+        out.clear();
+        // Type 's' -> becomes 'á' via Backspace
+        let handled = ime.process_key('s' as u32, 0, 0, &mut out);
+        assert!(handled);
+        assert!(out.iter().any(|o| matches!(
+            o,
+            Out::ForwardKey {
+                keyval: KEY_BACKSPACE,
+                ..
+            }
+        )));
+        assert_eq!(out.last(), Some(&Out::Commit("á".into())));
+    }
+
+    #[test]
+    fn chromium_app_uses_backspace_in_auto_mode() {
+        let cfg = Config::default(); // mode is Auto
+        let mut ime = Ime::new(&cfg);
+        ime.set_app_id(Some("google-chrome.desktop".into()), &cfg);
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        let mut out = Vec::new();
+        // Type 'R', unhandled
+        let h1 = ime.process_key('R' as u32, 0, 0, &mut out);
+        assert!(!h1);
+        // Type 'u', unhandled
+        let h2 = ime.process_key('u' as u32, 0, 0, &mut out);
+        assert!(!h2);
+        out.clear();
+        // Type 's', handled -> emits ForwardKey(KEY_BACKSPACE) then Commit("ú")
+        let h3 = ime.process_key('s' as u32, 0, 0, &mut out);
+        assert!(h3);
+        assert_eq!(
+            out,
+            vec![
+                Out::ForwardKey {
+                    keyval: KEY_BACKSPACE,
+                    keycode: 22,
+                    state: 0,
+                },
+                Out::ForwardKey {
+                    keyval: KEY_BACKSPACE,
+                    keycode: 22,
+                    state: RELEASE_MASK,
+                },
+                Out::Commit("ú".into()),
+            ]
+        );
     }
 }
