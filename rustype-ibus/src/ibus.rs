@@ -60,6 +60,7 @@ pub struct Service {
     config: Watcher,
     debug: bool,
     current_app_id: Option<String>,
+    app_states: HashMap<String, bool>,
 }
 
 pub fn run(address: &str) -> io::Result<()> {
@@ -75,6 +76,7 @@ pub fn run(address: &str) -> io::Result<()> {
         config: Watcher::new(),
         debug: std::env::var_os("RUSTYPE_DEBUG").is_some(),
         current_app_id: None,
+        app_states: HashMap::new(),
     };
     let mut batch = Vec::with_capacity(512);
     loop {
@@ -154,10 +156,55 @@ impl Service {
         if iface == RUSTYPE_IFACE && member == "SetFocusApp" {
             let app_id = msg.body_reader().string().ok();
             self.current_app_id = app_id.clone();
+            let enabled = if self.config.current.remember_state_per_app {
+                if let Some(id) = &app_id {
+                    *self.app_states.entry(id.clone()).or_insert(true)
+                } else {
+                    true
+                }
+            } else {
+                true
+            };
             for ime in self.engines.values_mut() {
+                let mut outs = Vec::new();
                 ime.set_app_id(app_id.clone(), &self.config.current);
+                ime.set_enabled(enabled, &mut outs);
             }
             self.conn.reply(batch, msg, "", &[]);
+            return true;
+        }
+        if iface == RUSTYPE_IFACE && member == "ToggleState" {
+            let mut new_state = true;
+            if let Some(app_id) = &self.current_app_id {
+                let cur = self.app_states.entry(app_id.clone()).or_insert(true);
+                *cur = !*cur;
+                new_state = *cur;
+            }
+            let mut all_outs = Vec::new();
+            for (path, ime) in self.engines.iter_mut() {
+                let mut outs = Vec::new();
+                ime.set_enabled(new_state, &mut outs);
+                if !outs.is_empty() {
+                    all_outs.push((path.clone(), outs));
+                }
+            }
+            for (path, outs) in all_outs {
+                self.emit(batch, &path, outs);
+            }
+            let mut w = Writer::new();
+            w.boolean(new_state);
+            self.conn.reply(batch, msg, "b", &w.buf);
+            return true;
+        }
+        if iface == RUSTYPE_IFACE && member == "GetState" {
+            let state = if let Some(app_id) = &self.current_app_id {
+                *self.app_states.get(app_id).unwrap_or(&true)
+            } else {
+                true
+            };
+            let mut w = Writer::new();
+            w.boolean(state);
+            self.conn.reply(batch, msg, "b", &w.buf);
             return true;
         }
         if path == FACTORY_PATH {
@@ -240,9 +287,19 @@ impl Service {
                 self.config.refresh();
                 let cfg = self.config.current.clone();
                 let app_id = self.current_app_id.clone();
+                let enabled = if cfg.remember_state_per_app {
+                    if let Some(id) = &app_id {
+                        *self.app_states.entry(id.clone()).or_insert(true)
+                    } else {
+                        true
+                    }
+                } else {
+                    true
+                };
                 let ime = self.engines.get_mut(path).unwrap();
                 ime.reset(&mut outs);
                 ime.set_app_id(app_id, &cfg);
+                ime.set_enabled(enabled, &mut outs);
             }
             (ENGINE_IFACE, "FocusOut" | "FocusOutId" | "Reset" | "Disable") => {
                 self.engines.get_mut(path).unwrap().reset(&mut outs);

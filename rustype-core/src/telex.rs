@@ -4,6 +4,19 @@
 //! and backspace editing. Expected behaviour is pinned by tests/golden.tsv.
 
 use crate::tables::*;
+use std::collections::HashMap;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InputMethod {
+    Telex,
+    Vni,
+}
+
+impl Default for InputMethod {
+    fn default() -> Self {
+        InputMethod::Telex
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -11,11 +24,26 @@ pub struct Config {
     pub modern_orthography: bool,
     /// Turn words that are not valid Vietnamese back into the raw keys on the word boundary.
     pub auto_restore_english: bool,
+    /// Input method: Telex or VNI.
+    pub input_method: InputMethod,
+    /// Additional English/foreign words to never add accents to.
+    pub custom_words: Vec<String>,
+    /// Abbreviations to expand on word boundary (macro table).
+    pub macros: HashMap<String, String>,
+    /// Whether macro expansion is enabled.
+    pub enable_macro: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { modern_orthography: false, auto_restore_english: true }
+        Config {
+            modern_orthography: false,
+            auto_restore_english: true,
+            input_method: InputMethod::Telex,
+            custom_words: Vec::new(),
+            macros: HashMap::new(),
+            enable_macro: false,
+        }
     }
 }
 
@@ -435,13 +463,19 @@ impl Telex {
         KeyResult { handled: true, backspaces: old_n, commit: new }
     }
 
-    /// One printable character. Letters compose; anything else ends the word.
+    /// One printable character. Letters (or digits in VNI) compose; anything else ends the word.
     pub fn key(&mut self, ch: char) -> KeyResult {
-        if !ch.is_alphabetic() {
+        let is_vni = self.cfg.input_method == InputMethod::Vni;
+        let is_vni_digit = is_vni && ch.is_ascii_digit() && !self.chars.is_empty();
+        if !ch.is_alphabetic() && !is_vni_digit {
             return self.boundary(ch);
         }
         let old = self.displayed();
-        self.process_char(ch);
+        if is_vni {
+            self.process_vni(ch);
+        } else {
+            self.process_char(ch);
+        }
         let new = self.displayed();
         let mut appended = old.clone();
         appended.push(ch);
@@ -454,6 +488,26 @@ impl Telex {
         KeyResult { handled: true, backspaces: o.len() - common, commit: n[common..].iter().collect() }
     }
 
+    fn find_macro(&self, raw: &str) -> Option<String> {
+        if let Some(exp) = self.cfg.macros.get(raw) {
+            return Some(exp.clone());
+        }
+        let lc = raw.to_lowercase();
+        if let Some(exp) = self.cfg.macros.get(&lc) {
+            if raw.chars().all(|c| c.is_uppercase()) {
+                return Some(exp.to_uppercase());
+            }
+            if raw.chars().next().map_or(false, |c| c.is_uppercase()) {
+                let mut chars = exp.chars();
+                if let Some(first) = chars.next() {
+                    return Some(first.to_uppercase().collect::<String>() + chars.as_str());
+                }
+            }
+            return Some(exp.clone());
+        }
+        None
+    }
+
     fn boundary(&mut self, ch: char) -> KeyResult {
         if self.raw.is_empty() && self.chars.is_empty() {
             if self.prev.is_some() {
@@ -463,9 +517,27 @@ impl Telex {
         }
         let old = self.displayed();
         let raw: String = self.raw.iter().collect();
+
+        // 1. Gõ tắt (Macro)
+        if self.cfg.enable_macro && !self.has_backspaced && !raw.is_empty() {
+            if let Some(expanded) = self.find_macro(&raw) {
+                self.commit_word();
+                let mut commit = expanded;
+                commit.push(ch);
+                return KeyResult {
+                    handled: true,
+                    backspaces: old.chars().count(),
+                    commit,
+                };
+            }
+        }
+
+        // 2. Tự động trả lại từ tiếng Anh / từ trong custom_words
         if self.cfg.auto_restore_english && !self.has_backspaced && !raw.is_empty() && old != raw {
-            let restore = if self.disabled {
-                in_set(ENGLISH_COLLISION_WORDS, &raw.to_lowercase())
+            let raw_lc = raw.to_lowercase();
+            let is_custom = self.cfg.custom_words.iter().any(|w| w.to_lowercase() == raw_lc);
+            let restore = is_custom || if self.disabled {
+                in_set(ENGLISH_COLLISION_WORDS, &raw_lc)
             } else {
                 !self.is_valid(true)
             };
@@ -479,6 +551,192 @@ impl Telex {
         }
         self.commit_word();
         KeyResult::pass()
+    }
+
+    fn process_vni(&mut self, ch: char) {
+        self.raw.push(ch);
+        if self.disabled {
+            self.chars.push(ch);
+            return;
+        }
+        let restore = self.cfg.auto_restore_english;
+
+        // Dấu đ: 9
+        if ch == '9' && !self.chars.is_empty() {
+            let c0 = self.chars[0];
+            let l0 = lower(c0);
+            if l0 == 'd' {
+                self.chars[0] = cased('đ', c0);
+                self.last_mod = Some('9');
+                return;
+            } else if l0 == 'đ' && self.last_mod == Some('9') {
+                self.chars[0] = cased('d', c0);
+                self.chars.push(ch);
+                self.disable_as_literal();
+                return;
+            }
+        }
+
+        // Dấu thanh: 1..=5, 0 xóa dấu
+        if matches!(ch, '0'..='5') {
+            let s = self.split();
+            if !s.vidx.is_empty() {
+                let new_tone = match ch {
+                    '1' => 1,
+                    '2' => 2,
+                    '3' => 3,
+                    '4' => 4,
+                    '5' => 5,
+                    _ => 0,
+                };
+                if new_tone == 0 {
+                    if self.tone != 0 {
+                        self.tone = 0;
+                        self.last_mod = Some('0');
+                        return;
+                    }
+                } else {
+                    if self.tone == new_tone && self.last_mod == Some(ch) {
+                        self.tone = 0;
+                        self.chars.push(ch);
+                        self.disable_as_literal();
+                        return;
+                    }
+                    self.tone = new_tone;
+                    self.last_mod = Some(ch);
+                    if restore && !self.is_valid(false) {
+                        self.disable_as_raw();
+                    }
+                    return;
+                }
+            }
+        }
+
+        let s = self.split();
+
+        // 6: thêm mũ â, ê, ô (và escape 66 -> 6)
+        if ch == '6' {
+            if self.last_mod == Some('6') {
+                for &idx in s.vidx.iter().rev() {
+                    if let Some(plain) = unhat(self.chars[idx]) {
+                        self.chars[idx] = plain;
+                    }
+                }
+                self.chars.push(ch);
+                self.disable_as_literal();
+                self.last_mod = None;
+                return;
+            }
+            for &idx in s.vidx.iter().rev() {
+                let cur = self.chars[idx];
+                if matches!(lower(cur), 'a' | 'e' | 'o') {
+                    if let Some(h) = hat(cur) {
+                        self.chars[idx] = h;
+                        if in_set(CIRCUMFLEX_NUCLEI, &self.split().vowel) {
+                            self.last_mod = Some('6');
+                            if restore && !self.is_valid(false) {
+                                self.disable_as_raw();
+                            }
+                            return;
+                        }
+                        self.chars[idx] = cur;
+                    }
+                }
+            }
+        }
+
+        // 7: thêm móc/râu ơ, ư, ươ (và escape 77 -> 7)
+        if ch == '7' {
+            if self.last_mod == Some('7') {
+                for &idx in s.vidx.iter().rev() {
+                    if let Some(p) = unw(self.chars[idx]) {
+                        self.chars[idx] = p;
+                    }
+                }
+                self.chars.push(ch);
+                self.disable_as_literal();
+                self.last_mod = None;
+                return;
+            }
+            if !s.vidx.is_empty() {
+                for pos in 0..s.vidx.len().saturating_sub(1) {
+                    let (i1, i2) = (s.vidx[pos], s.vidx[pos + 1]);
+                    let (v1, v2) = (lower(self.chars[i1]), lower(self.chars[i2]));
+                    if matches!(v1, 'u' | 'ư') && matches!(v2, 'o' | 'ô' | 'ơ') {
+                        self.chars[i1] = cased('ư', self.chars[i1]);
+                        self.chars[i2] = cased('ơ', self.chars[i2]);
+                        self.last_mod = Some('7');
+                        return;
+                    }
+                }
+                if s.vowel == "ua" && s.initial != "qu" {
+                    let i1 = s.vidx[0];
+                    self.chars[i1] = cased('ư', self.chars[i1]);
+                    self.last_mod = Some('7');
+                    return;
+                }
+                for (p, &idx) in s.vidx.iter().enumerate().rev() {
+                    let vc = self.chars[idx];
+                    let vl = lower(vc);
+                    if matches!(vl, 'o' | 'ô' | 'ơ') {
+                        self.chars[idx] = cased('ơ', vc);
+                        self.last_mod = Some('7');
+                        if p > 0 {
+                            let prev_idx = s.vidx[p - 1];
+                            if lower(self.chars[prev_idx]) == 'u' && !s.fin.is_empty() {
+                                self.chars[prev_idx] = cased('ư', self.chars[prev_idx]);
+                            }
+                        }
+                        if restore && !self.is_valid(false) {
+                            self.disable_as_raw();
+                        }
+                        return;
+                    }
+                    if matches!(vl, 'u' | 'ư') {
+                        self.chars[idx] = cased('ư', vc);
+                        self.last_mod = Some('7');
+                        if restore && !self.is_valid(false) {
+                            self.disable_as_raw();
+                        }
+                        return;
+                    }
+                }
+            }
+        }
+
+        // 8: thêm trăng ă (và escape 88 -> 8)
+        if ch == '8' {
+            if self.last_mod == Some('8') {
+                for &idx in s.vidx.iter().rev() {
+                    if let Some(p) = unw(self.chars[idx]) {
+                        self.chars[idx] = p;
+                    }
+                }
+                self.chars.push(ch);
+                self.disable_as_literal();
+                self.last_mod = None;
+                return;
+            }
+            for &idx in s.vidx.iter().rev() {
+                let vc = self.chars[idx];
+                let vl = lower(vc);
+                if matches!(vl, 'a' | 'ă' | 'â') {
+                    self.chars[idx] = cased('ă', vc);
+                    self.last_mod = Some('8');
+                    if restore && !self.is_valid(false) {
+                        self.disable_as_raw();
+                    }
+                    return;
+                }
+            }
+        }
+
+        self.chars.push(ch);
+        self.last_mod = None;
+
+        if restore && !self.is_valid(false) {
+            self.disable_as_raw();
+        }
     }
 
     fn process_char(&mut self, ch: char) {
@@ -750,7 +1008,11 @@ mod tests {
 
     #[test]
     fn modern_orthography() {
-        let mut t = Telex::new(Config { modern_orthography: true, auto_restore_english: true });
+        let mut t = Telex::new(Config {
+            modern_orthography: true,
+            auto_restore_english: true,
+            ..Default::default()
+        });
         assert_eq!(t.feed("hoaf khoer thuys"), "hoà khoẻ thuý");
     }
 
@@ -781,5 +1043,55 @@ mod tests {
     fn backspace_keeps_tone() {
         assert_eq!(feed("hoafn\u{8}"), "hòa");
         assert_eq!(feed("tieengs\u{8}"), "tiến");
+    }
+
+    #[test]
+    fn vni_typing() {
+        let mut t = Telex::new(Config {
+            input_method: InputMethod::Vni,
+            ..Default::default()
+        });
+        let cases = [
+            ("Vie6t5 Nam d9e5p", "Việt Nam đẹp"),
+            ("toan1", "toán"),
+            ("d9i", "đi"),
+            ("mu7a", "mưa"),
+            ("d9u7o7ng2", "đường"),
+            ("kho6ng", "không"),
+            ("d99", "d9"),
+            ("a66", "a6"),
+            ("toan11", "toan1"),
+            ("123 456", "123 456"),
+        ];
+        for (input, want) in cases {
+            assert_eq!(t.feed(input), want, "VNI input {input:?}");
+        }
+    }
+
+    #[test]
+    fn macro_expansion() {
+        let mut macros = HashMap::new();
+        macros.insert("vn".into(), "Việt Nam".into());
+        macros.insert("hn".into(), "Hà Nội".into());
+        let mut t = Telex::new(Config {
+            enable_macro: true,
+            macros,
+            ..Default::default()
+        });
+        assert_eq!(t.feed("vn "), "Việt Nam ");
+        assert_eq!(t.feed("VN "), "VIỆT NAM ");
+        assert_eq!(t.feed("Vn "), "Việt Nam ");
+        assert_eq!(t.feed("hn."), "Hà Nội.");
+    }
+
+    #[test]
+    fn custom_english_words() {
+        let mut t = Telex::new(Config {
+            custom_words: vec!["this".into(), "test".into()],
+            ..Default::default()
+        });
+        assert_eq!(t.feed("this "), "this ");
+        assert_eq!(t.feed("This "), "This ");
+        assert_eq!(t.feed("test "), "test ");
     }
 }

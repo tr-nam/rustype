@@ -14,6 +14,7 @@ pub unsafe extern "C" fn rustype_telex_new(modern_orthography: bool, auto_restor
     let cfg = Config {
         modern_orthography,
         auto_restore_english,
+        ..Default::default()
     };
     Box::into_raw(Box::new(RustypeTelex {
         inner: Telex::new(cfg),

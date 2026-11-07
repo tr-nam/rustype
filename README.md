@@ -28,8 +28,12 @@ File `~/.config/rustype/config`, sửa xong bấm sang ô gõ khác là có hi�
 
 ```
 mode = auto                 # auto | preedit | direct
+input_method = telex        # telex | vni
 modern_orthography = false  # false: hòa, khỏe, thúy   true: hoà, khoẻ, thuý
-auto_restore_english = true
+auto_restore_english = true # tự trả lại từ tiếng Anh
+enable_macro = true         # gõ tắt từ ~/.config/rustype/macro
+remember_state_per_app = true # nhớ trạng thái bật/tắt theo từng app (như EVKey)
+custom_words = this, test   # từ tiếng Anh không bị thêm dấu
 ```
 
 - `auto`: không gạch chân ở ứng dụng thường, gạch chân trong terminal. Nên dùng.

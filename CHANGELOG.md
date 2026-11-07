@@ -16,6 +16,10 @@
 - Interface D-Bus `SetFocusApp` và GNOME Shell extension `rustype-focus@namtr.dev` để nhận diện app focus trên Wayland.
 - C FFI cho `rustype-core` (`rustype.h`, thư viện tĩnh `librustype_core.a` và động `librustype_core.so`).
 - Khung addon cho Fcitx5 (`rustype-fcitx5/`).
+- Kiểu gõ VNI (`input_method = vni`) với luật gõ số và phím lặp thoát dấu.
+- Bảng gõ tắt (Macro) tương thích định dạng file Unikey (`~/.config/rustype/macro` hoặc mục `[macros]`).
+- Danh sách từ tiếng Anh người dùng tự thêm (`custom_words` hoặc file `~/.config/rustype/words`).
+- Tính năng nhớ trạng thái bật/tắt tiếng Việt theo từng ứng dụng (`remember_state_per_app = true`, giống EVKey).
 
 ### Đổi
 - Chế độ gỡ lỗi (`RUSTYPE_DEBUG`) chỉ in mã phím, không in chữ người dùng gõ.

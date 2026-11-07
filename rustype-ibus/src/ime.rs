@@ -54,6 +54,7 @@ pub struct Ime {
     cursor_pos: Option<u32>,
     anchor_pos: Option<u32>,
     has_selection: bool,
+    enabled: bool,
 }
 
 fn is_modifier_key(keyval: u32) -> bool {
@@ -74,7 +75,21 @@ impl Ime {
             cursor_pos: None,
             anchor_pos: None,
             has_selection: false,
+            enabled: true,
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn set_enabled(&mut self, enabled: bool, out: &mut Vec<Out>) {
+        if self.enabled && !enabled {
+            self.flush_preedit(out);
+            self.telex.reset();
+        }
+        self.enabled = enabled;
     }
 
     pub fn set_app_id(&mut self, app_id: Option<String>, cfg: &Config) {
@@ -203,7 +218,7 @@ impl Ime {
     }
 
     pub fn process_key(&mut self, keyval: u32, _keycode: u32, state: u32, out: &mut Vec<Out>) -> bool {
-        if state & RELEASE_MASK != 0 || is_modifier_key(keyval) {
+        if !self.enabled || state & RELEASE_MASK != 0 || is_modifier_key(keyval) {
             return false;
         }
         let shortcut = CONTROL_MASK | MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
@@ -401,5 +416,16 @@ mod tests {
         // Next key 'm' shouldn't compose with previous "kiê"
         ime.process_key('m' as u32, 0, 0, &mut out);
         assert!(!out.iter().any(|o| matches!(o, Out::Commit(ref s) if s == "kiêm")));
+    }
+
+    #[test]
+    fn disabled_state_bypasses() {
+        let mut ime = Ime::new(&Config::default());
+        let mut out = Vec::new();
+        ime.set_enabled(false, &mut out);
+        assert!(!ime.is_enabled());
+        let handled = ime.process_key('w' as u32, 0, 0, &mut out);
+        assert!(!handled);
+        assert!(out.is_empty());
     }
 }

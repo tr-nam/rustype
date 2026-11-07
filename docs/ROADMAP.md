@@ -40,12 +40,13 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 ## Giai đoạn 2: Đủ tính năng như Unikey
 
+- [x] Nhớ trạng thái Việt hay Anh theo từng ứng dụng, như EVKey (`remember_state_per_app = true`).
+- [x] Kiểu gõ VNI (`input_method = vni`) với luật gõ số và escape chuẩn Unikey.
+- [x] Gõ tắt (macro) theo định dạng chuẩn Unikey (`~/.config/rustype/macro` hoặc section `[macros]`).
+- [x] Danh sách từ tiếng Anh người dùng tự thêm (`custom_words` trong config hoặc file `~/.config/rustype/words`).
 - [ ] Phím tắt bật tắt tiếng Việt ngay trong bộ gõ, ví dụ Ctrl+Shift, không phải đổi nguồn nhập.
-- [ ] Nhớ trạng thái Việt hay Anh theo từng ứng dụng, như EVKey. Cần extension ở giai đoạn 1.
-- [ ] Kiểu gõ VNI và VIQR.
+- [ ] Kiểu gõ VIQR.
 - [ ] Tùy chọn gõ tự do, Quick Telex, bật tắt kiểm tra chính tả.
-- [ ] Gõ tắt, nhập và xuất được file theo định dạng của Unikey.
-- [ ] Danh sách từ tiếng Anh người dùng tự thêm, cho các từ như "this" đang bị thành "thí".
 - [ ] Bảng mã cũ như TCVN3, VNI-Windows và công cụ chuyển mã clipboard. Ưu tiên thấp, chỉ làm khi có người cần.
 
 ## Giai đoạn 3: Giao diện
