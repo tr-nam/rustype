@@ -1,0 +1,38 @@
+# Cấu hình mẫu Nginx cho Rustype trên VPS (namtr.dev)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name namtr.dev www.namtr.dev rustype.namtr.dev;
+
+    # Tự động chuyển hướng sang HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name namtr.dev www.namtr.dev rustype.namtr.dev;
+
+    # Đường dẫn thư mục chứa website Rustype
+    root /var/www/rustype;
+    index index.html;
+
+    # Chứng chỉ SSL (Let's Encrypt / Certbot)
+    # ssl_certificate /etc/letsencrypt/live/namtr.dev/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/namtr.dev/privkey.pem;
+
+    # Tối ưu gzip nén tài nguyên tĩnh
+    gzip on;
+    gzip_types text/plain text/css application/javascript image/svg+xml;
+    gzip_min_length 1000;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Cache tài nguyên tĩnh
+    location ~* \.(css|js|svg|png|jpg|jpeg|gif|ico)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+    }
+}
