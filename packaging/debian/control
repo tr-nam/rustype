@@ -1,0 +1,23 @@
+Package: rustype
+Version: 0.1.0-1
+Section: utils
+Priority: optional
+Architecture: any
+Maintainer: Nam Tran <tr.namm29@gmail.com>
+Homepage: https://github.com/namtr/rustype
+Provides: ibus-rustype
+Depends: libc6 (>= 2.34), ibus (>= 1.5.0), python3 (>= 3.8), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1
+Recommends: gnome-shell
+Suggests: fcitx5
+Description: Lightweight Vietnamese input method engine for Linux
+ Rustype is a modern, high-performance, and privacy-focused Vietnamese
+ input method engine for IBus.
+ .
+ Key features:
+  * Pure Rust engine with zero external C/GUI dependencies in core.
+  * Extremely low resource footprint (~450 KB binary, ~2.5 MB RAM).
+  * Full Telex and VNI support with modern and traditional orthography.
+  * Intelligent application-specific behavior (terminal preedit, direct mode).
+  * Native GTK4 Libadwaita settings app with automatic Dark/Light theme.
+  * Built-in system diagnostic health check (ibus-engine-rustype --doctor).
+  * 100% offline with zero network connectivity and zero keylogging.

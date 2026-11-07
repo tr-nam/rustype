@@ -1,0 +1,66 @@
+.TH IBUS-ENGINE-RUSTYPE 1 "November 2026" "Rustype 0.1.0" "User Commands"
+.SH NAME
+ibus-engine-rustype \- Lightweight, privacy-focused Vietnamese input method engine for IBus
+.SH SYNOPSIS
+.B ibus-engine-rustype
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B ibus-engine-rustype
+is a modern, high-performance, and lightweight Vietnamese input method engine designed for the IBus input method framework on Linux. It is implemented in pure Rust without external library dependencies, maintaining a minimal memory footprint (~2.5 MB RAM) and instant keystroke processing.
+.PP
+The engine communicates directly with the IBus daemon via standard D-Bus IPC over a local Unix domain socket. It supports both Telex and VNI input methods, modern and traditional Vietnamese orthography, automatic English word restoration, per-application input state persistence, macros (abbreviations), and intelligent application-specific composition modes (such as terminal preedit mode and surrounding text direct composition).
+.SH OPTIONS
+.TP
+.B \-\-doctor
+Run comprehensive system diagnostic checks. Inspects the IBus daemon, component registration, GNOME input sources, display server (Wayland/X11), GNOME Shell extension, and configuration files. Outputs actionable recommendations for troubleshooting.
+.TP
+.B \-\-xml
+Generate and print the IBus component XML specification to standard output. This XML describes the engine identity, icon, rank, and capabilities to IBus.
+.TP
+.B \-\-write\-config
+Ensure default configuration files exist in \fI~/.config/rustype/config\fR. If the configuration file is missing, a documented default configuration is generated.
+.TP
+.B \-v\fR, \fB\-\-version
+Print the software version and exit.
+.TP
+.B \-h\fR, \fB\-\-help
+Display command-line help information and exit.
+.SH ENVIRONMENT
+.TP
+.B RUSTYPE_DEBUG
+When set (e.g. \fBRUSTYPE_DEBUG=1\fR), enables safe diagnostic logging to standard error. In accordance with Rustype's privacy commitment, debug output only records hardware key codes and input states, never user keystroke text or committed content.
+.TP
+.B RUSTYPE_LOG
+Specifies an optional file path to redirect diagnostic logs when running as an IBus subprocess.
+.TP
+.B IBUS_ADDRESS
+Specifies the D-Bus socket address for the IBus daemon. When not set, Rustype automatically discovers the active IBus socket from \fI~/.cache/ibus/dbus-*\fR.
+.SH FILES
+.TP
+.I ~/.config/rustype/config
+Main configuration file. Controls the default input method (Telex or VNI), display mode, orthography, English word restoration, macro enablement, and per-application custom modes.
+.TP
+.I ~/.config/rustype/macro
+Macro file containing abbreviation mappings (one pair per line: \fIabbreviation:expansion\fR). Compatible with standard Unikey macro files.
+.TP
+.I ~/.config/rustype/words
+Custom list of English words that should never be converted into Vietnamese tone marks.
+.TP
+.I /usr/share/ibus/component/rustype.xml
+System IBus component registration file.
+.SH PRIVACY & SECURITY
+Rustype is engineered with an absolute commitment to user privacy:
+.IP \(bu 2
+\fB100% Offline:\fR The engine contains zero networking code or socket capabilities. It cannot establish outgoing or incoming network connections.
+.IP \(bu 2
+\fBZero Keylogging:\fR Keystrokes are processed strictly in volatile memory during word formation and immediately discarded upon commit. No keystrokes are written to disk.
+.IP \(bu 2
+\fBPassword Field Protection:\fR Keystroke interception is completely bypassed when an input field reports the password purpose (\fIIBUS_INPUT_PURPOSE_PASSWORD\fR).
+.SH SEE ALSO
+.BR rustype-settings (1),
+.BR ibus (1),
+.BR ibus-setup (1)
+.SH AUTHORS
+Written and maintained by Nam Tran and the Rustype contributors.
+.SH COPYRIGHT
+Copyright \(co 2026 Nam Tran. Released under the terms of the MIT License.

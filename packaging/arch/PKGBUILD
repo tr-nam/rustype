@@ -1,0 +1,80 @@
+# Maintainer: Nam Tran <tr.namm29@gmail.com>
+pkgname=rustype-ibus
+_pkgname=rustype
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Lightweight, privacy-friendly Vietnamese input method engine for IBus"
+arch=('x86_64' 'aarch64')
+url="https://github.com/namtr/rustype"
+license=('MIT')
+depends=('ibus' 'python' 'python-gobject' 'libadwaita')
+makedepends=('cargo')
+provides=('rustype')
+conflicts=('rustype')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$_pkgname-$pkgver"
+    cargo build --release --locked
+}
+
+package() {
+    cd "$_pkgname-$pkgver"
+
+    # Install binaries
+    install -Dm755 "target/release/ibus-engine-rustype" "$pkgdir/usr/lib/ibus/ibus-engine-rustype"
+    install -Dm755 "tools/rustype-settings" "$pkgdir/usr/bin/rustype-settings"
+
+    # Install desktop entry
+    install -Dm644 "tools/rustype-settings.desktop" "$pkgdir/usr/share/applications/rustype-settings.desktop"
+
+    # Install IBus component XML
+    mkdir -p "$pkgdir/usr/share/ibus/component"
+    cat <<EOF > "$pkgdir/usr/share/ibus/component/rustype.xml"
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+    <name>org.freedesktop.IBus.Rustype</name>
+    <description>Rustype - bộ gõ tiếng Việt Telex &amp; VNI siêu nhẹ</description>
+    <exec>/usr/lib/ibus/ibus-engine-rustype --ibus</exec>
+    <version>${pkgver}</version>
+    <author>Nam Trần</author>
+    <license>MIT</license>
+    <homepage>https://github.com/namtr/rustype</homepage>
+    <textdomain>rustype</textdomain>
+    <engines>
+        <engine>
+            <name>rustype</name>
+            <language>vi</language>
+            <license>MIT</license>
+            <author>Nam Trần</author>
+            <icon>rustype</icon>
+            <layout>us</layout>
+            <longname>Rustype</longname>
+            <description>Bộ gõ siêu nhẹ bằng Rust cho Linux</description>
+            <rank>99</rank>
+            <symbol>R</symbol>
+        </engine>
+    </engines>
+</component>
+EOF
+    chmod 644 "$pkgdir/usr/share/ibus/component/rustype.xml"
+
+    # Install icons
+    for s in 16 32 48 64 128 256 512; do
+        install -Dm644 "assets/icons/${s}x${s}/rustype.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/rustype.png"
+    done
+    install -Dm644 "assets/icons/scalable/rustype.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/rustype.svg"
+
+    # Install GNOME Shell extension
+    mkdir -p "$pkgdir/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev"
+    cp -a "gnome-shell-extension/rustype-focus@namtr.dev/"* "$pkgdir/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev/"
+
+    # Install man pages
+    install -Dm644 "docs/man/ibus-engine-rustype.1" "$pkgdir/usr/share/man/man1/ibus-engine-rustype.1"
+    install -Dm644 "docs/man/rustype-settings.1" "$pkgdir/usr/share/man/man1/rustype-settings.1"
+
+    # Install license & privacy policy
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 "docs/PRIVACY.md" "$pkgdir/usr/share/doc/$pkgname/PRIVACY.md"
+}

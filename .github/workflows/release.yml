@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build & Package Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build & packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev gzip
+
+      - name: Build Debian (.deb) package
+        run: |
+          chmod +x packaging/build-deb.sh
+          ./packaging/build-deb.sh
+
+      - name: Package Standalone Tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAR_NAME="rustype-${GITHUB_REF_NAME}-linux-x86_64.tar.gz"
+          mkdir -p target/packages
+          tar -czvf "target/packages/$TAR_NAME" \
+            -C target/release ibus-engine-rustype \
+            -C ../.. tools assets gnome-shell-extension install.sh uninstall.sh LICENSE README.md docs/PRIVACY.md
+
+      - name: Compute SHA256 Checksums
+        run: |
+          cd target/packages
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/packages/*.deb
+            target/packages/*.tar.gz
+            target/packages/SHA256SUMS
+          generate_release_notes: true
+          draft: false
+          prerelease: false

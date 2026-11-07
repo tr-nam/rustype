@@ -58,10 +58,10 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 ## Giai đoạn 4: Đóng gói và phát hành
 
-- [ ] Gói .deb chuẩn: engine vào `/usr/libexec`, file đăng ký vào `/usr/share/ibus/component`, có man page, kèm `LICENSE`.
-- [ ] Kênh phát hành: PPA cho Ubuntu, AUR cho Arch, COPR cho Fedora, GitHub Releases có checksum và chữ ký.
-- [ ] Không làm Flatpak hay Snap, vì bộ gõ IBus phải được cài vào hệ thống.
-- [ ] Cập nhật qua trình quản lý gói. Engine không kết nối mạng, ghi rõ điều này như một cam kết về quyền riêng tư.
+- [x] Gói .deb chuẩn: engine vào `/usr/libexec`, file đăng ký vào `/usr/share/ibus/component`, có man page (`docs/man/`), kèm `LICENSE`.
+- [x] Kênh phát hành: cấu hình gói Debian/Ubuntu (`packaging/debian`, `packaging/build-deb.sh`), AUR cho Arch (`packaging/arch/PKGBUILD`), Fedora RPM (`packaging/fedora/rustype.spec`), GitHub Releases có checksum SHA256 (`.github/workflows/release.yml`).
+- [x] Không làm Flatpak hay Snap, vì bộ gõ IBus phải được cài vào hệ thống.
+- [x] Cập nhật qua trình quản lý gói. Engine không kết nối mạng, cam kết quyền riêng tư tại [PRIVACY.md](PRIVACY.md).
 
 Vì không dùng thư viện ngoài, Rustype đóng gói cho Debian và PPA dễ hơn hầu hết dự án Rust khác.
 

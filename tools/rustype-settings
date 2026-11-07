@@ -332,6 +332,8 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         buffer.set_text("Đang kiểm tra hệ thống...")
         try:
             candidates = [
+                pathlib.Path("/usr/libexec/ibus-engine-rustype"),
+                pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
                 pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
                 pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
                 pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),

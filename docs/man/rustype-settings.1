@@ -1,0 +1,48 @@
+.TH RUSTYPE-SETTINGS 1 "November 2026" "Rustype 0.1.0" "User Commands"
+.SH NAME
+rustype-settings \- Graphical preferences editor and diagnostic tool for the Rustype input method
+.SH SYNOPSIS
+.B rustype-settings
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B rustype-settings
+is the native desktop configuration tool for Rustype. Built with GTK4 and Libadwaita, it adheres to the modern GNOME Human Interface Guidelines (HIG), supporting automatic system dark and light appearance.
+.PP
+The tool runs as an independent preferences utility that modifies \fI~/.config/rustype/config\fR. Because it is completely decoupled from \fBibus-engine-rustype\fR, the engine itself remains ultra-lightweight with zero GUI dependencies in background memory. Changes made in the settings app are detected and reloaded automatically by the running engine.
+.SH SECTIONS
+.TP
+.B General (Chung)
+Configure primary input method (Telex or VNI), display composition mode (Auto, Preedit underline, or Direct), modern orthography (e.g. "hoà" vs "hòa"), English word auto-restore, and per-app state remembering.
+.TP
+.B Macros (Gõ tắt)
+Manage abbreviation tables. Supports adding, editing, and deleting shortcut phrases, as well as importing and exporting Unikey-compatible macro tables.
+.TP
+.B App Modes (Theo ứng dụng)
+Define custom input behavior overrides for specific applications (e.g., forcing terminal applications to use commit-mode preedit while allowing web browsers to use direct surrounding text).
+.TP
+.B Custom Words (Từ điển tiếng Anh)
+Maintain an exclusion list of English or programming words that should never receive Vietnamese diacritics.
+.TP
+.B About & Diagnostics (Thông tin & Chẩn đoán)
+Display version and license information, and execute the one-click system diagnostic health check with graphical status reports.
+.SH OPTIONS
+.TP
+.B \-h\fR, \fB\-\-help
+Show graphical application help and exit.
+.SH FILES
+.TP
+.I ~/.config/rustype/config
+User configuration file edited by this application.
+.TP
+.I ~/.config/rustype/macro
+Active macro abbreviations file.
+.TP
+.I ~/.config/rustype/words
+User-defined English words dictionary.
+.SH SEE ALSO
+.BR ibus-engine-rustype (1),
+.BR ibus (1)
+.SH AUTHORS
+Written and maintained by Nam Tran and the Rustype contributors.
+.SH COPYRIGHT
+Copyright \(co 2026 Nam Tran. Released under the terms of the MIT License.

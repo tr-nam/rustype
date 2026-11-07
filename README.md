@@ -25,17 +25,24 @@ Thiết kế tối ưu cho Ubuntu GNOME trên Wayland, gõ mượt mà không l�
 
 ## Cài đặt
 
-Cần Rust (`rustup`). Chạy một lần, script sẽ hỏi mật khẩu sudo để chép file đăng ký vào `/usr/share/ibus/component`:
-
+### Cách 1: Cài đặt bằng gói `.deb` (Khuyên dùng cho Ubuntu / Debian)
+Tải gói `.deb` từ mục [Releases](https://github.com/namtr/rustype/releases) hoặc tự đóng gói nhanh bằng:
+```bash
+make deb
+sudo apt install ./target/packages/rustype_*.deb
 ```
+
+### Cách 2: Cài đặt từ mã nguồn (Dành cho nhà phát triển)
+Cần Rust (`rustup`). Chạy script cài đặt:
+```bash
 ./install.sh
 ```
 
-Sau đó nhấn Super+Space để chọn Rustype, biểu tượng là "VN".
-Sửa code xong thì chạy lại `./install.sh` để cập nhật. Gỡ bằng `./uninstall.sh`.
+Sau đó nhấn Super+Space để chọn Rustype (biểu tượng là "VN").
+Gỡ cài đặt bằng `./uninstall.sh` hoặc `sudo apt remove rustype`.
 
 Giao diện Cài đặt đồ họa: mở **Cài đặt Rustype** từ màn hình ứng dụng (hoặc chạy `rustype-settings`).
-Chẩn đoán hệ thống tự động: chạy `target/release/ibus-engine-rustype --doctor`.
+Chẩn đoán hệ thống tự động: chạy `ibus-engine-rustype --doctor`.
 
 ## Cấu hình
 
@@ -62,6 +69,7 @@ custom_words = this, test   # từ tiếng Anh không bị thêm dấu
 | Tài liệu | Dành cho | Nội dung |
 |---|---|---|
 | [Tương thích](docs/COMPATIBILITY.md) | Mọi người | Ma trận ứng dụng, cơ chế hiện chữ, tùy biến cấu hình theo ứng dụng (app_modes) |
+| [Quyền riêng tư](docs/PRIVACY.md) | Mọi người | Cam kết 100% ngoại tuyến, không telemetry, không keylogging |
 | [Xử lý sự cố](docs/TROUBLESHOOTING.md) | Người dùng | Kiểm tra cài đặt, gạch chân, lặp chữ, từ tiếng Anh bị thêm dấu, báo lỗi |
 | [Kiến trúc](docs/ARCHITECTURE.md) | Người phát triển | Các module, đường đi của một phím, ba cách hiện chữ, lõi Telex, giao thức IBus |
 | [Phát triển](docs/DEVELOPMENT.md) | Người phát triển | Build, ba mức kiểm thử, sinh bảng luật, gỡ lỗi trên máy thật |
