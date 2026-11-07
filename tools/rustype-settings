@@ -119,6 +119,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         super().__init__(application=app, title="Cài đặt Rustype")
         self.cfg = cfg
         self.set_default_size(680, 560)
+        self.set_icon_name("rustype")
 
         # ---------------- Trang 1: Cơ bản ----------------
         page_general = Adw.PreferencesPage(title="Cơ bản", icon_name="preferences-system-symbolic")

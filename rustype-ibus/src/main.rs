@@ -91,12 +91,12 @@ fn component_xml() -> String {
             <language>vi</language>
             <license>MIT</license>
             <author>NamTr_n</author>
-            <icon>input-keyboard</icon>
+            <icon>rustype</icon>
             <layout>us</layout>
             <longname>Rustype</longname>
             <description>Bộ gõ siêu nhẹ chạy bằng Rust</description>
             <rank>99</rank>
-            <symbol>vi</symbol>
+            <symbol>R</symbol>
         </engine>
     </engines>
 </component>

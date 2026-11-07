@@ -18,6 +18,12 @@ fi
 rm -rf "$HOME/.local/share/gnome-shell/extensions/rustype-focus@namtr.dev"
 rm -f "$HOME/.local/bin/rustype-settings"
 rm -f "$HOME/.local/share/applications/rustype-settings.desktop"
+rm -f "$HOME/.local/share/icons/hicolor/scalable/apps/rustype.svg"
+rm -f "$HOME/.local/share/icons/hicolor/symbolic/apps/rustype-symbolic.svg"
+for s in 16 32 48 64 128 256 512; do
+    rm -f "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/rustype.png"
+done
+gtk-update-icon-cache -q -t -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 ibus restart >/dev/null 2>&1 || true
 rm -rf "$HOME/.local/lib/rustype"
 echo "Đã gỡ Rustype. Cấu hình vẫn ở ~/.config/rustype (xóa tay nếu muốn)."

@@ -1,7 +1,19 @@
-# Rustype
+<p align="center">
+  <img src="assets/banner.png" alt="Rustype - Gõ tiếng Việt cùng Rust" width="700">
+</p>
 
-Bộ gõ tiếng Việt Telex cho IBus, viết bằng Rust, không dùng thư viện ngoài nào.
-Làm riêng cho máy Ubuntu GNOME trên Wayland, gõ nhiều trong terminal (Ptyxis, Claude Code) và VS Code.
+<p align="center">
+  <strong>Bộ gõ tiếng Việt siêu nhẹ, hiệu năng cao viết bằng Rust cho Linux (IBus & Wayland).</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/language-Rust-orange.svg?style=flat-square&logo=rust" alt="Rust"></a>
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Wayland%20%7C%20X11-blue.svg?style=flat-square&logo=linux" alt="Platform">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License">
+</p>
+
+Bộ gõ tiếng Việt Telex và VNI cho IBus, viết hoàn toàn bằng Rust, không phụ thuộc thư viện runtime bên ngoài.
+Thiết kế tối ưu cho Ubuntu GNOME trên Wayland, gõ mượt mà không lỗi trong terminal (Ptyxis, Alacritty, Claude Code) và các ứng dụng đồ họa (VS Code, Chrome, LibreOffice).
 
 ## Điểm nổi bật
 
