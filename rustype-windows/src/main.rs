@@ -7,7 +7,6 @@ fn main() {
     use rustype_windows::config::WinConfig;
     use rustype_windows::hook::win::{install_hook, uninstall_hook};
     use rustype_windows::tray::win::{init_tray, remove_tray};
-    use windows_sys::Win32::Foundation::*;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
     let config = WinConfig::load();
@@ -40,19 +39,19 @@ fn main() {
             0,
             0,
             0,
-            0,
-            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
             h_instance,
-            std::ptr::null(),
+            std::ptr::null_mut(),
         );
 
-        if hwnd != 0 {
+        if !hwnd.is_null() {
             init_tray(hwnd, config);
         }
 
         // Standard Win32 Message Loop
         let mut msg: MSG = std::mem::zeroed();
-        while GetMessageW(&mut msg, 0, 0, 0) > 0 {
+        while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }

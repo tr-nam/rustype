@@ -4,7 +4,7 @@
 pub mod win {
     use crate::config::WinConfig;
     use std::sync::Mutex;
-    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
+    use windows_sys::Win32::Foundation::{HWND, POINT};
     use windows_sys::Win32::UI::Shell::*;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
@@ -16,13 +16,18 @@ pub mod win {
     const ID_TRAY_MODERN: usize = 2005;
     const ID_TRAY_EXIT: usize = 2006;
 
-    static TRAY_STATE: Mutex<Option<TrayManager>> = Mutex::new(None);
-
     pub struct TrayManager {
         pub hwnd: HWND,
         pub config: WinConfig,
     }
+    unsafe impl Send for TrayManager {}
 
+    static TRAY_STATE: Mutex<Option<TrayManager>> = Mutex::new(None);
+
+    /// Initializes the system tray icon.
+    ///
+    /// # Safety
+    /// `hwnd` must be a valid window handle.
     pub unsafe fn init_tray(hwnd: HWND, config: WinConfig) {
         let mut nid: NOTIFYICONDATAW = std::mem::zeroed();
         nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
@@ -30,7 +35,7 @@ pub mod win {
         nid.uID = 1;
         nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
         nid.uCallbackMessage = WM_TRAYICON;
-        nid.hIcon = LoadIconW(0, IDI_APPLICATION);
+        nid.hIcon = LoadIconW(std::ptr::null_mut(), IDI_APPLICATION);
 
         let tip = if config.enabled {
             "Rustype - Tiếng Việt (VN)\0"
@@ -49,6 +54,10 @@ pub mod win {
         *lock = Some(TrayManager { hwnd, config });
     }
 
+    /// Updates the tooltip text of the system tray icon.
+    ///
+    /// # Safety
+    /// Must be called from the UI thread that owns the tray icon.
     pub unsafe fn update_tray_tip(enabled: bool) {
         let mut nid: NOTIFYICONDATAW = std::mem::zeroed();
         nid.cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
@@ -72,6 +81,10 @@ pub mod win {
         }
     }
 
+    /// Removes the tray icon from the taskbar notification area.
+    ///
+    /// # Safety
+    /// Must be called before window destruction.
     pub unsafe fn remove_tray() {
         let mut lock = TRAY_STATE.lock().unwrap();
         if let Some(mgr) = lock.take() {
@@ -83,6 +96,10 @@ pub mod win {
         }
     }
 
+    /// Displays the context menu for the system tray icon.
+    ///
+    /// # Safety
+    /// `hwnd` must be a valid window handle.
     pub unsafe fn show_context_menu(hwnd: HWND, cfg: &WinConfig) {
         let mut pt = POINT { x: 0, y: 0 };
         GetCursorPos(&mut pt);
