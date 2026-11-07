@@ -361,6 +361,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         row_support = Adw.ActionRow(
             title="Hỗ trợ & Liên hệ",
             subtitle="support@namtr.dev",
+            use_markup=False,
         )
         btn_mail = Gtk.Button(
             icon_name="mail-send-symbolic",
@@ -499,7 +500,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
     def refresh_macros(self):
         # Clear existing rows in macro group
         for k, v in sorted(self.cfg.macros.items()):
-            row = Adw.ActionRow(title=k, subtitle=v)
+            row = Adw.ActionRow(title=k, subtitle=v, use_markup=False)
             btn_del = Gtk.Button(
                 icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER
             )
@@ -542,7 +543,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
 
     def refresh_words(self):
         for w in self.cfg.custom_words:
-            row = Adw.ActionRow(title=w)
+            row = Adw.ActionRow(title=w, use_markup=False)
             btn_del = Gtk.Button(
                 icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER
             )
