@@ -26,28 +26,50 @@ fn ibus_address() -> Option<String> {
             return Some(a);
         }
     }
-    let file = match std::env::var_os("IBUS_ADDRESS_FILE") {
-        Some(f) => PathBuf::from(f),
-        None => {
-            let machine_id = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
-                .iter()
-                .find_map(|p| std::fs::read_to_string(p).ok())?
-                .trim()
-                .to_string();
-            let (host, display) = match std::env::var("WAYLAND_DISPLAY") {
-                Ok(w) if !w.is_empty() => ("unix".to_string(), w),
-                _ => {
-                    let d = std::env::var("DISPLAY").unwrap_or_default();
-                    let (h, rest) = d.split_once(':').unwrap_or(("", "0"));
-                    let num = rest.split('.').next().unwrap_or("0").to_string();
-                    (if h.is_empty() { "unix".to_string() } else { h.to_string() }, num)
-                }
-            };
-            config::path()?.parent()?.parent()?.join("ibus").join("bus").join(format!("{machine_id}-{host}-{display}"))
+    let parse_file = |p: &std::path::Path| -> Option<String> {
+        let text = std::fs::read_to_string(p).ok()?;
+        text.lines().find_map(|l| {
+            let val = l.strip_prefix("IBUS_ADDRESS=")?.trim();
+            if val.is_empty() {
+                None
+            } else {
+                Some(val.to_string())
+            }
+        })
+    };
+    if let Some(f) = std::env::var_os("IBUS_ADDRESS_FILE") {
+        if let Some(addr) = parse_file(&PathBuf::from(f)) {
+            return Some(addr);
+        }
+    }
+    let bus_dir = config::path()?.parent()?.parent()?.join("ibus").join("bus");
+    let machine_id = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
+        .iter()
+        .find_map(|p| std::fs::read_to_string(p).ok())?
+        .trim()
+        .to_string();
+    let (host, display) = match std::env::var("WAYLAND_DISPLAY") {
+        Ok(w) if !w.is_empty() => ("unix".to_string(), w),
+        _ => {
+            let d = std::env::var("DISPLAY").unwrap_or_default();
+            let (h, rest) = d.split_once(':').unwrap_or(("", "0"));
+            let num = rest.split('.').next().unwrap_or("0").to_string();
+            (if h.is_empty() { "unix".to_string() } else { h.to_string() }, num)
         }
     };
-    let text = std::fs::read_to_string(file).ok()?;
-    text.lines().find_map(|l| l.strip_prefix("IBUS_ADDRESS=")).map(|s| s.trim().to_string())
+    let candidate = bus_dir.join(format!("{machine_id}-{host}-{display}"));
+    if let Some(addr) = parse_file(&candidate) {
+        return Some(addr);
+    }
+    // Fallback: search any file in bus_dir
+    if let Ok(entries) = std::fs::read_dir(&bus_dir) {
+        for entry in entries.flatten() {
+            if let Some(addr) = parse_file(&entry.path()) {
+                return Some(addr);
+            }
+        }
+    }
+    None
 }
 
 fn component_xml() -> String {

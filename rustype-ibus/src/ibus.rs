@@ -54,7 +54,7 @@ fn bool_variant(w: &mut Writer, v: bool) {
 }
 
 fn write_prop(w: &mut Writer, key: &str, ptype: u32, label: &str, icon: &str, state: u32) {
-    w.signature("(sa{sv}sv)");
+    w.signature("(sa{sv}suvsvbbuvv)");
     w.struct_start();
     w.string("IBusProperty");
     let a = w.array_start(8);
@@ -67,6 +67,7 @@ fn write_prop(w: &mut Writer, key: &str, ptype: u32, label: &str, icon: &str, st
     w.boolean(true);
     w.boolean(true);
     w.u32(state);
+    // sub_props: empty IBusPropList
     w.signature("(sa{sv}av)");
     w.struct_start();
     w.string("IBusPropList");
@@ -74,6 +75,8 @@ fn write_prop(w: &mut Writer, key: &str, ptype: u32, label: &str, icon: &str, st
     w.array_end(a1);
     let a2 = w.array_start(1);
     w.array_end(a2);
+    // symbol: empty IBusText
+    write_text(w, "", false);
 }
 
 fn write_prop_list(w: &mut Writer, enabled: bool, method: &str) {
@@ -494,5 +497,30 @@ mod tests {
         let mut i = 0;
         r.skip(b"v", &mut i).unwrap();
         assert_eq!(r.pos, end);
+    }
+
+    #[test]
+    fn ibus_prop_list_layout() {
+        let mut w = Writer::new();
+        write_prop_list(&mut w, true, "Telex");
+        let end = w.buf.len();
+        let mut r = Reader::new(&w.buf, false);
+        let mut i = 0;
+        r.skip(b"v", &mut i).unwrap();
+        assert_eq!(r.pos, end);
+
+        let fields = vec![
+            crate::dbus::Field::Path("/org/freedesktop/IBus/Engine/1"),
+            crate::dbus::Field::Interface(ENGINE_IFACE),
+            crate::dbus::Field::Member("RegisterProperties"),
+        ];
+        let blob = crate::dbus::encode(crate::dbus::SIGNAL, 0, 1, &fields, "v", &w.buf);
+        let msg = crate::dbus::read_message(&mut &blob[..]).unwrap();
+        assert_eq!(msg.member.as_deref(), Some("RegisterProperties"));
+        assert_eq!(msg.signature, "v");
+        let mut mr = msg.body_reader();
+        let mut mi = 0;
+        mr.skip(b"v", &mut mi).unwrap();
+        assert_eq!(mr.pos, msg.body.len());
     }
 }
