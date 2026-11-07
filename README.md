@@ -38,17 +38,16 @@ Cần Rust (`rustup`). Chạy script cài đặt:
 ./install.sh
 ```
 
-Sau đó nhấn Super+Space để chọn Rustype (biểu tượng là "VN").
-Gỡ cài đặt bằng `./uninstall.sh` hoặc `sudo apt remove rustype`.
+## Sử dụng & Cấu hình
 
-Giao diện Cài đặt đồ họa: mở **Cài đặt Rustype** từ màn hình ứng dụng (hoặc chạy `rustype-settings`).
-Chẩn đoán hệ thống tự động: chạy `ibus-engine-rustype --doctor`.
+### Bật / Tắt gõ tiếng Việt
+- Nhấn tổ hợp phím **Super + Space** (hoặc phím tắt chuyển nguồn nhập bạn đã cài đặt trong GNOME) để chuyển đổi qua lại giữa bàn phím tiếng Anh và Rustype (biểu tượng là "VN").
 
-## Cấu hình
+### Đổi kiểu gõ (Telex / VNI) & Tùy biến
+- **Cách 1 (Giao diện đồ họa)**: Mở ứng dụng **Cài đặt Rustype** từ danh sách ứng dụng hoặc gõ lệnh `rustype-settings`.
+- **Cách 2 (File cấu hình)**: Chỉnh sửa file `~/.config/rustype/config`, lưu xong bấm sang ô gõ khác là có hiệu lực ngay:
 
-File `~/.config/rustype/config`, sửa xong bấm sang ô gõ khác là có hiệu lực:
-
-```
+```ini
 mode = auto                 # auto | preedit | direct
 input_method = telex        # telex | vni
 modern_orthography = false  # false: hòa, khỏe, thúy   true: hoà, khoẻ, thuý
@@ -58,11 +57,16 @@ remember_state_per_app = true # nhớ trạng thái bật/tắt theo từng app 
 custom_words = this, test   # từ tiếng Anh không bị thêm dấu
 ```
 
-- `auto`: không gạch chân ở ứng dụng thường, gạch chân trong terminal. Nên dùng.
-- `preedit`: luôn gạch chân.
+- `auto`: không gạch chân ở ứng dụng thường, gạch chân trong terminal. Khuyên dùng.
+- `preedit`: luôn gạch chân ở mọi ứng dụng.
 - `direct`: không bao giờ gạch chân. Terminal trên Wayland sẽ bị lặp chữ.
 
 Ô mật khẩu luôn được bỏ qua, phím đi thẳng vào ứng dụng.
+
+### Kiểm tra & Chẩn đoán hệ thống
+- Chạy lệnh: `ibus-engine-rustype --doctor` (hoặc mở Cài đặt Rustype và nhấn nút "Kiểm tra hệ thống").
+
+Gỡ cài đặt bằng `./uninstall.sh` hoặc `sudo apt remove rustype`.
 
 ## Tài liệu
 

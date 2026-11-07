@@ -34,7 +34,7 @@ tools/ibus_sandbox_test.sh "$PWD/target/release/ibus-engine-rustype" <(target/re
 
 | Mức | Kiểm tra gì | Kết quả mong đợi |
 |---|---|---|
-| Unit test | Từng module: ghép chữ, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình | `5 passed` (core) + `11 passed` (ibus) |
+| Unit test | Từng module: ghép chữ, FFI, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình, chẩn đoán | `10 passed` (core) + `18 passed` (ibus) = `28 passed` |
 | Bộ kết quả chuẩn | Nằm trong `cargo test`. 14.710 chuỗi phím trong `rustype-core/tests/golden.tsv`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi |
 | IBus giả lập | Một ibus-daemon riêng và các ứng dụng giả: terminal, ứng dụng GUI, ứng dụng X11. Kiểm tra bấm chuột, Enter, BackSpace, đổi cửa sổ | `ALL PASS` |
 
@@ -83,12 +83,18 @@ cargo fuzz run fuzz_telex -- -max_total_time=300
 
 Fuzz chạy không giới hạn nếu không đặt `max_total_time`. Crash được lưu vào `fuzz/artifacts/`.
 
-## Phát hành
+## Đóng gói và Phát hành
 
-Chưa có quy trình phát hành tự động. Trước mắt, mỗi bản cần:
+Quy trình đóng gói đã được tự động hóa qua `Makefile` và GitHub Actions:
 
-1. Chạy đủ hai lệnh kiểm thử.
-2. Tăng `version` trong `Cargo.toml`.
-3. Ghi thay đổi vào [CHANGELOG.md](../CHANGELOG.md).
+1. **Đóng gói .deb cục bộ**:
+   ```bash
+   make deb
+   ```
+   Tạo file `.deb` chuẩn FHS tại `target/packages/rustype_*.deb`.
 
-Đóng gói .deb, PPA và CI nằm trong [ROADMAP.md](ROADMAP.md).
+2. **Quy trình phát hành bản mới**:
+   - Kiểm tra mã nguồn: `make check`.
+   - Cập nhật `version` trong `Cargo.toml`, `packaging/debian/changelog`.
+   - Ghi chú thay đổi vào [CHANGELOG.md](../CHANGELOG.md).
+   - Đẩy tag lên GitHub (ví dụ: `git tag v0.1.0 && git push origin v0.1.0`). GitHub Actions sẽ tự động biên dịch, sinh file `.deb`, tarball, tính checksum SHA256 và đăng tải bản phát hành.

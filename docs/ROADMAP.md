@@ -51,7 +51,7 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 ## Giai đoạn 3: Giao diện
 
-- [x] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật/tắt tiếng Việt, đổi kiểu gõ, mở cài đặt (IBus Panel Properties).
+- [ ] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật/tắt tiếng Việt, đổi kiểu gõ trực tiếp từ thanh trạng thái (Hiện tại trên GNOME Shell cần chuyển nguồn nhập qua Super+Space; việc đổi kiểu gõ Telex/VNI và cấu hình được thực hiện qua ứng dụng Cài đặt Rustype hoặc file config; engine đã có mã giao thức IBus Property nhưng GNOME Shell mặc định không hiển thị menu con này).
 - [x] App cài đặt bằng GTK4 và Libadwaita (`tools/rustype-settings`), độc lập giúp engine siêu nhẹ.
 - [x] Lệnh chẩn đoán: `ibus-engine-rustype --doctor` kiểm tra IBus, daemon, component XML, nguồn nhập, extension và cấu hình.
 - [x] Giao diện hỗ trợ song ngữ Tiếng Việt và Tiếng Anh.
@@ -89,7 +89,7 @@ Vì không dùng thư viện ngoài, Rustype đóng gói cho Debian và PPA dễ
 | 0. Nền móng | Repo, CI, lõi tách riêng | 1 tuần |
 | 1. Gõ đúng mọi nơi | Bảng thử ứng dụng xong, có bản Fcitx5 | 2 đến 4 tuần |
 | 2. Đủ tính năng | Phím tắt, VNI, gõ tắt, nhớ theo ứng dụng | 3 đến 5 tuần |
-| 3. Giao diện | Menu, app cài đặt, lệnh chẩn đoán | 2 đến 3 tuần |
+| 3. Giao diện | App cài đặt (GTK4/Adwaita), lệnh chẩn đoán | 2 đến 3 tuần |
 | 4. Đóng gói | .deb, PPA, AUR | 1 đến 2 tuần |
 | **Bản 1.0 cho Linux** | | **khoảng 2 đến 3 tháng** |
 | 5. Windows và macOS | Bản 2 | nhiều tháng |

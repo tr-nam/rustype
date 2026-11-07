@@ -2,11 +2,18 @@
 
 ## Kiểm tra nhanh
 
-Chạy bốn lệnh sau. Nếu kết quả khớp cột bên phải thì Rustype đã cài và chạy đúng.
+Cách nhanh nhất là dùng công cụ chẩn đoán tự động:
+
+```bash
+ibus-engine-rustype --doctor
+```
+(Hoặc mở ứng dụng **Cài đặt Rustype** và nhấn nút **Kiểm tra hệ thống**). Công cụ sẽ kiểm tra 5 thành phần quan trọng (IBus daemon, component XML, nguồn nhập GNOME, extension, file cấu hình) và đưa ra gợi ý khắc phục chi tiết nếu có mục bị lỗi.
+
+Nếu muốn kiểm tra thủ công từng bước qua dòng lệnh:
 
 | Lệnh | Kết quả đúng |
 |---|---|
-| `ibus list-engine \| grep rustype` | `rustype - Rustype (Tiếng Việt)` |
+| `ibus list-engine \| grep rustype` | `rustype - Rustype` |
 | `gsettings get org.gnome.desktop.input-sources sources` | Có `('ibus', 'rustype')` trong danh sách |
 | `ibus engine` | `rustype` khi đang chọn Rustype |
 | `pgrep -ax ibus-engine-rus` | Một dòng có `ibus-engine-rustype --ibus` |
@@ -54,9 +61,14 @@ Rustype tự trả lại nhiều từ tiếng Anh như "window", "user", "softwa
 - Gõ đoạn dài tiếng Anh thì nhấn Super+Space để chuyển sang bàn phím tiếng Anh.
 - Muốn tắt hẳn việc tự trả lại từ tiếng Anh: đặt `auto_restore_english = false`.
 
+## Muốn đổi kiểu gõ giữa Telex và VNI
+
+- **Cách 1**: Mở ứng dụng **Cài đặt Rustype** từ màn hình ứng dụng (hoặc chạy lệnh `rustype-settings`), ở thẻ Chung chọn kiểu gõ mong muốn.
+- **Cách 2**: Chỉnh sửa dòng `input_method = vni` (hoặc `telex`) trong file `~/.config/rustype/config`.
+
 ## Muốn đặt dấu kiểu mới như hoà, thuý
 
-Đặt `modern_orthography = true` trong `~/.config/rustype/config`.
+Đặt `modern_orthography = true` trong `~/.config/rustype/config` (hoặc bật công tắc "Dấu kiểu mới" trong ứng dụng Cài đặt).
 
 ## Bấm chuột khi đang gõ dở thì mất chữ
 
@@ -66,14 +78,15 @@ Rustype được làm để không xảy ra lỗi này. Nếu bạn gặp, hãy 
 
 Xem cách chạy engine ở chế độ gỡ lỗi trong [DEVELOPMENT.md](DEVELOPMENT.md#gỡ-lỗi-trên-máy-thật).
 
-> Log có thể chứa mật khẩu và mọi chữ bạn gõ. Hãy tái hiện lỗi bằng chữ thử, rồi đọc lại log trước khi gửi.
+> [!NOTE]
+> Chế độ gỡ lỗi của Rustype (`RUSTYPE_DEBUG=1`) tuân thủ nghiêm ngặt quyền riêng tư: chỉ ghi mã quét phím hex và trạng thái máy trạng thái, **tuyệt đối không in nội dung văn bản bạn gõ hay mật khẩu**.
 
 Khi báo lỗi, ghi kèm:
 
 - Tên và phiên bản ứng dụng.
 - Desktop, ví dụ GNOME hay KDE, và đang dùng Wayland hay X11. Lệnh `echo $XDG_SESSION_TYPE` cho biết điều này.
 - Chuỗi phím đã gõ, kết quả mong đợi và kết quả thực tế.
-- Kết quả của `ibus-engine-rustype --version`, chạy từ `~/.local/lib/rustype/`.
+- Kết quả chạy lệnh chẩn đoán `ibus-engine-rustype --doctor`.
 
 ## Gỡ cài đặt
 
