@@ -4,5 +4,6 @@
 //! It can be reused by any input method framework: IBus, Fcitx5, Windows IME, macOS
 //! InputMethodKit.
 
+pub mod ffi;
 pub mod tables;
 pub mod telex;

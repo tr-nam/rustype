@@ -44,6 +44,17 @@ print("[" + ", ".join("(%r, %r)" % t for t in items) + "]")
     gsettings set org.gnome.desktop.input-sources sources "$new"
 fi
 
+EXT_SRC="gnome-shell-extension/rustype-focus@namtr.dev"
+EXT_DEST="$HOME/.local/share/gnome-shell/extensions/rustype-focus@namtr.dev"
+if [[ -d "$EXT_SRC" ]] && command -v gnome-shell >/dev/null 2>&1; then
+    echo "==> Cài đặt GNOME Shell extension (báo focus cho app_modes)"
+    mkdir -p "$EXT_DEST"
+    cp -f "$EXT_SRC"/* "$EXT_DEST/"
+    if command -v gnome-extensions >/dev/null 2>&1; then
+        gnome-extensions enable "rustype-focus@namtr.dev" >/dev/null 2>&1 || true
+    fi
+fi
+
 echo
 echo "Xong. Nhấn Super+Space để chuyển sang Rustype (biểu tượng VN trên thanh trên cùng)."
 echo "Cấu hình: ~/.config/rustype/config"

@@ -9,6 +9,7 @@ use std::io;
 
 pub const COMPONENT_NAME: &str = "org.freedesktop.IBus.Rustype";
 pub const ENGINE_NAME: &str = "rustype";
+pub const RUSTYPE_IFACE: &str = "org.freedesktop.IBus.Rustype";
 const FACTORY_PATH: &str = "/org/freedesktop/IBus/Factory";
 const ENGINE_IFACE: &str = "org.freedesktop.IBus.Engine";
 const FACTORY_IFACE: &str = "org.freedesktop.IBus.Factory";
@@ -58,6 +59,7 @@ pub struct Service {
     next_id: u32,
     config: Watcher,
     debug: bool,
+    current_app_id: Option<String>,
 }
 
 pub fn run(address: &str) -> io::Result<()> {
@@ -72,6 +74,7 @@ pub fn run(address: &str) -> io::Result<()> {
         next_id: 0,
         config: Watcher::new(),
         debug: std::env::var_os("RUSTYPE_DEBUG").is_some(),
+        current_app_id: None,
     };
     let mut batch = Vec::with_capacity(512);
     loop {
@@ -148,6 +151,15 @@ impl Service {
             self.conn.reply(batch, msg, "", &[]);
             return true;
         }
+        if iface == RUSTYPE_IFACE && member == "SetFocusApp" {
+            let app_id = msg.body_reader().string().ok();
+            self.current_app_id = app_id.clone();
+            for ime in self.engines.values_mut() {
+                ime.set_app_id(app_id.clone(), &self.config.current);
+            }
+            self.conn.reply(batch, msg, "", &[]);
+            return true;
+        }
         if path == FACTORY_PATH {
             return self.factory(msg, iface, member, batch);
         }
@@ -172,7 +184,9 @@ impl Service {
                 self.config.refresh();
                 self.next_id += 1;
                 let path = format!("/org/freedesktop/IBus/Engine/{}", self.next_id);
-                self.engines.insert(path.clone(), Ime::new(&self.config.current));
+                let mut ime = Ime::new(&self.config.current);
+                ime.set_app_id(self.current_app_id.clone(), &self.config.current);
+                self.engines.insert(path.clone(), ime);
                 let mut w = Writer::new();
                 w.string(&path);
                 self.conn.reply(batch, msg, "o", &w.buf);
@@ -225,9 +239,10 @@ impl Service {
             (ENGINE_IFACE, "FocusIn" | "FocusInId") => {
                 self.config.refresh();
                 let cfg = self.config.current.clone();
+                let app_id = self.current_app_id.clone();
                 let ime = self.engines.get_mut(path).unwrap();
                 ime.reset(&mut outs);
-                ime.apply_config(&cfg);
+                ime.set_app_id(app_id, &cfg);
             }
             (ENGINE_IFACE, "FocusOut" | "FocusOutId" | "Reset" | "Disable") => {
                 self.engines.get_mut(path).unwrap().reset(&mut outs);
@@ -236,9 +251,18 @@ impl Service {
                 let caps = msg.body_reader().u32()?;
                 self.engines.get_mut(path).unwrap().set_capabilities(caps);
             }
+            (ENGINE_IFACE, "SetSurroundingText") => {
+                let mut r = msg.body_reader();
+                if let Ok(text) = r.read_ibus_text() {
+                    let cursor = r.u32().unwrap_or(0);
+                    let anchor = r.u32().unwrap_or(0);
+                    let ime = self.engines.get_mut(path).unwrap();
+                    ime.set_surrounding_text(&text, cursor, anchor, &mut outs);
+                }
+            }
             (
                 ENGINE_IFACE,
-                "Enable" | "SetCursorLocation" | "SetSurroundingText" | "PropertyActivate" | "PropertyShow"
+                "Enable" | "SetCursorLocation" | "PropertyActivate" | "PropertyShow"
                 | "PropertyHide" | "CandidateClicked" | "PageUp" | "PageDown" | "CursorUp" | "CursorDown"
                 | "ProcessHandWritingEvent" | "CancelHandWriting" | "PanelExtensionReceived"
                 | "PanelExtensionRegisterKeys",

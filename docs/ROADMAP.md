@@ -31,20 +31,12 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 Đây là giai đoạn quan trọng nhất. Với một bộ gõ, gõ đúng ở mọi nơi quan trọng hơn có thêm tính năng.
 
-- [ ] Thử thật trên từng ứng dụng và ghi kết quả vào một bảng:
-
-  | Nhóm | Ứng dụng |
-  |---|---|
-  | Terminal | Ptyxis, GNOME Terminal, Konsole, kitty, Alacritty, WezTerm |
-  | Trình duyệt | Chrome, Firefox, đặc biệt là thanh địa chỉ |
-  | Electron | VS Code, Obsidian, Slack, Discord |
-  | Khác | LibreOffice, Telegram, IDE JetBrains, ứng dụng Flatpak |
-
-- [ ] Thử trên từng desktop: GNOME Wayland, GNOME X11, KDE Plasma, Xfce, Sway, Hyprland.
-- [ ] Xử lý thanh địa chỉ có gợi ý tự động trong Chrome và Electron. Bộ gõ sửa chữ bằng Surrounding Text hay gặp lỗi ở chỗ này.
-- [ ] Bản cho Fcitx5: một addon C++ mỏng gọi lõi Rust. Người dùng KDE và Hyprland phần lớn dùng Fcitx5 thay vì IBus.
-- [ ] GNOME Shell extension báo tên ứng dụng đang focus cho engine. Trên GNOME Wayland, mọi ứng dụng dùng chung một kết nối IBus tên "gnome-shell", nên engine không tự biết đang gõ vào đâu. Đây là điều kiện cho các tính năng theo từng ứng dụng.
-- [ ] Cách xử lý riêng cho từng ứng dụng, ví dụ ép dùng gạch chân ở ứng dụng nào sửa chữ sai.
+- [x] Thử thật trên từng ứng dụng và ghi kết quả vào một bảng: xem [COMPATIBILITY.md](COMPATIBILITY.md).
+- [x] Xử lý thanh địa chỉ có gợi ý tự động trong Chrome và Electron: bắt `SetSurroundingText`, kiểm tra selection và cursor jump.
+- [x] Bản cho Fcitx5: C FFI trong `rustype-core` (`rustype.h`, `librustype_core.a`) và template addon C++ `rustype-fcitx5/`.
+- [x] GNOME Shell extension báo tên ứng dụng đang focus cho engine (`gnome-shell-extension/rustype-focus@namtr.dev`).
+- [x] Cách xử lý riêng cho từng ứng dụng: hỗ trợ mục `[app_modes]` trong `~/.config/rustype/config`.
+- [ ] Thử nghiệm mở rộng trên các desktop khác (KDE Plasma, Sway, Hyprland với Fcitx5).
 
 ## Giai đoạn 2: Đủ tính năng như Unikey
 

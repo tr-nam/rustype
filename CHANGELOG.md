@@ -5,12 +5,17 @@
 ## [Chưa phát hành]
 
 ### Thêm
-- Tài liệu: kiến trúc, phát triển, xử lý sự cố, lộ trình.
+- Tài liệu: kiến trúc, phát triển, xử lý sự cố, lộ trình, bảng tương thích ứng dụng (`docs/COMPATIBILITY.md`).
 - File giấy phép MIT cho Rustype.
 - Bộ kết quả chuẩn `rustype-core/tests/golden.tsv` gồm 14.710 chuỗi phím, kiểm tra trong `cargo test`, và công cụ `tools/golden.py` để xem và ghi nhận khác biệt khi đổi luật gõ.
 - Cargo workspace: `rustype-core` (lõi Telex thuần, không phụ thuộc nền tảng) và `rustype-ibus` (engine IBus).
 - CI GitHub Actions: kiểm tra định dạng, clippy, unit test, golden test, IBus giả lập.
 - Fuzz target cho lõi Telex bằng `cargo-fuzz`.
+- Xử lý `SetSurroundingText` và selection autocomplete cho thanh địa chỉ Chrome / Firefox / Electron.
+- Hỗ trợ cấu hình chế độ hiển thị riêng cho từng ứng dụng qua mục `[app_modes]` trong `config`.
+- Interface D-Bus `SetFocusApp` và GNOME Shell extension `rustype-focus@namtr.dev` để nhận diện app focus trên Wayland.
+- C FFI cho `rustype-core` (`rustype.h`, thư viện tĩnh `librustype_core.a` và động `librustype_core.so`).
+- Khung addon cho Fcitx5 (`rustype-fcitx5/`).
 
 ### Đổi
 - Chế độ gỡ lỗi (`RUSTYPE_DEBUG`) chỉ in mã phím, không in chữ người dùng gõ.

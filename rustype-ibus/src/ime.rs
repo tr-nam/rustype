@@ -50,6 +50,10 @@ pub struct Ime {
     purpose: u32,
     show: Show,
     preedit_visible: bool,
+    app_id: Option<String>,
+    cursor_pos: Option<u32>,
+    anchor_pos: Option<u32>,
+    has_selection: bool,
 }
 
 fn is_modifier_key(keyval: u32) -> bool {
@@ -66,22 +70,32 @@ impl Ime {
             purpose: 0,
             show: Show::Preedit,
             preedit_visible: false,
+            app_id: None,
+            cursor_pos: None,
+            anchor_pos: None,
+            has_selection: false,
         }
+    }
+
+    pub fn set_app_id(&mut self, app_id: Option<String>, cfg: &Config) {
+        self.app_id = app_id;
+        self.apply_config(cfg);
     }
 
     pub fn apply_config(&mut self, cfg: &Config) {
         if self.telex.is_empty() && !self.preedit_visible {
             self.telex.cfg = cfg.telex.clone();
-            self.mode = cfg.mode;
+            self.mode = cfg.mode_for_app(self.app_id.as_deref());
         }
     }
 
     /// Fresh state after an internal error, keeping what the app told us.
     pub fn recover(&mut self, cfg: &Config) {
-        let (caps, purpose) = (self.caps, self.purpose);
+        let (caps, purpose, app_id) = (self.caps, self.purpose, self.app_id.clone());
         *self = Ime::new(cfg);
         self.caps = caps;
         self.purpose = purpose;
+        self.app_id = app_id;
     }
 
     pub fn set_capabilities(&mut self, caps: u32) {
@@ -90,6 +104,30 @@ impl Ime {
 
     pub fn set_content_type(&mut self, purpose: u32, _hints: u32) {
         self.purpose = purpose;
+    }
+
+    pub fn set_surrounding_text(&mut self, _text: &str, cursor_pos: u32, anchor_pos: u32, out: &mut Vec<Out>) {
+        let has_sel = cursor_pos != anchor_pos;
+        self.has_selection = has_sel;
+        if has_sel {
+            // When there is an active selection (such as Omnibox URL autocomplete),
+            // reset any composing word so it does not interfere with newly typed keys.
+            if !self.telex.is_empty() || self.preedit_visible {
+                self.reset(out);
+            }
+        } else if let Some(last_pos) = self.cursor_pos {
+            // If the cursor jumped outside of the current word:
+            let word_len = self.telex.displayed().chars().count() as u32;
+            let expected_min = last_pos.saturating_sub(word_len);
+            let expected_max = last_pos.saturating_add(1);
+            if cursor_pos < expected_min || cursor_pos > expected_max {
+                if !self.telex.is_empty() || self.preedit_visible {
+                    self.reset(out);
+                }
+            }
+        }
+        self.cursor_pos = Some(cursor_pos);
+        self.anchor_pos = Some(anchor_pos);
     }
 
     /// The display method is chosen when a word starts and kept until it ends.
@@ -107,7 +145,7 @@ impl Ime {
         self.show
     }
 
-    fn replace(&self, backspaces: usize, text: String, out: &mut Vec<Out>) {
+    fn replace(&mut self, backspaces: usize, text: String, out: &mut Vec<Out>) {
         if backspaces > 0 {
             match self.show {
                 Show::Backspace => {
@@ -120,7 +158,10 @@ impl Ime {
             }
         }
         if !text.is_empty() {
-            out.push(Out::Commit(text));
+            out.push(Out::Commit(text.clone()));
+        }
+        if let Some(c) = self.cursor_pos.as_mut() {
+            *c = c.saturating_sub(backspaces as u32) + text.chars().count() as u32;
         }
     }
 
@@ -158,6 +199,7 @@ impl Ime {
     pub fn reset(&mut self, out: &mut Vec<Out>) {
         self.hide_preedit(out);
         self.telex.reset();
+        self.has_selection = false;
     }
 
     pub fn process_key(&mut self, keyval: u32, _keycode: u32, state: u32, out: &mut Vec<Out>) -> bool {
@@ -177,11 +219,15 @@ impl Ime {
         }
         if (0x20..=0x7e).contains(&keyval) {
             let ch = char::from_u32(keyval).unwrap();
+            self.has_selection = false;
             return match show {
                 Show::Preedit => self.printable_preedit(ch, out),
                 _ => {
                     let r = self.telex.key(ch);
                     if !r.handled {
+                        if let Some(c) = self.cursor_pos.as_mut() {
+                            *c += 1;
+                        }
                         return false;
                     }
                     self.replace(r.backspaces, r.commit, out);
@@ -322,5 +368,38 @@ mod tests {
         let mut out = Vec::new();
         assert!(!ime.process_key('a' as u32, 0, 0, &mut out));
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn selection_autocomplete_resets_composition() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        let mut out = Vec::new();
+        // Type 'g'
+        ime.process_key('g' as u32, 0, 0, &mut out);
+        // Browser omnibox autocompletes "google.com" and selects "oogle.com" (cursor 10, anchor 1)
+        ime.set_surrounding_text("google.com", 10, 1, &mut out);
+        out.clear();
+        // User types 'i' -> should not be combined with 'g'
+        ime.process_key('i' as u32, 0, 0, &mut out);
+        // It passes or commits 'i' without deleting old surrounding text
+        assert!(!out.iter().any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+    }
+
+    #[test]
+    fn cursor_jump_resets_composition() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        let mut out = Vec::new();
+        // Type "kiee"
+        for ch in "kiee".chars() {
+            ime.process_key(ch as u32, 0, 0, &mut out);
+        }
+        // Cursor jumps far away to 20
+        ime.set_surrounding_text("some random other text", 20, 20, &mut out);
+        out.clear();
+        // Next key 'm' shouldn't compose with previous "kiê"
+        ime.process_key('m' as u32, 0, 0, &mut out);
+        assert!(!out.iter().any(|o| matches!(o, Out::Commit(ref s) if s == "kiêm")));
     }
 }

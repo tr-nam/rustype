@@ -266,6 +266,29 @@ impl<'a> Reader<'a> {
         }
         Ok(())
     }
+    /// Reads an IBusText variant `v`: either a plain string `s` or a struct `(sa{sv}sv)`.
+    pub fn read_ibus_text(&mut self) -> io::Result<String> {
+        let sig = self.signature()?;
+        if sig == "s" {
+            return self.string();
+        }
+        if sig.starts_with("(sa{sv}s") {
+            self.align(8);
+            let _typename = self.string()?;
+            let mut i = 0;
+            self.skip(b"a{sv}", &mut i)?;
+            let text = self.string()?;
+            let rest_sig = &sig.as_bytes()[8..sig.len().saturating_sub(1)];
+            let mut j = 0;
+            while j < rest_sig.len() {
+                self.skip(rest_sig, &mut j)?;
+            }
+            return Ok(text);
+        }
+        let mut i = 0;
+        self.skip(sig.as_bytes(), &mut i)?;
+        Ok(String::new())
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -570,5 +593,27 @@ mod tests {
     fn unescape_address() {
         assert_eq!(unescape("/tmp/a%20b"), "/tmp/a b");
         assert_eq!(unescape("/plain/path"), "/plain/path");
+    }
+
+    #[test]
+    fn read_ibus_text_struct() {
+        let mut w = Writer::new();
+        w.signature("(sa{sv}sv)");
+        w.struct_start();
+        w.string("IBusText");
+        let a = w.array_start(8);
+        w.array_end(a);
+        w.string("tiếng việt");
+        w.signature("(sa{sv}av)");
+        w.struct_start();
+        w.string("IBusAttrList");
+        let a = w.array_start(8);
+        w.array_end(a);
+        let a = w.array_start(1);
+        w.array_end(a);
+
+        let mut r = Reader::new(&w.buf, false);
+        let text = r.read_ibus_text().unwrap();
+        assert_eq!(text, "tiếng việt");
     }
 }

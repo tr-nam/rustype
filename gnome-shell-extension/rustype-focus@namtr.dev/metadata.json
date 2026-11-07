@@ -1,0 +1,8 @@
+{
+  "uuid": "rustype-focus@namtr.dev",
+  "name": "Rustype Focus Helper",
+  "description": "Báo ứng dụng đang focus cho bộ gõ Rustype trên GNOME Wayland để tự động áp dụng cấu hình per-app.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "version": 1,
+  "url": "https://namtr.dev"
+}
