@@ -51,7 +51,7 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 ## Giai đoạn 3: Giao diện
 
-- [ ] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật/tắt tiếng Việt, đổi kiểu gõ trực tiếp từ thanh trạng thái (Hiện tại trên GNOME Shell cần chuyển nguồn nhập qua Super+Space; việc đổi kiểu gõ Telex/VNI và cấu hình được thực hiện qua ứng dụng Cài đặt Rustype hoặc file config; engine đã có mã giao thức IBus Property nhưng GNOME Shell mặc định không hiển thị menu con này).
+- [x] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật/tắt tiếng Việt (switch toggle), đổi kiểu gõ (Telex/VNI radio) và mở Cài đặt trực tiếp từ menu IBus Properties.
 - [x] App cài đặt bằng GTK4 và Libadwaita (`tools/rustype-settings`), độc lập giúp engine siêu nhẹ.
 - [x] Lệnh chẩn đoán: `ibus-engine-rustype --doctor` kiểm tra IBus, daemon, component XML, nguồn nhập, extension và cấu hình.
 - [x] Giao diện hỗ trợ song ngữ Tiếng Việt và Tiếng Anh.

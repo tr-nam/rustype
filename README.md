@@ -41,11 +41,13 @@ Cần Rust (`rustup`). Chạy script cài đặt:
 ## Sử dụng & Cấu hình
 
 ### Bật / Tắt gõ tiếng Việt
-- Nhấn tổ hợp phím **Super + Space** (hoặc phím tắt chuyển nguồn nhập bạn đã cài đặt trong GNOME) để chuyển đổi qua lại giữa bàn phím tiếng Anh và Rustype (biểu tượng là "VN").
+- **Cách 1 (Phím tắt)**: Nhấn tổ hợp phím **Super + Space** (hoặc phím tắt chuyển nguồn nhập của bạn) để chuyển đổi qua lại giữa bàn phím tiếng Anh và Rustype.
+- **Cách 2 (Menu thanh trạng thái GNOME)**: Bấm vào biểu tượng bộ gõ trên thanh Top Bar và gạt công tắc **"Bật tiếng Việt"**. Biểu tượng sẽ chuyển đổi linh hoạt giữa **"VN"** và **"EN"**.
 
 ### Đổi kiểu gõ (Telex / VNI) & Tùy biến
-- **Cách 1 (Giao diện đồ họa)**: Mở ứng dụng **Cài đặt Rustype** từ danh sách ứng dụng hoặc gõ lệnh `rustype-settings`.
-- **Cách 2 (File cấu hình)**: Chỉnh sửa file `~/.config/rustype/config`, lưu xong bấm sang ô gõ khác là có hiệu lực ngay:
+- **Cách 1 (Menu thanh trạng thái GNOME)**: Bấm vào biểu tượng bộ gõ trên thanh Top Bar và nhấp chọn trực tiếp **(•) Kiểu gõ Telex** hoặc **( ) Kiểu gõ VNI**.
+- **Cách 2 (Giao diện đồ họa)**: Mở ứng dụng **Cài đặt Rustype** từ danh sách ứng dụng hoặc gõ lệnh `rustype-settings`.
+- **Cách 3 (File cấu hình)**: Chỉnh sửa file `~/.config/rustype/config`, lưu xong bấm sang ô gõ khác là có hiệu lực ngay:
 
 ```ini
 mode = auto                 # auto | preedit | direct

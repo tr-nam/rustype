@@ -93,6 +93,32 @@ pub fn path() -> Option<PathBuf> {
     Some(base.join("rustype").join("config"))
 }
 
+/// Updates `input_method = telex` or `vni` in `~/.config/rustype/config`.
+pub fn update_input_method(method: rustype_core::telex::InputMethod) {
+    let Some(p) = path() else { return };
+    let method_str = match method {
+        rustype_core::telex::InputMethod::Telex => "telex",
+        rustype_core::telex::InputMethod::Vni => "vni",
+    };
+    if let Ok(content) = std::fs::read_to_string(&p) {
+        let mut lines = Vec::new();
+        let mut replaced = false;
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("input_method") && trimmed.contains('=') {
+                lines.push(format!("input_method = {method_str}"));
+                replaced = true;
+            } else {
+                lines.push(line.to_string());
+            }
+        }
+        if !replaced {
+            lines.push(format!("input_method = {method_str}"));
+        }
+        let _ = std::fs::write(&p, lines.join("\n") + "\n");
+    }
+}
+
 fn parse_bool(v: &str) -> Option<bool> {
     match v.to_ascii_lowercase().as_str() {
         "true" | "yes" | "on" | "1" => Some(true),
