@@ -34,7 +34,7 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="container hero-content">
-      <div class="badge">🚀 Phiên bản 0.1.0 • 100% Pure Rust • Bộ nhớ ~2.5 MB RAM</div>
+      <div class="badge">🚀 Phiên bản 0.1.1 • 100% Pure Rust • Bộ nhớ ~2.5 MB RAM</div>
       <h1 class="hero-title">Bộ gõ tiếng Việt siêu nhẹ, dứt khoát trên Wayland</h1>
       <p class="hero-desc">
         Viết hoàn toàn bằng Rust thuần, tối ưu sâu cho Ubuntu GNOME trên Wayland, Windows và macOS.
@@ -154,7 +154,7 @@
     <div class="container">
       <div class="section-header">
         <h2 class="section-title">Tải về & Cài đặt</h2>
-        <p class="section-desc">Hỗ trợ đầy đủ các bản phân phối Linux phổ biến, Windows và macOS</p>
+        <p class="section-desc">Hỗ trợ chính thức các hệ điều hành phổ biến: Ubuntu / Debian, Windows và macOS</p>
       </div>
 
       <div class="grid grid-3">
@@ -162,49 +162,32 @@
         <div class="download-card highlight-card">
           <div class="os-badge">Ubuntu / Debian</div>
           <h3>Gói cài đặt `.deb`</h3>
-          <p>Khuyên dùng cho Ubuntu 22.04, 24.04+, Debian 12 và Linux Mint.</p>
+          <p>Tối ưu hóa cho Ubuntu 22.04, 24.04+, Debian 12 và Linux Mint chạy Wayland & X11.</p>
           <div class="code-box">
             <code>sudo apt install ./rustype_0.1.0-1_amd64.deb</code>
           </div>
           <a href="https://github.com/tr-nam/rustype/releases" class="btn btn-primary btn-block">Tải gói .deb mới nhất</a>
         </div>
 
-        <!-- Arch Linux -->
-        <div class="download-card">
-          <div class="os-badge">Arch Linux</div>
-          <h3>Cài đặt qua AUR</h3>
-          <p>Dành cho Arch Linux, Manjaro, EndeavourOS.</p>
-          <div class="code-box">
-            <code>yay -S rustype-ibus</code>
-          </div>
-          <a href="https://aur.archlinux.org/packages/rustype-ibus" class="btn btn-secondary btn-block">Xem gói AUR</a>
-        </div>
-
-        <!-- Fedora / RPM -->
-        <div class="download-card">
-          <div class="os-badge">Fedora / openSUSE</div>
-          <h3>Gói RPM & COPR</h3>
-          <p>Dành cho Fedora 39, 40+ và openSUSE Tumbleweed.</p>
-          <div class="code-box">
-            <code>sudo dnf copr enable tr-nam/rustype && sudo dnf install rustype</code>
-          </div>
-          <a href="https://github.com/tr-nam/rustype/releases" class="btn btn-secondary btn-block">Xem gói phát hành</a>
-        </div>
-      </div>
-
-      <!-- Cross Platform Cards -->
-      <div class="grid grid-2 mt-4">
+        <!-- Windows -->
         <div class="download-card">
           <div class="os-badge">Windows</div>
           <h3>Rustype cho Windows</h3>
           <p>Cơ chế Low-Level Keyboard Hook siêu nhẹ tương tự EVKey/Unikey. Chạy mượt trong game và mọi phần mềm.</p>
+          <div class="code-box">
+            <code>Chạy trực tiếp rustype.exe</code>
+          </div>
           <a href="https://github.com/tr-nam/rustype/releases" class="btn btn-secondary btn-block">Tải Rustype Windows (.exe)</a>
         </div>
 
+        <!-- macOS -->
         <div class="download-card">
           <div class="os-badge">macOS</div>
           <h3>Rustype cho macOS</h3>
           <p>Gói cài đặt InputMethodKit chuẩn cho macOS Ventura, Sonoma và Sequoia (Apple Silicon & Intel).</p>
+          <div class="code-box">
+            <code>Chép vào ~/Library/Input Methods/</code>
+          </div>
           <a href="https://github.com/tr-nam/rustype/releases" class="btn btn-secondary btn-block">Tải Rustype.app</a>
         </div>
       </div>
