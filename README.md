@@ -70,7 +70,7 @@ Tải về phiên bản mới nhất tại **[GitHub Releases](https://github.co
 ### 1. Ubuntu / Debian (Linux)
 Tải gói `.deb` từ Releases và cài đặt:
 ```bash
-sudo apt install ./rustype_0.1.0-1_amd64.deb
+sudo apt install ./rustype_*.deb
 ```
 Hoặc tự đóng gói từ mã nguồn:
 ```bash
