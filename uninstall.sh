@@ -17,6 +17,7 @@ if [[ -e /usr/share/ibus/component/rustype.xml ]]; then
 fi
 rm -rf "$HOME/.local/share/gnome-shell/extensions/rustype-focus@namtr.dev"
 rm -f "$HOME/.local/bin/rustype-settings"
+rm -f "$HOME/.local/bin/ibus-engine-rustype"
 rm -f "$HOME/.local/share/applications/rustype-settings.desktop"
 rm -f "$HOME/.local/share/icons/hicolor/scalable/apps/rustype.svg"
 for s in 16 32 48 64 128 256 512; do

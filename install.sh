@@ -69,6 +69,7 @@ echo "==> Cài đặt ứng dụng Cài đặt (rustype-settings)"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
 install -m755 tools/rustype-settings "$HOME/.local/bin/rustype-settings"
 install -m644 tools/rustype-settings.desktop "$HOME/.local/share/applications/rustype-settings.desktop"
+ln -sf "$BIN" "$HOME/.local/bin/ibus-engine-rustype"
 
 echo
 echo "Xong. Nhấn Super+Space để chuyển sang Rustype."

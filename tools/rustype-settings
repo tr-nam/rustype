@@ -3,6 +3,7 @@
 
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -330,8 +331,20 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         buffer = self.tv_doctor.get_buffer()
         buffer.set_text("Đang kiểm tra hệ thống...")
         try:
-            exe = pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype"
-            if not exe.exists():
+            candidates = [
+                pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
+                pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
+                pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
+                pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype",
+                pathlib.Path(__file__).resolve().parent / "target" / "release" / "ibus-engine-rustype",
+            ]
+            exe = shutil.which("ibus-engine-rustype")
+            if not exe:
+                for c in candidates:
+                    if c.exists():
+                        exe = str(c)
+                        break
+            if not exe:
                 exe = "ibus-engine-rustype"
             res = subprocess.run([str(exe), "--doctor"], capture_output=True, text=True, timeout=5)
             buffer.set_text(res.stdout or res.stderr)
