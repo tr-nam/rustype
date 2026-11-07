@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "🌐 Trang chủ & Tài liệu dự án"
+    url: "https://namtr.dev"
+    about: "Xem tài liệu hướng dẫn, FAQ và tải phiên bản mới nhất."
+  - name: "📧 Hỗ trợ kỹ thuật qua Email"
+    url: "mailto:support@namtr.dev"
+    about: "Gửi phản hồi hoặc câu hỏi trực tiếp tới nhóm hỗ trợ: support@namtr.dev."

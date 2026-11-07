@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rustype - Bộ gõ tiếng Việt siêu nhẹ, hiệu năng cao viết bằng Rust</title>
+  <meta name="description" content="Bộ gõ tiếng Việt siêu nhẹ, hiệu năng cao viết hoàn toàn bằng Pure Rust cho Linux (Wayland & X11), Windows và macOS. Gõ mượt trong terminal, không lặp chữ, bảo mật 100% offline.">
+  <link rel="icon" type="image/svg+xml" href="rustype.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a href="#" class="brand">
+        <img src="rustype.svg" alt="Rustype Logo" class="brand-logo" width="36" height="36">
+        <span class="brand-name">Rustype</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Điểm nổi bật</a>
+        <a href="#demo">Thử nghiệm trực tiếp</a>
+        <a href="#download">Tải về</a>
+        <a href="#faq">Hỏi đáp (FAQ)</a>
+        <a href="#privacy">Quyền riêng tư</a>
+        <a href="https://github.com/namtr/rustype" target="_blank" rel="noopener" class="btn-github">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container hero-content">
+      <div class="badge">🚀 Phiên bản 0.1.0 • 100% Pure Rust • Bộ nhớ ~2.5 MB RAM</div>
+      <h1 class="hero-title">Bộ gõ tiếng Việt siêu nhẹ, dứt khoát trên Wayland</h1>
+      <p class="hero-desc">
+        Viết hoàn toàn bằng Rust thuần, tối ưu sâu cho Ubuntu GNOME trên Wayland, Windows và macOS.
+        Giải quyết dứt điểm vấn đề lặp chữ trong Terminal, nháy màn hình, và mất chữ khi nhấp chuột.
+      </p>
+      <div class="hero-actions">
+        <a href="#download" class="btn btn-primary">Tải về cho Linux (.deb)</a>
+        <a href="#demo" class="btn btn-secondary">Trải nghiệm gõ thử ngay</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <span class="stat-val">&lt; 2.5 MB</span>
+          <span class="stat-lbl">Bộ nhớ RAM</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val">~ 450 KB</span>
+          <span class="stat-lbl">Dung lượng Binary</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val">0.3 µs</span>
+          <span class="stat-lbl">Độ trễ mỗi phím</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val">0%</span>
+          <span class="stat-lbl">Phụ thuộc GUI lõi</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Typing Demo Section -->
+  <section id="demo" class="section demo-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Thử nghiệm gõ trực tuyến</h2>
+        <p class="section-desc">Trải nghiệm bộ quy tắc ghép chữ thông minh của Rustype ngay trong trình duyệt của bạn</p>
+      </div>
+
+      <div class="demo-card">
+        <div class="demo-toolbar">
+          <div class="demo-method-group">
+            <label class="radio-label">
+              <input type="radio" name="demo-method" value="telex" checked>
+              <span>Kiểu gõ Telex</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="demo-method" value="vni">
+              <span>Kiểu gõ VNI</span>
+            </label>
+          </div>
+          <button id="btn-clear-demo" class="btn-sm">Xóa trắng</button>
+        </div>
+
+        <textarea id="demo-textarea" placeholder="Nhấp vào đây và bắt đầu gõ thử tiếng Việt... (Ví dụ Telex: 'Vieetj Nam', 'khoer', 'window' hoặc VNI: 'Viet65 Nam')"></textarea>
+
+        <div class="demo-hints">
+          <span>💡 <strong>Gợi ý thử nghiệm:</strong></span>
+          <span class="hint-tag" onclick="insertHint('Vieetj Nam ')">Vieetj Nam</span>
+          <span class="hint-tag" onclick="insertHint('hoa rooi ')">hoa rooi</span>
+          <span class="hint-tag" onclick="insertHint('ddaa2y ')">ddaa2y</span>
+          <span class="hint-tag" onclick="insertHint('software ')">software (tự trả lại tiếng Anh)</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section id="features" class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Điểm nổi bật vượt trội</h2>
+        <p class="section-desc">Thiết kế dứt khoát giải quyết những vấn đề khó chịu nhất của bộ gõ trên Linux</p>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="feature-card">
+          <div class="feature-icon">💻</div>
+          <h3>Terminal không lặp chữ</h3>
+          <p>Tối ưu hóa đặc biệt cho Ptyxis, Alacritty, Ghostty, Foot và Claude Code. Giữ chữ ở dạng preedit và commit dứt khoát khi hết từ, không gửi phím Backspace giả làm hỏng shell history.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🖱️</div>
+          <h3>Bấm chuột không mất chữ</h3>
+          <p>Ký tự đang gõ dở được tự động cam kết (COMMIT) ngay khi bạn nhấp chuột ra ngoài hoặc chuyển cửa sổ làm việc, không bao giờ bị nuốt chữ hay sót ký tự.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>Tự động nhận diện ứng dụng</h3>
+          <p>Ứng dụng có hỗ trợ Surrounding Text (Chrome, VS Code, LibreOffice) nhận chữ trực tiếp không gạch chân. Chỉ môi trường dòng lệnh (Terminal) mới hiển thị gạch chân.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3>Nhớ trạng thái theo từng app</h3>
+          <p>Tự động ghi nhớ bạn đang bật tiếng Việt ở trình duyệt / chat nhưng vẫn giữ chế độ tiếng Anh khi chuyển sang Terminal hoặc IDE lập trình, tương tự EVKey.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Siêu nhẹ & Tốc độ tức thì</h3>
+          <p>Lõi viết 100% bằng Rust thuần không dùng thư viện ngoài. Chiếm chưa tới 2.5 MB RAM, binary ~450 KB và xử lý mỗi phím gõ chỉ mất khoảng 0.3 micro giây.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>Bảo mật 100% Ngoại tuyến</h3>
+          <p>Hoàn toàn không có mã mạng, không socket, không thu thập telemetry và tự động bypass hoàn toàn ở các trường nhập mật khẩu.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section id="download" class="section download-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Tải về & Cài đặt</h2>
+        <p class="section-desc">Hỗ trợ đầy đủ các bản phân phối Linux phổ biến, Windows và macOS</p>
+      </div>
+
+      <div class="grid grid-3">
+        <!-- Ubuntu / Debian -->
+        <div class="download-card highlight-card">
+          <div class="os-badge">Ubuntu / Debian</div>
+          <h3>Gói cài đặt `.deb`</h3>
+          <p>Khuyên dùng cho Ubuntu 22.04, 24.04+, Debian 12 và Linux Mint.</p>
+          <div class="code-box">
+            <code>sudo apt install ./rustype_0.1.0-1_amd64.deb</code>
+          </div>
+          <a href="https://github.com/namtr/rustype/releases" class="btn btn-primary btn-block">Tải gói .deb mới nhất</a>
+        </div>
+
+        <!-- Arch Linux -->
+        <div class="download-card">
+          <div class="os-badge">Arch Linux</div>
+          <h3>Cài đặt qua AUR</h3>
+          <p>Dành cho Arch Linux, Manjaro, EndeavourOS.</p>
+          <div class="code-box">
+            <code>yay -S rustype-ibus</code>
+          </div>
+          <a href="https://aur.archlinux.org/packages/rustype-ibus" class="btn btn-secondary btn-block">Xem gói AUR</a>
+        </div>
+
+        <!-- Fedora / RPM -->
+        <div class="download-card">
+          <div class="os-badge">Fedora / openSUSE</div>
+          <h3>Gói RPM & COPR</h3>
+          <p>Dành cho Fedora 39, 40+ và openSUSE Tumbleweed.</p>
+          <div class="code-box">
+            <code>sudo dnf copr enable namtr/rustype && sudo dnf install rustype</code>
+          </div>
+          <a href="https://github.com/namtr/rustype/releases" class="btn btn-secondary btn-block">Xem gói phát hành</a>
+        </div>
+      </div>
+
+      <!-- Cross Platform Cards -->
+      <div class="grid grid-2 mt-4">
+        <div class="download-card">
+          <div class="os-badge">Windows</div>
+          <h3>Rustype cho Windows</h3>
+          <p>Cơ chế Low-Level Keyboard Hook siêu nhẹ tương tự EVKey/Unikey. Chạy mượt trong game và mọi phần mềm.</p>
+          <a href="https://github.com/namtr/rustype/releases" class="btn btn-secondary btn-block">Tải Rustype Windows (.exe)</a>
+        </div>
+
+        <div class="download-card">
+          <div class="os-badge">macOS</div>
+          <h3>Rustype cho macOS</h3>
+          <p>Gói cài đặt InputMethodKit chuẩn cho macOS Ventura, Sonoma và Sequoia (Apple Silicon & Intel).</p>
+          <a href="https://github.com/namtr/rustype/releases" class="btn btn-secondary btn-block">Tải Rustype.app</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section id="faq" class="section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Câu hỏi thường gặp (FAQ)</h2>
+        <p class="section-desc">Giải đáp các thắc mắc về môi trường hoạt động và kỹ thuật</p>
+      </div>
+
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>Rustype hoạt động tốt nhất trên môi trường nào?</summary>
+          <div class="faq-answer">
+            <p>Rustype được tối ưu hóa chuẩn mực cho <strong>Ubuntu GNOME chạy Wayland</strong> với framework IBus tích hợp sẵn. Ngoài ra, Rustype chạy mượt mà trên KDE Plasma, Sway, Hyprland (thông qua Fcitx5 addon) cũng như Windows và macOS.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Vì sao các bộ gõ khác thường bị lặp chữ trong Terminal còn Rustype thì không?</summary>
+          <div class="faq-answer">
+            <p>Các bộ gõ truyền thống gửi phím Backspace giả để xóa ký tự cũ rồi gõ ký tự mới. Terminal không hỗ trợ cơ chế này nên sinh ra hiện tượng lặp chữ (ví dụ <code>vviieetj</code>). Rustype giữ từ đang gõ ở chế độ preedit (gạch chân) và chỉ commit một lần dứt khoát khi kết thúc từ, hoàn toàn không gửi phím Backspace giả.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Làm thế nào để bật tính năng nhớ trạng thái theo từng ứng dụng?</summary>
+          <div class="faq-answer">
+            <p>Bạn chỉ cần mở ứng dụng <strong>Cài đặt Rustype</strong> (hoặc bấm vào biểu tượng bộ gõ trên Top Bar -> Cài đặt Rustype) và bật công tắc <strong>"Nhớ trạng thái theo từng ứng dụng"</strong>. Hoặc đặt <code>remember_state_per_app = true</code> trong file <code>~/.config/rustype/config</code>.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Làm sao để chẩn đoán hệ thống khi gặp trục trặc?</summary>
+          <div class="faq-answer">
+            <p>Rustype có sẵn công cụ kiểm tra tự động. Bạn chỉ cần chạy lệnh <code>ibus-engine-rustype --doctor</code> trong terminal hoặc mở ứng dụng Cài đặt Rustype -> tab <strong>Giới thiệu</strong> -> nhấn nút <strong>"Chạy chẩn đoán"</strong>.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacy Commitment Section -->
+  <section id="privacy" class="section privacy-section">
+    <div class="container text-center">
+      <h2 class="section-title">Cam kết Quyền riêng tư & Bảo mật</h2>
+      <p class="privacy-statement">
+        Rustype là dự án 100% mã nguồn mở dưới giấy phép MIT. Chúng tôi cam kết <strong>hoàn toàn ngoại tuyến (100% Offline)</strong>,
+        <strong>không thu thập bất kỳ dữ liệu nào (Zero Telemetry)</strong> và <strong>tuyệt đối không ghi nhật ký phím gõ (Zero Keylogging)</strong>.
+        Bộ gõ tự động bypass hoàn toàn khi con trỏ rơi vào ô nhập mật khẩu.
+      </p>
+      <a href="https://github.com/namtr/rustype/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener" class="btn btn-secondary">Đọc toàn văn cam kết bảo mật (PRIVACY.md)</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-content">
+      <div class="footer-left">
+        <div class="brand">
+          <img src="rustype.svg" alt="Rustype Logo" width="24" height="24">
+          <span class="brand-name">Rustype</span>
+        </div>
+        <p class="footer-tagline">Bộ gõ tiếng Việt siêu nhẹ cho Linux, Windows và macOS.</p>
+      </div>
+      <div class="footer-right">
+        <p>Tác giả: <a href="https://namtr.dev" target="_blank" rel="noopener">Nam Tran (namtr.dev)</a></p>
+        <p>Hỗ trợ: <a href="mailto:support@namtr.dev">support@namtr.dev</a></p>
+        <p>Phát hành theo giấy phép mã nguồn mở <a href="https://github.com/namtr/rustype/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

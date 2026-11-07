@@ -1,0 +1,98 @@
+name: "🐛 Báo lỗi (Bug Report)"
+description: "Báo cáo lỗi khi gõ chữ, lỗi tương thích ứng dụng hoặc sự cố hệ thống"
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cảm ơn bạn đã đóng góp báo cáo lỗi cho Rustype!
+        Để giúp việc tái hiện và sửa lỗi diễn ra nhanh chóng, vui lòng điền đầy đủ các thông tin môi trường bên dưới.
+
+  - type: input
+    id: app
+    attributes:
+      label: Ứng dụng gặp lỗi
+      description: Tên ứng dụng bạn đang gõ khi xảy ra lỗi (ví dụ: Google Chrome, Ptyxis Terminal, VS Code, Slack, LibreOffice).
+      placeholder: "Ví dụ: Google Chrome 128"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: desktop
+    attributes:
+      label: Môi trường Desktop (DE)
+      options:
+        - "GNOME (Mặc định Ubuntu / Debian / Fedora)"
+        - "KDE Plasma 6"
+        - "Sway / Hyprland (Wayland Tiling)"
+        - "XFCE / Cinnamon / MATE"
+        - "Windows"
+        - "macOS"
+        - "Khác"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: display_server
+    attributes:
+      label: Display Server
+      options:
+        - "Wayland"
+        - "X11 (Xorg)"
+        - "Không rõ / Nền tảng khác"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Hệ điều hành & Phiên bản
+      description: Bản phân phối Linux hoặc hệ điều hành bạn đang sử dụng.
+      placeholder: "Ví dụ: Ubuntu 24.04 LTS x86_64"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: input_method
+    attributes:
+      label: Kiểu gõ đang sử dụng
+      options:
+        - "Telex"
+        - "VNI"
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor_output
+    attributes:
+      label: Kết quả lệnh chẩn đoán (bắt buộc trên Linux)
+      description: Vui lòng chạy lệnh `ibus-engine-rustype --doctor` trong terminal (hoặc mở ứng dụng Cài đặt Rustype -> tab Giới thiệu -> Chạy chẩn đoán) và dán kết quả vào đây.
+      placeholder: |
+        [✓] Daemon ibus-daemon đang chạy
+        [✓] File đăng ký: /usr/share/ibus/component/rustype.xml tồn tại
+        ...
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện lỗi
+      description: Chuỗi phím bấm cụ thể gây ra lỗi (ví dụ: gõ "t", "o", "o", "i").
+      placeholder: |
+        1. Mở ứng dụng...
+        2. Nhập chuỗi phím: 'v', 'i', 'e', 't', 'j'
+        3. Kết quả xuất hiện: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Hành vi mong đợi
+      description: Bạn kỳ vọng điều gì sẽ xảy ra?
+      placeholder: "Chữ hiển thị chính xác là 'Việt' mà không bị lặp chữ hay nhảy con trỏ."
+    validations:
+      required: true

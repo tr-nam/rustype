@@ -79,10 +79,11 @@ custom_words = this, test   # từ tiếng Anh không bị thêm dấu
 
 Gỡ cài đặt bằng `./uninstall.sh` hoặc `sudo apt remove rustype`.
 
-## Tài liệu
+## Tài liệu & Liên kết
 
 | Tài liệu | Dành cho | Nội dung |
 |---|---|---|
+| [Trang chủ chính thức](https://namtr.dev) | Mọi người | Giới thiệu, tải gói cài đặt, hỏi đáp và gõ thử nghiệm trực tiếp |
 | [Tương thích](docs/COMPATIBILITY.md) | Mọi người | Ma trận ứng dụng, cơ chế hiện chữ, tùy biến cấu hình theo ứng dụng (app_modes) |
 | [Quyền riêng tư](docs/PRIVACY.md) | Mọi người | Cam kết 100% ngoại tuyến, không telemetry, không keylogging |
 | [Xử lý sự cố](docs/TROUBLESHOOTING.md) | Người dùng | Kiểm tra cài đặt, gạch chân, lặp chữ, từ tiếng Anh bị thêm dấu, báo lỗi |

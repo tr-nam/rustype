@@ -1,0 +1,36 @@
+name: "💡 Đề xuất tính năng (Feature Request)"
+description: "Gợi ý tính năng mới hoặc đề xuất cải tiến trải nghiệm cho Rustype"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cảm ơn bạn đã đóng góp ý tưởng phát triển Rustype!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Vấn đề hoặc nhu cầu thực tế
+      description: Mô tả ngắn gọn vấn đề bạn đang gặp phải hoặc lý do bạn cần tính năng này.
+      placeholder: "Tôi thường xuyên phải gõ mã code kèm chú thích tiếng Việt và gặp khó khăn khi..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Giải pháp bạn đề xuất
+      description: Mô tả rõ ràng về tính năng hoặc hành vi bạn muốn Rustype hỗ trợ.
+      placeholder: "Thêm tùy chọn phím tắt chuyển nhanh giữa..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Các giải pháp thay thế đã cân nhắc
+      description: Bất kỳ công cụ hay phương án thay thế nào bạn đã thử nghiệm.
+      placeholder: "Hiện tại tôi đang tạm dùng EVKey hoặc cấu hình thủ công trong file config..."
+    validations:
+      required: false

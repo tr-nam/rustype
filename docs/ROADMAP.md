@@ -73,12 +73,13 @@ Vì không dùng thư viện ngoài, Rustype đóng gói cho Debian và PPA dễ
 - [x] Ma trận kiểm thử CI/CD đa nền tảng trên GitHub Actions cho cả Linux, Windows (`windows-latest`) và macOS (`macos-latest`).
 - [ ] Chứng chỉ ký code (Code Signing) cho Windows Authenticode và Apple Developer ID (Notarization).
 
-## Giai đoạn 6: Ra mắt
+## Giai đoạn 6: Ra mắt (Đã hoàn thành)
 
-- [ ] Trang web và hướng dẫn tiếng Việt, câu hỏi thường gặp về terminal, Wayland và Chrome.
-- [ ] Mẫu báo lỗi bắt buộc ghi ứng dụng, desktop, Wayland hay X11, và kết quả lệnh chẩn đoán.
-- [ ] Trang cam kết quyền riêng tư: không mạng, không ghi phím.
-- [ ] Kiểm tra tên trước khi làm web. Tên `rustype` còn trống trên crates.io vào ngày 2026-11-07. Trên GitHub, tên tổ chức `rustype` đã có người dùng cho một dự án Rust khác, nên repo cần đặt dưới tài khoản cá nhân.
+- [x] Trang web và hướng dẫn tiếng Việt, câu hỏi thường gặp về terminal, Wayland và Chrome (`website/`).
+- [x] Mẫu báo lỗi chuẩn GitHub bắt buộc ghi ứng dụng, desktop, Wayland hay X11, và kết quả lệnh chẩn đoán (`.github/ISSUE_TEMPLATE/*`).
+- [x] Trang cam kết quyền riêng tư: không mạng, không ghi phím (`docs/PRIVACY.md` và trên website).
+- [x] Kiểm tra tên và thương hiệu trước khi làm web: repo cá nhân `namtr/rustype`, trang chủ `namtr.dev`, hỗ trợ qua `support@namtr.dev`.
+- [x] Tự động xuất bản website qua GitHub Pages (`.github/workflows/pages.yml`).
 
 ## Ước tính thời gian
 
