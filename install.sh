@@ -57,9 +57,8 @@ fi
 
 echo "==> Cài đặt biểu tượng (icons)"
 ICON_BASE="$HOME/.local/share/icons/hicolor"
-mkdir -p "$ICON_BASE/scalable/apps" "$ICON_BASE/symbolic/apps"
+mkdir -p "$ICON_BASE/scalable/apps"
 install -m644 assets/icons/scalable/rustype.svg "$ICON_BASE/scalable/apps/rustype.svg"
-install -m644 assets/icons/symbolic/rustype-symbolic.svg "$ICON_BASE/symbolic/apps/rustype-symbolic.svg"
 for s in 16 32 48 64 128 256 512; do
     mkdir -p "$ICON_BASE/${s}x${s}/apps"
     install -m644 "assets/icons/${s}x${s}/rustype.png" "$ICON_BASE/${s}x${s}/apps/rustype.png"
