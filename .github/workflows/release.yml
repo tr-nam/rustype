@@ -109,7 +109,6 @@ jobs:
           TAG="${{ needs.meta.outputs.tag }}"
           mkdir -p dist
           cp target/release/rustype-windows.exe dist/rustype.exe
-          cp target/release/rustype-windows.exe dist/rustype-windows.exe
           7z a "dist/rustype-${TAG}-windows-x86_64.zip" ./dist/rustype.exe ./README.md ./LICENSE
 
       - name: Upload Windows artifacts
