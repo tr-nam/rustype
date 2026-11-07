@@ -56,6 +56,7 @@ echo "==> [3/6] Cài đặt file thực thi và tài nguyên..."
 install -m755 "$ROOT_DIR/target/release/ibus-engine-rustype" "$STAGING/usr/libexec/ibus-engine-rustype"
 install -m755 "$ROOT_DIR/tools/rustype-settings" "$STAGING/usr/bin/rustype-settings"
 install -m644 "$ROOT_DIR/tools/rustype-settings.desktop" "$STAGING/usr/share/applications/rustype-settings.desktop"
+ln -sf rustype-settings.desktop "$STAGING/usr/share/applications/dev.namtr.RustypeSettings.desktop"
 
 # IBus Component XML trỏ vào /usr/libexec
 cat <<EOF > "$STAGING/usr/share/ibus/component/rustype.xml"
@@ -91,9 +92,11 @@ chmod 644 "$STAGING/usr/share/ibus/component/rustype.xml"
 for s in 16 32 48 64 128 256 512; do
     mkdir -p "$STAGING/usr/share/icons/hicolor/${s}x${s}/apps"
     install -m644 "$ROOT_DIR/assets/icons/${s}x${s}/rustype.png" "$STAGING/usr/share/icons/hicolor/${s}x${s}/apps/rustype.png"
+    ln -sf rustype.png "$STAGING/usr/share/icons/hicolor/${s}x${s}/apps/dev.namtr.RustypeSettings.png"
 done
 mkdir -p "$STAGING/usr/share/icons/hicolor/scalable/apps"
 install -m644 "$ROOT_DIR/assets/icons/scalable/rustype.svg" "$STAGING/usr/share/icons/hicolor/scalable/apps/rustype.svg"
+ln -sf rustype.svg "$STAGING/usr/share/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg"
 
 # GNOME Shell extension
 cp -a "$ROOT_DIR/gnome-shell-extension/rustype-focus@namtr.dev/"* "$STAGING/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev/"
