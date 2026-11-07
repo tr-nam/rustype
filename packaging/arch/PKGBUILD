@@ -11,7 +11,7 @@ depends=('ibus' 'python' 'python-gobject' 'libadwaita')
 makedepends=('cargo')
 provides=('rustype')
 conflicts=('rustype')
-source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::https://github.com/tr-nam/rustype/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 build() {

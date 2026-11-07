@@ -5,7 +5,7 @@ Summary:        Lightweight Vietnamese input method engine for IBus
 
 License:        MIT
 URL:            https://namtr.dev
-Source0:        https://github.com/namtr/rustype/archive/v%{version}/%{name}-%{version}.tar.gz
+Source0:        https://github.com/tr-nam/rustype/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  cargo
 BuildRequires:  rust >= 1.70.0

@@ -381,7 +381,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         # Dòng Mã nguồn GitHub
         row_github = Adw.ActionRow(
             title="Mã nguồn GitHub",
-            subtitle="https://github.com/namtr/rustype",
+            subtitle="https://github.com/tr-nam/rustype",
         )
         btn_github = Gtk.Button(
             icon_name="adw-external-link-symbolic",
@@ -392,7 +392,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         btn_github.connect(
             "clicked",
             lambda *_: Gio.AppInfo.launch_default_for_uri(
-                "https://github.com/namtr/rustype", None
+                "https://github.com/tr-nam/rustype", None
             ),
         )
         row_github.add_suffix(btn_github)
@@ -588,7 +588,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
 
         def worker():
             try:
-                url = "https://api.github.com/repos/namtr/rustype/releases/latest"
+                url = "https://api.github.com/repos/tr-nam/rustype/releases/latest"
                 req = urllib.request.Request(
                     url,
                     headers={"User-Agent": f"RustypeSettings/{self.version}"},
@@ -598,7 +598,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
                         data = json.loads(resp.read().decode("utf-8"))
                         tag = data.get("tag_name", "").lstrip("v").strip()
                         html_url = data.get(
-                            "html_url", "https://github.com/namtr/rustype/releases"
+                            "html_url", "https://github.com/tr-nam/rustype/releases"
                         )
                         GLib.idle_add(self._on_update_result, True, tag, html_url)
                         return

@@ -78,7 +78,7 @@ Vì không dùng thư viện ngoài, Rustype đóng gói cho Debian và PPA dễ
 - [x] Trang web và hướng dẫn tiếng Việt, câu hỏi thường gặp về terminal, Wayland và Chrome (`website/`).
 - [x] Mẫu báo lỗi chuẩn GitHub bắt buộc ghi ứng dụng, desktop, Wayland hay X11, và kết quả lệnh chẩn đoán (`.github/ISSUE_TEMPLATE/*`).
 - [x] Trang cam kết quyền riêng tư: không mạng, không ghi phím (`docs/PRIVACY.md` và trên website).
-- [x] Kiểm tra tên và thương hiệu trước khi làm web: repo cá nhân `namtr/rustype`, trang chủ `namtr.dev`, hỗ trợ qua `support@namtr.dev`.
+- [x] Kiểm tra tên và thương hiệu trước khi làm web: repo cá nhân `tr-nam/rustype`, trang chủ `namtr.dev`, hỗ trợ qua `support@namtr.dev`.
 - [x] Triển khai website trang chủ trên VPS (`https://namtr.dev`).
 
 ## Ước tính thời gian
