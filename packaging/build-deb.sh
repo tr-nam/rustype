@@ -55,6 +55,7 @@ mkdir -p "$STAGING/usr/libexec" \
 # 4. Sao chép và phân quyền nhị phân & script
 echo "==> [3/6] Cài đặt file thực thi và tài nguyên..."
 install -m755 "$ROOT_DIR/target/release/ibus-engine-rustype" "$STAGING/usr/libexec/ibus-engine-rustype"
+ln -sf ../libexec/ibus-engine-rustype "$STAGING/usr/bin/ibus-engine-rustype"
 install -m755 "$ROOT_DIR/tools/rustype-settings" "$STAGING/usr/bin/rustype-settings"
 install -m644 "$ROOT_DIR/tools/dev.namtr.RustypeSettings.desktop" "$STAGING/usr/share/applications/dev.namtr.RustypeSettings.desktop"
 
