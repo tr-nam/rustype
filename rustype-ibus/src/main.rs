@@ -54,7 +54,14 @@ fn ibus_address() -> Option<String> {
             let d = std::env::var("DISPLAY").unwrap_or_default();
             let (h, rest) = d.split_once(':').unwrap_or(("", "0"));
             let num = rest.split('.').next().unwrap_or("0").to_string();
-            (if h.is_empty() { "unix".to_string() } else { h.to_string() }, num)
+            (
+                if h.is_empty() {
+                    "unix".to_string()
+                } else {
+                    h.to_string()
+                },
+                num,
+            )
         }
     };
     let candidate = bus_dir.join(format!("{machine_id}-{host}-{display}"));
@@ -73,7 +80,9 @@ fn ibus_address() -> Option<String> {
 }
 
 fn component_xml() -> String {
-    let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "ibus-engine-rustype".into());
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "ibus-engine-rustype".into());
     format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <component>
@@ -127,7 +136,9 @@ fn main() {
         }
         "--xml" => print!("{}", component_xml()),
         "--write-config" => {
-            let Some(p) = config::path() else { std::process::exit(1) };
+            let Some(p) = config::path() else {
+                std::process::exit(1)
+            };
             if p.exists() {
                 println!("{} đã có, giữ nguyên", p.display());
             } else {
@@ -160,7 +171,10 @@ fn main() {
 }
 
 fn doctor() {
-    println!("=== Chẩn đoán hệ thống Rustype v{} ===", env!("CARGO_PKG_VERSION"));
+    println!(
+        "=== Chẩn đoán hệ thống Rustype v{} ===",
+        env!("CARGO_PKG_VERSION")
+    );
     let mut ok_count = 0;
     let mut warn_count = 0;
     let mut fail_count = 0;
@@ -213,8 +227,8 @@ fn doctor() {
 
     // 5. GNOME Shell Extension
     if let Some(home) = std::env::var_os("HOME") {
-        let ext_dir = PathBuf::from(home)
-            .join(".local/share/gnome-shell/extensions/rustype-focus@namtr.dev");
+        let ext_dir =
+            PathBuf::from(home).join(".local/share/gnome-shell/extensions/rustype-focus@namtr.dev");
         if ext_dir.exists() {
             println!("[✓] GNOME Shell extension: đã cài đặt (rustype-focus@namtr.dev)");
             ok_count += 1;
@@ -240,7 +254,10 @@ fn doctor() {
                 telex::InputMethod::Vni => "VNI",
             };
             println!("[✓] Cấu hình: {}", p.display());
-            println!("    Kiểu gõ: {}, Chế độ: {}, Nhớ theo app: {}", method_str, mode_str, cfg.remember_state_per_app);
+            println!(
+                "    Kiểu gõ: {}, Chế độ: {}, Nhớ theo app: {}",
+                method_str, mode_str, cfg.remember_state_per_app
+            );
             if cfg.telex.enable_macro {
                 println!("    Gõ tắt (Macro): Bật ({} từ)", cfg.telex.macros.len());
             }
@@ -251,18 +268,25 @@ fn doctor() {
         } else {
             println!("[!] Cấu hình: chưa có file {}", p.display());
             println!("    (Rustype đang sử dụng cấu hình mặc định: Telex, chế độ Auto).");
-            println!("    Gợi ý: Chạy 'ibus-engine-rustype --write-config' để tạo file cấu hình mẫu.");
+            println!(
+                "    Gợi ý: Chạy 'ibus-engine-rustype --write-config' để tạo file cấu hình mẫu."
+            );
             warn_count += 1;
         }
     }
 
     // Kết luận
-    println!("\n--- Kết quả: {} tốt, {} cảnh báo, {} lỗi ---", ok_count, warn_count, fail_count);
+    println!(
+        "\n--- Kết quả: {} tốt, {} cảnh báo, {} lỗi ---",
+        ok_count, warn_count, fail_count
+    );
     if fail_count == 0 && warn_count == 0 {
         println!("Mọi thứ hoàn hảo! Rustype đã sẵn sàng gõ tiếng Việt.");
     } else if fail_count > 0 {
         println!("Cần khắc phục các lỗi [✗] ở trên để Rustype hoạt động bình thường.");
     } else {
-        println!("Rustype có thể hoạt động được. Xem các cảnh báo [!] để có trải nghiệm tối ưu nhất.");
+        println!(
+            "Rustype có thể hoạt động được. Xem các cảnh báo [!] để có trải nghiệm tối ưu nhất."
+        );
     }
 }

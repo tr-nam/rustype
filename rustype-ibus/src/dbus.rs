@@ -32,7 +32,9 @@ pub struct ArrayMark {
 
 impl Writer {
     pub fn new() -> Self {
-        Writer { buf: Vec::with_capacity(128) }
+        Writer {
+            buf: Vec::with_capacity(128),
+        }
     }
     pub fn pad(&mut self, align: usize) {
         let rem = self.buf.len() % align;
@@ -72,7 +74,10 @@ impl Writer {
         let len_at = self.buf.len();
         self.buf.extend_from_slice(&[0; 4]);
         self.pad(elem_align);
-        ArrayMark { len_at, start: self.buf.len() }
+        ArrayMark {
+            len_at,
+            start: self.buf.len(),
+        }
     }
     pub fn array_end(&mut self, m: ArrayMark) {
         let len = (self.buf.len() - m.start) as u32;
@@ -89,7 +94,14 @@ pub enum Field<'a> {
     Destination(&'a str),
 }
 
-pub fn encode(mtype: u8, flags: u8, serial: u32, fields: &[Field], sig: &str, body: &[u8]) -> Vec<u8> {
+pub fn encode(
+    mtype: u8,
+    flags: u8,
+    serial: u32,
+    fields: &[Field],
+    sig: &str,
+    body: &[u8],
+) -> Vec<u8> {
     let mut w = Writer::new();
     w.byte(b'l');
     w.byte(mtype);
@@ -181,10 +193,14 @@ impl<'a> Reader<'a> {
         Reader { b, pos: 0, big }
     }
     pub fn align(&mut self, a: usize) {
-        self.pos = (self.pos + a - 1) / a * a;
+        self.pos = self.pos.div_ceil(a) * a;
     }
     fn take(&mut self, n: usize) -> io::Result<&'a [u8]> {
-        let end = self.pos.checked_add(n).filter(|&e| e <= self.b.len()).ok_or_else(|| bad("message too short"))?;
+        let end = self
+            .pos
+            .checked_add(n)
+            .filter(|&e| e <= self.b.len())
+            .ok_or_else(|| bad("message too short"))?;
         let s = &self.b[self.pos..end];
         self.pos = end;
         Ok(s)
@@ -195,7 +211,11 @@ impl<'a> Reader<'a> {
     pub fn u32(&mut self) -> io::Result<u32> {
         self.align(4);
         let s: [u8; 4] = self.take(4)?.try_into().unwrap();
-        Ok(if self.big { u32::from_be_bytes(s) } else { u32::from_le_bytes(s) })
+        Ok(if self.big {
+            u32::from_be_bytes(s)
+        } else {
+            u32::from_le_bytes(s)
+        })
     }
     pub fn string(&mut self) -> io::Result<String> {
         let n = self.u32()? as usize;
@@ -247,7 +267,9 @@ impl<'a> Reader<'a> {
             }
             b'a' => {
                 let len = self.u32()? as usize;
-                let elem = *sig.get(*i + 1).ok_or_else(|| bad("array without element type"))?;
+                let elem = *sig
+                    .get(*i + 1)
+                    .ok_or_else(|| bad("array without element type"))?;
                 self.align(type_align(elem));
                 self.take(len)?;
                 *i += 1;
@@ -326,7 +348,11 @@ pub fn read_message(r: &mut impl Read) -> io::Result<Message> {
     };
     let rd = |s: &[u8]| {
         let a: [u8; 4] = s.try_into().unwrap();
-        if big { u32::from_be_bytes(a) } else { u32::from_le_bytes(a) }
+        if big {
+            u32::from_be_bytes(a)
+        } else {
+            u32::from_le_bytes(a)
+        }
     };
     let body_len = rd(&fixed[4..8]) as usize;
     let fields_len = rd(&fixed[12..16]) as usize;
@@ -339,7 +365,13 @@ pub fn read_message(r: &mut impl Read) -> io::Result<Message> {
     all[..16].copy_from_slice(&fixed);
     r.read_exact(&mut all[16..])?;
 
-    let mut m = Message { mtype: fixed[1], flags: fixed[2], serial: rd(&fixed[8..12]), big_endian: big, ..Default::default() };
+    let mut m = Message {
+        mtype: fixed[1],
+        flags: fixed[2],
+        serial: rd(&fixed[8..12]),
+        big_endian: big,
+        ..Default::default()
+    };
     let mut rd = Reader::new(&all[..header_end], big);
     rd.pos = 16;
     while rd.pos < header_end {
@@ -373,9 +405,13 @@ pub fn read_message(r: &mut impl Read) -> io::Result<Message> {
 fn connect_address(address: &str) -> io::Result<UnixStream> {
     let mut last_err = bad("no usable unix address");
     for entry in address.split(';') {
-        let Some(params) = entry.strip_prefix("unix:") else { continue };
+        let Some(params) = entry.strip_prefix("unix:") else {
+            continue;
+        };
         for kv in params.split(',') {
-            let Some((k, v)) = kv.split_once('=') else { continue };
+            let Some((k, v)) = kv.split_once('=') else {
+                continue;
+            };
             let v = unescape(v);
             let res = match k {
                 "path" => UnixStream::connect(&v),
@@ -439,18 +475,33 @@ impl Connection {
             unique_name: String::new(),
         };
         c.authenticate()?;
-        let reply = c.call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "Hello", "", &[])?;
+        let reply = c.call(
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "Hello",
+            "",
+            &[],
+        )?;
         c.unique_name = reply.body_reader().string()?;
         Ok(c)
     }
 
     fn authenticate(&mut self) -> io::Result<()> {
-        let uid_hex: String = current_uid()?.to_string().bytes().map(|b| format!("{b:02x}")).collect();
-        self.writer.write_all(format!("\0AUTH EXTERNAL {uid_hex}\r\n").as_bytes())?;
+        let uid_hex: String = current_uid()?
+            .to_string()
+            .bytes()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        self.writer
+            .write_all(format!("\0AUTH EXTERNAL {uid_hex}\r\n").as_bytes())?;
         let mut line = String::new();
         self.reader.read_line(&mut line)?;
         if !line.starts_with("OK ") {
-            return Err(io::Error::new(io::ErrorKind::PermissionDenied, format!("D-Bus auth failed: {}", line.trim())));
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("D-Bus auth failed: {}", line.trim()),
+            ));
         }
         self.writer.write_all(b"BEGIN\r\n")
     }
@@ -461,16 +512,38 @@ impl Connection {
     }
 
     /// Sends a method call and waits for its reply; other messages are queued for `next`.
-    pub fn call(&mut self, dest: &str, path: &str, iface: &str, member: &str, sig: &str, body: &[u8]) -> io::Result<Message> {
+    pub fn call(
+        &mut self,
+        dest: &str,
+        path: &str,
+        iface: &str,
+        member: &str,
+        sig: &str,
+        body: &[u8],
+    ) -> io::Result<Message> {
         let serial = self.next_serial();
-        let fields = [Field::Path(path), Field::Interface(iface), Field::Member(member), Field::Destination(dest)];
-        self.writer.write_all(&encode(METHOD_CALL, 0, serial, &fields, sig, body))?;
+        let fields = [
+            Field::Path(path),
+            Field::Interface(iface),
+            Field::Member(member),
+            Field::Destination(dest),
+        ];
+        self.writer
+            .write_all(&encode(METHOD_CALL, 0, serial, &fields, sig, body))?;
         loop {
             let m = read_message(&mut self.reader)?;
             if matches!(m.mtype, METHOD_RETURN | ERROR) && m.reply_serial == Some(serial) {
                 if m.mtype == ERROR {
-                    let text = if m.signature.starts_with('s') { m.body_reader().string().unwrap_or_default() } else { String::new() };
-                    return Err(io::Error::other(format!("{}: {}", m.error_name.unwrap_or_default(), text)));
+                    let text = if m.signature.starts_with('s') {
+                        m.body_reader().string().unwrap_or_default()
+                    } else {
+                        String::new()
+                    };
+                    return Err(io::Error::other(format!(
+                        "{}: {}",
+                        m.error_name.unwrap_or_default(),
+                        text
+                    )));
                 }
                 return Ok(m);
             }
@@ -482,7 +555,14 @@ impl Connection {
         let mut w = Writer::new();
         w.string(name);
         w.u32(0x4); // DBUS_NAME_FLAG_DO_NOT_QUEUE
-        let reply = self.call("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "RequestName", "su", &w.buf)?;
+        let reply = self.call(
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "RequestName",
+            "su",
+            &w.buf,
+        )?;
         reply.body_reader().u32()
     }
 
@@ -494,9 +574,21 @@ impl Connection {
     }
 
     /// Appends an encoded signal to `batch`.
-    pub fn signal(&mut self, batch: &mut Vec<u8>, path: &str, iface: &str, member: &str, sig: &str, body: &[u8]) {
+    pub fn signal(
+        &mut self,
+        batch: &mut Vec<u8>,
+        path: &str,
+        iface: &str,
+        member: &str,
+        sig: &str,
+        body: &[u8],
+    ) {
         let serial = self.next_serial();
-        let fields = [Field::Path(path), Field::Interface(iface), Field::Member(member)];
+        let fields = [
+            Field::Path(path),
+            Field::Interface(iface),
+            Field::Member(member),
+        ];
         batch.extend(encode(SIGNAL, 0, serial, &fields, sig, body));
     }
 
@@ -549,7 +641,12 @@ mod tests {
             METHOD_CALL,
             0,
             42,
-            &[Field::Path("/a/b"), Field::Interface("x.y"), Field::Member("M"), Field::Destination("d.e")],
+            &[
+                Field::Path("/a/b"),
+                Field::Interface("x.y"),
+                Field::Member("M"),
+                Field::Destination("d.e"),
+            ],
             "us",
             &w.buf,
         );

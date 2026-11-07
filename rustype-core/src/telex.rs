@@ -6,16 +6,11 @@
 use crate::tables::*;
 use std::collections::HashMap;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum InputMethod {
+    #[default]
     Telex,
     Vni,
-}
-
-impl Default for InputMethod {
-    fn default() -> Self {
-        InputMethod::Telex
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -58,7 +53,11 @@ pub struct KeyResult {
 
 impl KeyResult {
     fn pass() -> Self {
-        KeyResult { handled: false, backspaces: 0, commit: String::new() }
+        KeyResult {
+            handled: false,
+            backspaces: 0,
+            commit: String::new(),
+        }
     }
 }
 
@@ -107,7 +106,10 @@ fn cased(target: char, like: char) -> char {
 }
 
 fn is_base_vowel(c: char) -> bool {
-    matches!(c, 'a' | 'ă' | 'â' | 'e' | 'ê' | 'i' | 'o' | 'ô' | 'ơ' | 'u' | 'ư' | 'y')
+    matches!(
+        c,
+        'a' | 'ă' | 'â' | 'e' | 'ê' | 'i' | 'o' | 'ô' | 'ơ' | 'u' | 'ư' | 'y'
+    )
 }
 
 fn is_modified_vowel(c: char) -> bool {
@@ -275,7 +277,12 @@ impl Telex {
         }
         let vowel: String = vidx.iter().map(|&k| lc[k]).collect();
         let fin: String = lc[i..].iter().collect();
-        Split { initial, vowel, fin, vidx }
+        Split {
+            initial,
+            vowel,
+            fin,
+            vidx,
+        }
     }
 
     fn tone_target(&self, s: &Split) -> Option<usize> {
@@ -306,7 +313,11 @@ impl Telex {
                 return Some(v[1]); // toán, hoàng
             }
             if matches!(s.vowel.as_str(), "oa" | "oe" | "uy") {
-                return Some(if self.cfg.modern_orthography { v[1] } else { v[0] });
+                return Some(if self.cfg.modern_orthography {
+                    v[1]
+                } else {
+                    v[0]
+                });
             }
             return Some(v[0]);
         }
@@ -347,7 +358,11 @@ impl Telex {
             return false;
         }
         let s = self.split();
-        let initials = if committed { VALID_INITIALS } else { VALID_INITIALS_TYPING };
+        let initials = if committed {
+            VALID_INITIALS
+        } else {
+            VALID_INITIALS_TYPING
+        };
         if !in_set(initials, &s.initial) {
             return false;
         }
@@ -378,7 +393,11 @@ impl Telex {
         if !fin.is_empty() && !in_set(VALID_FINALS, fin) {
             return false;
         }
-        let nuclei = if committed { NUCLEI_COMMITTED } else { NUCLEI_TYPING };
+        let nuclei = if committed {
+            NUCLEI_COMMITTED
+        } else {
+            NUCLEI_TYPING
+        };
         if !in_set(nuclei, &s.vowel) {
             return false;
         }
@@ -393,7 +412,7 @@ impl Telex {
             }
         }
         if in_set(STOP_FINALS, fin) {
-            if matches!(self.tone, 2 | 3 | 4) {
+            if matches!(self.tone, 2..=4) {
                 return false;
             }
             if committed && self.tone == 0 {
@@ -409,7 +428,11 @@ impl Telex {
                 return false;
             }
         }
-        if committed && !init.is_empty() && fin.is_empty() && in_set(FORBIDDEN_OPEN_NUCLEI, &s.vowel) {
+        if committed
+            && !init.is_empty()
+            && fin.is_empty()
+            && in_set(FORBIDDEN_OPEN_NUCLEI, &s.vowel)
+        {
             return false;
         }
         true
@@ -460,7 +483,11 @@ impl Telex {
         if old_n == new_n + 1 && old.starts_with(new.as_str()) {
             return KeyResult::pass();
         }
-        KeyResult { handled: true, backspaces: old_n, commit: new }
+        KeyResult {
+            handled: true,
+            backspaces: old_n,
+            commit: new,
+        }
     }
 
     /// One printable character. Letters (or digits in VNI) compose; anything else ends the word.
@@ -485,7 +512,11 @@ impl Telex {
         let o: Vec<char> = old.chars().collect();
         let n: Vec<char> = new.chars().collect();
         let common = o.iter().zip(n.iter()).take_while(|(a, b)| a == b).count();
-        KeyResult { handled: true, backspaces: o.len() - common, commit: n[common..].iter().collect() }
+        KeyResult {
+            handled: true,
+            backspaces: o.len() - common,
+            commit: n[common..].iter().collect(),
+        }
     }
 
     fn find_macro(&self, raw: &str) -> Option<String> {
@@ -497,7 +528,7 @@ impl Telex {
             if raw.chars().all(|c| c.is_uppercase()) {
                 return Some(exp.to_uppercase());
             }
-            if raw.chars().next().map_or(false, |c| c.is_uppercase()) {
+            if raw.chars().next().is_some_and(|c| c.is_uppercase()) {
                 let mut chars = exp.chars();
                 if let Some(first) = chars.next() {
                     return Some(first.to_uppercase().collect::<String>() + chars.as_str());
@@ -535,18 +566,27 @@ impl Telex {
         // 2. Tự động trả lại từ tiếng Anh / từ trong custom_words
         if self.cfg.auto_restore_english && !self.has_backspaced && !raw.is_empty() && old != raw {
             let raw_lc = raw.to_lowercase();
-            let is_custom = self.cfg.custom_words.iter().any(|w| w.to_lowercase() == raw_lc);
-            let restore = is_custom || if self.disabled {
-                in_set(ENGLISH_COLLISION_WORDS, &raw_lc)
-            } else {
-                !self.is_valid(true)
-            };
+            let is_custom = self
+                .cfg
+                .custom_words
+                .iter()
+                .any(|w| w.to_lowercase() == raw_lc);
+            let restore = is_custom
+                || if self.disabled {
+                    in_set(ENGLISH_COLLISION_WORDS, &raw_lc)
+                } else {
+                    !self.is_valid(true)
+                };
             if restore {
                 self.disable_as_raw();
                 self.commit_word();
                 let mut commit = raw;
                 commit.push(ch);
-                return KeyResult { handled: true, backspaces: old.chars().count(), commit };
+                return KeyResult {
+                    handled: true,
+                    backspaces: old.chars().count(),
+                    commit,
+                };
             }
         }
         self.commit_word();
@@ -943,7 +983,11 @@ impl Telex {
         self.reset();
         let mut screen: Vec<char> = Vec::new();
         for ch in text.chars() {
-            let r = if ch == '\u{8}' { self.backspace() } else { self.key(ch) };
+            let r = if ch == '\u{8}' {
+                self.backspace()
+            } else {
+                self.key(ch)
+            };
             if r.handled {
                 for _ in 0..r.backspaces {
                     screen.pop();
@@ -970,8 +1014,14 @@ mod tests {
     #[test]
     fn words() {
         let cases = [
-            ("Kieemr tra mays tooi hieenj taij", "Kiểm tra máy tôi hiện tại"),
-            ("toanf booj gox vaof terminal cuar banj ddang bij looix", "toàn bộ gõ vào terminal của bạn đang bị lỗi"),
+            (
+                "Kieemr tra mays tooi hieenj taij",
+                "Kiểm tra máy tôi hiện tại",
+            ),
+            (
+                "toanf booj gox vaof terminal cuar banj ddang bij looix",
+                "toàn bộ gõ vào terminal của bạn đang bị lỗi",
+            ),
             ("vieetj nam", "việt nam"),
             ("nguowif", "người"),
             ("dduwowcj", "được"),
@@ -1001,7 +1051,10 @@ mod tests {
 
     #[test]
     fn english_restore() {
-        for w in ["window", "software", "book", "issue", "pass", "user", "docker", "case", "fix", "for", "terminal"] {
+        for w in [
+            "window", "software", "book", "issue", "pass", "user", "docker", "case", "fix", "for",
+            "terminal",
+        ] {
             assert_eq!(feed(&format!("{w} ")), format!("{w} "), "word {w}");
         }
     }
@@ -1026,7 +1079,10 @@ mod tests {
                 continue;
             }
             let cols: Vec<&str> = line.split('\t').collect();
-            assert!(cols.len() == 3 && cols[2] == ";", "bad golden line: {line:?}");
+            assert!(
+                cols.len() == 3 && cols[2] == ";",
+                "bad golden line: {line:?}"
+            );
             let unesc = |s: &str| s.replace("\\b", "\u{8}").replace("\\\\", "\\");
             let (input, want) = (unesc(cols[0]), unesc(cols[1]));
             total += 1;
@@ -1036,7 +1092,12 @@ mod tests {
             }
         }
         assert!(total > 10_000, "golden set too small: {total}");
-        assert!(changed.is_empty(), "{} of {total} golden cases changed:\n{}", changed.len(), changed[..changed.len().min(20)].join("\n"));
+        assert!(
+            changed.is_empty(),
+            "{} of {total} golden cases changed:\n{}",
+            changed.len(),
+            changed[..changed.len().min(20)].join("\n")
+        );
     }
 
     #[test]

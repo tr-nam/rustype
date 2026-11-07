@@ -121,7 +121,9 @@ pub fn parse(text: &str) -> Config {
             section = line[1..line.len() - 1].trim();
             continue;
         }
-        let Some((k, v)) = line.split_once('=') else { continue };
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
         let (k, v) = (k.trim().trim_matches('"'), v.trim().trim_matches('"'));
         if section == "app_modes" {
             cfg.app_modes.insert(k.to_string(), parse_mode(v));
@@ -212,7 +214,11 @@ pub struct Watcher {
 
 impl Watcher {
     pub fn new() -> Self {
-        let mut w = Watcher { path: path(), mtime: None, current: Config::default() };
+        let mut w = Watcher {
+            path: path(),
+            mtime: None,
+            current: Config::default(),
+        };
         w.refresh();
         w
     }
@@ -249,7 +255,8 @@ mod tests {
 
     #[test]
     fn parses_values() {
-        let c = parse("mode = preedit\nmodern_orthography = true # kiểu mới\nauto_restore_english=off");
+        let c =
+            parse("mode = preedit\nmodern_orthography = true # kiểu mới\nauto_restore_english=off");
         assert_eq!(c.mode, Mode::Preedit);
         assert!(c.telex.modern_orthography);
         assert!(!c.telex.auto_restore_english);
@@ -291,7 +298,10 @@ hn = \"Hà Nội\"
         assert!(!c.remember_state_per_app);
         assert!(c.telex.enable_macro);
         assert_eq!(c.telex.custom_words, vec!["this", "test", "github"]);
-        assert_eq!(c.telex.macros.get("vn").map(|s| s.as_str()), Some("Việt Nam"));
+        assert_eq!(
+            c.telex.macros.get("vn").map(|s| s.as_str()),
+            Some("Việt Nam")
+        );
         assert_eq!(c.telex.macros.get("hn").map(|s| s.as_str()), Some("Hà Nội"));
     }
 }

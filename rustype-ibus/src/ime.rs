@@ -32,8 +32,15 @@ pub enum Out {
     Commit(String),
     Preedit(String),
     HidePreedit,
-    DeleteSurrounding { offset: i32, nchars: u32 },
-    ForwardKey { keyval: u32, keycode: u32, state: u32 },
+    DeleteSurrounding {
+        offset: i32,
+        nchars: u32,
+    },
+    ForwardKey {
+        keyval: u32,
+        keycode: u32,
+        state: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,7 +128,13 @@ impl Ime {
         self.purpose = purpose;
     }
 
-    pub fn set_surrounding_text(&mut self, _text: &str, cursor_pos: u32, anchor_pos: u32, out: &mut Vec<Out>) {
+    pub fn set_surrounding_text(
+        &mut self,
+        _text: &str,
+        cursor_pos: u32,
+        anchor_pos: u32,
+        out: &mut Vec<Out>,
+    ) {
         let has_sel = cursor_pos != anchor_pos;
         self.has_selection = has_sel;
         if has_sel {
@@ -135,10 +148,10 @@ impl Ime {
             let word_len = self.telex.displayed().chars().count() as u32;
             let expected_min = last_pos.saturating_sub(word_len);
             let expected_max = last_pos.saturating_add(1);
-            if cursor_pos < expected_min || cursor_pos > expected_max {
-                if !self.telex.is_empty() || self.preedit_visible {
-                    self.reset(out);
-                }
+            if (cursor_pos < expected_min || cursor_pos > expected_max)
+                && (!self.telex.is_empty() || self.preedit_visible)
+            {
+                self.reset(out);
             }
         }
         self.cursor_pos = Some(cursor_pos);
@@ -165,11 +178,22 @@ impl Ime {
             match self.show {
                 Show::Backspace => {
                     for _ in 0..backspaces {
-                        out.push(Out::ForwardKey { keyval: KEY_BACKSPACE, keycode: 14, state: 0 });
-                        out.push(Out::ForwardKey { keyval: KEY_BACKSPACE, keycode: 14, state: RELEASE_MASK });
+                        out.push(Out::ForwardKey {
+                            keyval: KEY_BACKSPACE,
+                            keycode: 14,
+                            state: 0,
+                        });
+                        out.push(Out::ForwardKey {
+                            keyval: KEY_BACKSPACE,
+                            keycode: 14,
+                            state: RELEASE_MASK,
+                        });
                     }
                 }
-                _ => out.push(Out::DeleteSurrounding { offset: -(backspaces as i32), nchars: backspaces as u32 }),
+                _ => out.push(Out::DeleteSurrounding {
+                    offset: -(backspaces as i32),
+                    nchars: backspaces as u32,
+                }),
             }
         }
         if !text.is_empty() {
@@ -217,12 +241,19 @@ impl Ime {
         self.has_selection = false;
     }
 
-    pub fn process_key(&mut self, keyval: u32, _keycode: u32, state: u32, out: &mut Vec<Out>) -> bool {
+    pub fn process_key(
+        &mut self,
+        keyval: u32,
+        _keycode: u32,
+        state: u32,
+        out: &mut Vec<Out>,
+    ) -> bool {
         if !self.enabled || state & RELEASE_MASK != 0 || is_modifier_key(keyval) {
             return false;
         }
         let shortcut = CONTROL_MASK | MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
-        if state & shortcut != 0 || self.purpose == PURPOSE_PASSWORD || self.purpose == PURPOSE_PIN {
+        if state & shortcut != 0 || self.purpose == PURPOSE_PASSWORD || self.purpose == PURPOSE_PIN
+        {
             self.flush_preedit(out);
             self.telex.reset();
             return false;
@@ -311,7 +342,13 @@ mod tests {
     fn keys(ime: &mut Ime, s: &str) -> Vec<Out> {
         let mut out = Vec::new();
         for ch in s.chars() {
-            let kv = if ch == '\u{8}' { KEY_BACKSPACE } else if ch == '\n' { KEY_RETURN } else { ch as u32 };
+            let kv = if ch == '\u{8}' {
+                KEY_BACKSPACE
+            } else if ch == '\n' {
+                KEY_RETURN
+            } else {
+                ch as u32
+            };
             ime.process_key(kv, 0, 0, &mut out);
         }
         out
@@ -324,7 +361,9 @@ mod tests {
         let out = keys(&mut ime, "kieemr ");
         assert!(out.contains(&Out::Preedit("kiểm".into())));
         assert_eq!(out.last(), Some(&Out::Commit("kiểm ".into())));
-        assert!(!out.iter().any(|o| matches!(o, Out::DeleteSurrounding { .. } | Out::ForwardKey { .. })));
+        assert!(!out
+            .iter()
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. } | Out::ForwardKey { .. })));
     }
 
     #[test]
@@ -398,7 +437,9 @@ mod tests {
         // User types 'i' -> should not be combined with 'g'
         ime.process_key('i' as u32, 0, 0, &mut out);
         // It passes or commits 'i' without deleting old surrounding text
-        assert!(!out.iter().any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+        assert!(!out
+            .iter()
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
     }
 
     #[test]
@@ -415,7 +456,9 @@ mod tests {
         out.clear();
         // Next key 'm' shouldn't compose with previous "kiê"
         ime.process_key('m' as u32, 0, 0, &mut out);
-        assert!(!out.iter().any(|o| matches!(o, Out::Commit(ref s) if s == "kiêm")));
+        assert!(!out
+            .iter()
+            .any(|o| matches!(o, Out::Commit(ref s) if s == "kiêm")));
     }
 
     #[test]

@@ -9,8 +9,15 @@ pub struct RustypeTelex {
     inner: Telex,
 }
 
+/// Creates a new `RustypeTelex` instance.
+///
+/// # Safety
+/// The returned pointer must be freed with [`rustype_telex_free`].
 #[no_mangle]
-pub unsafe extern "C" fn rustype_telex_new(modern_orthography: bool, auto_restore_english: bool) -> *mut RustypeTelex {
+pub unsafe extern "C" fn rustype_telex_new(
+    modern_orthography: bool,
+    auto_restore_english: bool,
+) -> *mut RustypeTelex {
     let cfg = Config {
         modern_orthography,
         auto_restore_english,
@@ -21,6 +28,10 @@ pub unsafe extern "C" fn rustype_telex_new(modern_orthography: bool, auto_restor
     }))
 }
 
+/// Frees a `RustypeTelex` instance previously allocated with [`rustype_telex_new`].
+///
+/// # Safety
+/// `telex` must be a valid pointer allocated by [`rustype_telex_new`] or null.
 #[no_mangle]
 pub unsafe extern "C" fn rustype_telex_free(telex: *mut RustypeTelex) {
     if !telex.is_null() {
@@ -28,6 +39,10 @@ pub unsafe extern "C" fn rustype_telex_free(telex: *mut RustypeTelex) {
     }
 }
 
+/// Resets the engine composition state.
+///
+/// # Safety
+/// `telex` must be a valid pointer to a [`RustypeTelex`] instance or null.
 #[no_mangle]
 pub unsafe extern "C" fn rustype_telex_reset(telex: *mut RustypeTelex) {
     if let Some(t) = telex.as_mut() {
@@ -45,6 +60,10 @@ unsafe fn write_c_string(text: &str, out_buf: *mut c_char, max_len: usize) {
     *out_buf.add(copy_len) = 0;
 }
 
+/// Processes a single unicode character input.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null. Output pointers, if non-null, must be writable.
 #[no_mangle]
 pub unsafe extern "C" fn rustype_telex_key(
     telex: *mut RustypeTelex,
@@ -54,8 +73,12 @@ pub unsafe extern "C" fn rustype_telex_key(
     out_commit: *mut c_char,
     out_commit_capacity: usize,
 ) -> bool {
-    let Some(t) = telex.as_mut() else { return false };
-    let Some(c) = char::from_u32(ch) else { return false };
+    let Some(t) = telex.as_mut() else {
+        return false;
+    };
+    let Some(c) = char::from_u32(ch) else {
+        return false;
+    };
     let res = t.inner.key(c);
     if !out_handled.is_null() {
         *out_handled = res.handled;
@@ -67,6 +90,10 @@ pub unsafe extern "C" fn rustype_telex_key(
     res.handled
 }
 
+/// Processes a backspace key.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null. Output pointers, if non-null, must be writable.
 #[no_mangle]
 pub unsafe extern "C" fn rustype_telex_backspace(
     telex: *mut RustypeTelex,
@@ -75,7 +102,9 @@ pub unsafe extern "C" fn rustype_telex_backspace(
     out_commit: *mut c_char,
     out_commit_capacity: usize,
 ) -> bool {
-    let Some(t) = telex.as_mut() else { return false };
+    let Some(t) = telex.as_mut() else {
+        return false;
+    };
     let res = t.inner.backspace();
     if !out_handled.is_null() {
         *out_handled = res.handled;
@@ -87,6 +116,10 @@ pub unsafe extern "C" fn rustype_telex_backspace(
     res.handled
 }
 
+/// Feeds an entire string into the engine and returns the converted text.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null. `input` must point to a valid null-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn rustype_telex_feed(
     telex: *mut RustypeTelex,
@@ -98,7 +131,9 @@ pub unsafe extern "C" fn rustype_telex_feed(
     if input.is_null() {
         return 0;
     }
-    let Ok(cstr) = CStr::from_ptr(input).to_str() else { return 0 };
+    let Ok(cstr) = CStr::from_ptr(input).to_str() else {
+        return 0;
+    };
     let result = t.inner.feed(cstr);
     write_c_string(&result, out_buf, out_buf_len);
     result.len()
@@ -142,14 +177,27 @@ mod tests {
             let mut commit = [0 as c_char; 64];
 
             // Type 'w' -> 'ư'
-            let h = rustype_telex_key(t, 'w' as u32, &mut handled, &mut backspaces, commit.as_mut_ptr(), commit.len());
+            let h = rustype_telex_key(
+                t,
+                'w' as u32,
+                &mut handled,
+                &mut backspaces,
+                commit.as_mut_ptr(),
+                commit.len(),
+            );
             assert!(h);
             assert_eq!(backspaces, 0);
             let s = CStr::from_ptr(commit.as_ptr()).to_str().unwrap();
             assert_eq!(s, "ư");
 
             // Backspace
-            let h = rustype_telex_backspace(t, &mut handled, &mut backspaces, commit.as_mut_ptr(), commit.len());
+            let h = rustype_telex_backspace(
+                t,
+                &mut handled,
+                &mut backspaces,
+                commit.as_mut_ptr(),
+                commit.len(),
+            );
             assert!(!h); // empty now, passes to app
 
             rustype_telex_free(t);

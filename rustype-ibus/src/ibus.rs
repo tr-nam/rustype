@@ -87,13 +87,24 @@ fn write_prop_list(w: &mut Writer, enabled: bool, method: &str) {
     w.array_end(a);
     let props = w.array_start(1);
 
-    let status_label = if enabled { "Tiếng Việt (Bật)" } else { "Tiếng Anh (Tắt)" };
+    let status_label = if enabled {
+        "Tiếng Việt (Bật)"
+    } else {
+        "Tiếng Anh (Tắt)"
+    };
     write_prop(w, "prop_toggle", 0, status_label, "", 0);
 
     let method_label = format!("Kiểu gõ: {method}");
     write_prop(w, "prop_method", 0, &method_label, "", 0);
 
-    write_prop(w, "prop_settings", 0, "Cài đặt Rustype...", "preferences-system", 0);
+    write_prop(
+        w,
+        "prop_settings",
+        0,
+        "Cài đặt Rustype...",
+        "preferences-system",
+        0,
+    );
 
     w.array_end(props);
 }
@@ -112,7 +123,11 @@ pub fn run(address: &str) -> io::Result<()> {
     let mut conn = Connection::open(address)?;
     match conn.request_name(COMPONENT_NAME)? {
         1 | 4 => {}
-        other => return Err(io::Error::other(format!("cannot own {COMPONENT_NAME} (reply {other})"))),
+        other => {
+            return Err(io::Error::other(format!(
+                "cannot own {COMPONENT_NAME} (reply {other})"
+            )))
+        }
     }
     let mut svc = Service {
         conn,
@@ -146,8 +161,14 @@ impl Service {
                     Out::Commit(t) => format!("Commit({} chars)", t.chars().count()),
                     Out::Preedit(t) => format!("Preedit({} chars)", t.chars().count()),
                     Out::HidePreedit => "HidePreedit".into(),
-                    Out::DeleteSurrounding { offset, nchars } => format!("DeleteSurrounding({offset}, {nchars})"),
-                    Out::ForwardKey { keyval, keycode, state } => format!("ForwardKey({keyval:#x}, {keycode}, {state:#x})"),
+                    Out::DeleteSurrounding { offset, nchars } => {
+                        format!("DeleteSurrounding({offset}, {nchars})")
+                    }
+                    Out::ForwardKey {
+                        keyval,
+                        keycode,
+                        state,
+                    } => format!("ForwardKey({keyval:#x}, {keycode}, {state:#x})"),
                 };
                 eprintln!("rustype: {path} -> {label}");
             }
@@ -178,14 +199,19 @@ impl Service {
                     w.u32(nchars);
                     ("DeleteSurroundingText", "iu")
                 }
-                Out::ForwardKey { keyval, keycode, state } => {
+                Out::ForwardKey {
+                    keyval,
+                    keycode,
+                    state,
+                } => {
                     w.u32(keyval);
                     w.u32(keycode);
                     w.u32(state);
                     ("ForwardKeyEvent", "uuu")
                 }
             };
-            self.conn.signal(batch, path, ENGINE_IFACE, member, sig, &w.buf);
+            self.conn
+                .signal(batch, path, ENGINE_IFACE, member, sig, &w.buf);
         }
     }
 
@@ -257,11 +283,21 @@ impl Service {
         }
         if self.engines.contains_key(&path) {
             if let Err(e) = self.engine(msg, &path, iface, member, batch) {
-                self.conn.error(batch, msg, "org.freedesktop.DBus.Error.InvalidArgs", &e.to_string());
+                self.conn.error(
+                    batch,
+                    msg,
+                    "org.freedesktop.DBus.Error.InvalidArgs",
+                    &e.to_string(),
+                );
             }
             return true;
         }
-        self.conn.error(batch, msg, "org.freedesktop.DBus.Error.UnknownObject", &path);
+        self.conn.error(
+            batch,
+            msg,
+            "org.freedesktop.DBus.Error.UnknownObject",
+            &path,
+        );
         true
     }
 
@@ -270,7 +306,12 @@ impl Service {
             (FACTORY_IFACE, "CreateEngine") => {
                 let name = msg.body_reader().string().unwrap_or_default();
                 if name != ENGINE_NAME {
-                    self.conn.error(batch, msg, "org.freedesktop.DBus.Error.InvalidArgs", "unknown engine");
+                    self.conn.error(
+                        batch,
+                        msg,
+                        "org.freedesktop.DBus.Error.InvalidArgs",
+                        "unknown engine",
+                    );
                     return true;
                 }
                 self.config.refresh();
@@ -289,13 +330,25 @@ impl Service {
                 false
             }
             _ => {
-                self.conn.error(batch, msg, "org.freedesktop.DBus.Error.UnknownMethod", member);
+                self.conn.error(
+                    batch,
+                    msg,
+                    "org.freedesktop.DBus.Error.UnknownMethod",
+                    member,
+                );
                 true
             }
         }
     }
 
-    fn engine(&mut self, msg: &Message, path: &str, iface: &str, member: &str, batch: &mut Vec<u8>) -> io::Result<()> {
+    fn engine(
+        &mut self,
+        msg: &Message,
+        path: &str,
+        iface: &str,
+        member: &str,
+        batch: &mut Vec<u8>,
+    ) -> io::Result<()> {
         let mut outs = Vec::new();
         match (iface, member) {
             (ENGINE_IFACE, "ProcessKeyEvent") => {
@@ -352,7 +405,14 @@ impl Service {
                 };
                 let mut pw = Writer::new();
                 write_prop_list(&mut pw, enabled, method_str);
-                self.conn.signal(batch, path, ENGINE_IFACE, "RegisterProperties", "v", &pw.buf);
+                self.conn.signal(
+                    batch,
+                    path,
+                    ENGINE_IFACE,
+                    "RegisterProperties",
+                    "v",
+                    &pw.buf,
+                );
             }
             (ENGINE_IFACE, "FocusOut" | "FocusOutId" | "Reset" | "Disable") => {
                 self.engines.get_mut(path).unwrap().reset(&mut outs);
@@ -390,12 +450,23 @@ impl Service {
                         };
                         let mut pw = Writer::new();
                         write_prop_list(&mut pw, new_state, method);
-                        self.conn.signal(batch, path, ENGINE_IFACE, "RegisterProperties", "v", &pw.buf);
+                        self.conn.signal(
+                            batch,
+                            path,
+                            ENGINE_IFACE,
+                            "RegisterProperties",
+                            "v",
+                            &pw.buf,
+                        );
                     }
                     "prop_method" => {
                         let next_method = match self.config.current.telex.input_method {
-                            rustype_core::telex::InputMethod::Telex => rustype_core::telex::InputMethod::Vni,
-                            rustype_core::telex::InputMethod::Vni => rustype_core::telex::InputMethod::Telex,
+                            rustype_core::telex::InputMethod::Telex => {
+                                rustype_core::telex::InputMethod::Vni
+                            }
+                            rustype_core::telex::InputMethod::Vni => {
+                                rustype_core::telex::InputMethod::Telex
+                            }
                         };
                         self.config.current.telex.input_method = next_method;
                         for engine in self.engines.values_mut() {
@@ -409,14 +480,25 @@ impl Service {
                         };
                         let mut pw = Writer::new();
                         write_prop_list(&mut pw, enabled, method);
-                        self.conn.signal(batch, path, ENGINE_IFACE, "RegisterProperties", "v", &pw.buf);
+                        self.conn.signal(
+                            batch,
+                            path,
+                            ENGINE_IFACE,
+                            "RegisterProperties",
+                            "v",
+                            &pw.buf,
+                        );
                     }
                     "prop_settings" => {
-                        let _ = std::process::Command::new("rustype-settings").spawn()
+                        let _ = std::process::Command::new("rustype-settings")
+                            .spawn()
                             .or_else(|_| {
                                 if let Ok(home) = std::env::var("HOME") {
                                     std::process::Command::new("python3")
-                                        .arg(std::path::PathBuf::from(home).join(".local/bin/rustype-settings"))
+                                        .arg(
+                                            std::path::PathBuf::from(home)
+                                                .join(".local/bin/rustype-settings"),
+                                        )
                                         .spawn()
                                 } else {
                                     Err(std::io::Error::other("no home"))
@@ -428,9 +510,18 @@ impl Service {
             }
             (
                 ENGINE_IFACE,
-                "Enable" | "SetCursorLocation" | "PropertyShow"
-                | "PropertyHide" | "CandidateClicked" | "PageUp" | "PageDown" | "CursorUp" | "CursorDown"
-                | "ProcessHandWritingEvent" | "CancelHandWriting" | "PanelExtensionReceived"
+                "Enable"
+                | "SetCursorLocation"
+                | "PropertyShow"
+                | "PropertyHide"
+                | "CandidateClicked"
+                | "PageUp"
+                | "PageDown"
+                | "CursorUp"
+                | "CursorDown"
+                | "ProcessHandWritingEvent"
+                | "CancelHandWriting"
+                | "PanelExtensionReceived"
                 | "PanelExtensionRegisterKeys",
             ) => {}
             (PROPS_IFACE, "Get") => {
@@ -442,7 +533,8 @@ impl Service {
                     bool_variant(&mut w, false);
                     self.conn.reply(batch, msg, "v", &w.buf);
                 } else {
-                    self.conn.error(batch, msg, "org.freedesktop.DBus.Error.InvalidArgs", &prop);
+                    self.conn
+                        .error(batch, msg, "org.freedesktop.DBus.Error.InvalidArgs", &prop);
                 }
                 return Ok(());
             }
@@ -466,14 +558,22 @@ impl Service {
                 if prop == "ContentType" && sig == "(uu)" {
                     r.align(8);
                     let (purpose, hints) = (r.u32()?, r.u32()?);
-                    self.engines.get_mut(path).unwrap().set_content_type(purpose, hints);
+                    self.engines
+                        .get_mut(path)
+                        .unwrap()
+                        .set_content_type(purpose, hints);
                 }
             }
             (SERVICE_IFACE, "Destroy") => {
                 self.engines.remove(path);
             }
             _ => {
-                self.conn.error(batch, msg, "org.freedesktop.DBus.Error.UnknownMethod", member);
+                self.conn.error(
+                    batch,
+                    msg,
+                    "org.freedesktop.DBus.Error.UnknownMethod",
+                    member,
+                );
                 return Ok(());
             }
         }
