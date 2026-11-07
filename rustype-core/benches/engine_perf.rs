@@ -42,33 +42,48 @@ Co6ng nghe65 tho6ng tin pha1t trie6n3 ra61t nhanh. \
 
 /// Từ tiếng Việt phổ biến (Telex keys) — dùng cho per-key latency.
 const COMMON_WORDS: &[&str] = &[
-    "dduwowcj",   // được
-    "khoong",     // không
-    "nhuwxng",    // những
-    "nguowif",    // người
-    "vieetj",     // việt
-    "giuwowngf",  // giường
-    "ruwowuj",    // rượu
-    "khuyeens",   // khuyến
-    "tuwowngf",   // tường
-    "hoawcj",     // hoặc
-    "truwowfng",  // trường
-    "ddoongf",    // đồng
-    "coongsf",    // công
-    "thaanhr",    // thành
-    "phaats",     // phát
-    "trieenr",    // triển
-    "chinhsf",    // chính
-    "quoocs",     // quốc
-    "giaos",      // giáo
-    "nuwowcs",    // nước
+    "dduwowcj",  // được
+    "khoong",    // không
+    "nhuwxng",   // những
+    "nguowif",   // người
+    "vieetj",    // việt
+    "giuwowngf", // giường
+    "ruwowuj",   // rượu
+    "khuyeens",  // khuyến
+    "tuwowngf",  // tường
+    "hoawcj",    // hoặc
+    "truwowfng", // trường
+    "ddoongf",   // đồng
+    "coongsf",   // công
+    "thaanhr",   // thành
+    "phaats",    // phát
+    "trieenr",   // triển
+    "chinhsf",   // chính
+    "quoocs",    // quốc
+    "giaos",     // giáo
+    "nuwowcs",   // nước
 ];
 
 /// Từ tiếng Anh xung đột (phải tự phục hồi).
 const ENGLISH_WORDS: &[&str] = &[
-    "window ", "software ", "docker ", "terminal ", "issue ", "user ",
-    "pass ", "case ", "fix ", "book ", "update ", "service ",
-    "mode ", "test ", "code ", "file ", "class ", "public ",
+    "window ",
+    "software ",
+    "docker ",
+    "terminal ",
+    "issue ",
+    "user ",
+    "pass ",
+    "case ",
+    "fix ",
+    "book ",
+    "update ",
+    "service ",
+    "mode ",
+    "test ",
+    "code ",
+    "file ",
+    "class ",
+    "public ",
 ];
 
 /// Chuỗi gõ có backspace liên tục (sửa lỗi).
@@ -212,7 +227,10 @@ fn bench_throughput_feed() {
     println!("  Total keys:     {total_keys}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {keys_per_sec:.0} keys/s ({mb_per_sec:.1} MB/s)");
-    println!("  Per-key avg:    {}\n", format_duration(elapsed / total_keys as u32));
+    println!(
+        "  Per-key avg:    {}\n",
+        format_duration(elapsed / total_keys as u32)
+    );
 }
 
 fn bench_throughput_key_by_key() {
@@ -234,7 +252,10 @@ fn bench_throughput_key_by_key() {
     println!("  Total keys:     {total_keys}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {keys_per_sec:.0} keys/s");
-    println!("  Per-key avg:    {}\n", format_duration(elapsed / total_keys as u32));
+    println!(
+        "  Per-key avg:    {}\n",
+        format_duration(elapsed / total_keys as u32)
+    );
 }
 
 fn bench_per_key_latency() {
@@ -263,11 +284,26 @@ fn bench_per_key_latency() {
 
     println!("  Total samples:  {total}");
     println!("  Mean:           {}", format_duration(mean));
-    println!("  p50:            {}", format_duration(percentile(&all_latencies, 50.0)));
-    println!("  p95:            {}", format_duration(percentile(&all_latencies, 95.0)));
-    println!("  p99:            {}", format_duration(percentile(&all_latencies, 99.0)));
-    println!("  p99.9:          {}", format_duration(percentile(&all_latencies, 99.9)));
-    println!("  Max:            {}", format_duration(*all_latencies.last().unwrap()));
+    println!(
+        "  p50:            {}",
+        format_duration(percentile(&all_latencies, 50.0))
+    );
+    println!(
+        "  p95:            {}",
+        format_duration(percentile(&all_latencies, 95.0))
+    );
+    println!(
+        "  p99:            {}",
+        format_duration(percentile(&all_latencies, 99.0))
+    );
+    println!(
+        "  p99.9:          {}",
+        format_duration(percentile(&all_latencies, 99.9))
+    );
+    println!(
+        "  Max:            {}",
+        format_duration(*all_latencies.last().unwrap())
+    );
 
     // So sánh với ngưỡng cảm nhận người dùng
     let max_ns = duration_to_ns(*all_latencies.last().unwrap());
@@ -296,11 +332,17 @@ fn bench_backspace() {
     let elapsed = start.elapsed();
     let keys_per_sec = total_keys as f64 / elapsed.as_secs_f64();
 
-    println!("  Sequences:      {} × {iterations}", BACKSPACE_SEQUENCES.len());
+    println!(
+        "  Sequences:      {} × {iterations}",
+        BACKSPACE_SEQUENCES.len()
+    );
     println!("  Total keys:     {total_keys}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {keys_per_sec:.0} keys/s");
-    println!("  Per-key avg:    {}\n", format_duration(elapsed / total_keys as u32));
+    println!(
+        "  Per-key avg:    {}\n",
+        format_duration(elapsed / total_keys as u32)
+    );
 }
 
 fn bench_english_restore() {
@@ -322,7 +364,10 @@ fn bench_english_restore() {
     println!("  Total keys:     {total_keys}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {keys_per_sec:.0} keys/s");
-    println!("  Per-key avg:    {}\n", format_duration(elapsed / total_keys as u32));
+    println!(
+        "  Per-key avg:    {}\n",
+        format_duration(elapsed / total_keys as u32)
+    );
 }
 
 fn bench_vni() {
@@ -343,7 +388,10 @@ fn bench_vni() {
     println!("  Total keys:     {total_keys}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {keys_per_sec:.0} keys/s");
-    println!("  Per-key avg:    {}\n", format_duration(elapsed / total_keys as u32));
+    println!(
+        "  Per-key avg:    {}\n",
+        format_duration(elapsed / total_keys as u32)
+    );
 }
 
 fn bench_macro() {
@@ -364,7 +412,10 @@ fn bench_macro() {
     println!("  Iterations:     {iterations}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {keys_per_sec:.0} keys/s");
-    println!("  Per-key avg:    {}\n", format_duration(elapsed / total_keys as u32));
+    println!(
+        "  Per-key avg:    {}\n",
+        format_duration(elapsed / total_keys as u32)
+    );
 }
 
 fn bench_golden_set() {
@@ -390,9 +441,7 @@ fn bench_golden_set() {
     for _ in 0..iterations {
         let mut t = telex_default();
         for (input, _) in &cases {
-            let unesc = input
-                .replace("\\b", "\u{8}")
-                .replace("\\\\", "\\");
+            let unesc = input.replace("\\b", "\u{8}").replace("\\\\", "\\");
             t.feed(&unesc);
         }
     }
@@ -405,7 +454,10 @@ fn bench_golden_set() {
     println!("  Iterations:     {iterations}");
     println!("  Elapsed:        {}", format_duration(elapsed));
     println!("  Throughput:     {cases_per_sec:.0} cases/s");
-    println!("  Per-case avg:   {}\n", format_duration(elapsed / total as u32));
+    println!(
+        "  Per-case avg:   {}\n",
+        format_duration(elapsed / total as u32)
+    );
 }
 
 fn bench_memory() {
@@ -434,7 +486,16 @@ fn bench_memory() {
 
     drop(instances);
 
-    println!("  Create {instance_count} instances: {}", format_duration(alloc_elapsed));
-    println!("  Type 'vieetj ' on each:     {}", format_duration(type_elapsed));
-    println!("  Per-instance alloc:    {}\n", format_duration(alloc_elapsed / instance_count as u32));
+    println!(
+        "  Create {instance_count} instances: {}",
+        format_duration(alloc_elapsed)
+    );
+    println!(
+        "  Type 'vieetj ' on each:     {}",
+        format_duration(type_elapsed)
+    );
+    println!(
+        "  Per-instance alloc:    {}\n",
+        format_duration(alloc_elapsed / instance_count as u32)
+    );
 }
