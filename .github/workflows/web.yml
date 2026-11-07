@@ -1,0 +1,73 @@
+name: Build & Publish Web Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/web.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push-web:
+    name: Build & Publish Web Container to GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lower-case image name
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}-web"
+          echo "IMAGE_NAME=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU (Multi-platform support)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (ghcr.io)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Web Docker Image to GitHub Packages
+        uses: docker/build-push-action@v5
+        with:
+          context: ./website
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Package static website archive (tar.gz)
+        run: |
+          mkdir -p dist
+          tar -czf dist/rustype-website.tar.gz -C website .
+
+      - name: Upload static website artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustype-website
+          path: dist/rustype-website.tar.gz
+          retention-days: 90
