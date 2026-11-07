@@ -1,6 +1,6 @@
 //! `~/.config/rustype/config`: a few `key = value` lines, reloaded when the file changes.
 
-use crate::telex;
+use rustype_core::telex;
 use std::path::PathBuf;
 use std::time::SystemTime;
 

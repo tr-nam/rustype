@@ -4,9 +4,8 @@ mod config;
 mod dbus;
 mod ibus;
 mod ime;
-mod tables;
-mod telex;
 
+use rustype_core::telex;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 

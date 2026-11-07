@@ -92,7 +92,14 @@ impl Service {
     fn emit(&mut self, batch: &mut Vec<u8>, path: &str, outs: Vec<Out>) {
         for o in outs {
             if self.debug {
-                eprintln!("rustype: {path} -> {o:?}");
+                let label = match &o {
+                    Out::Commit(t) => format!("Commit({} chars)", t.chars().count()),
+                    Out::Preedit(t) => format!("Preedit({} chars)", t.chars().count()),
+                    Out::HidePreedit => "HidePreedit".into(),
+                    Out::DeleteSurrounding { offset, nchars } => format!("DeleteSurrounding({offset}, {nchars})"),
+                    Out::ForwardKey { keyval, keycode, state } => format!("ForwardKey({keyval:#x}, {keycode}, {state:#x})"),
+                };
+                eprintln!("rustype: {path} -> {label}");
             }
             let mut w = Writer::new();
             let (member, sig) = match o {

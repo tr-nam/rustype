@@ -1,0 +1,7 @@
+[package]
+name = "rustype-core"
+version = "0.1.0"
+edition = "2021"
+description = "Lõi Telex thuần cho bộ gõ tiếng Việt Rustype, không phụ thuộc nền tảng"
+license = "MIT"
+publish = false

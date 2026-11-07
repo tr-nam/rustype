@@ -21,11 +21,11 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 ## Giai đoạn 0: Nền móng
 
-- [ ] Đưa code lên git và GitHub.
-- [ ] Tách lõi Telex thành crate riêng, không phụ thuộc nền tảng. Lớp IBus dùng crate này, sau này Fcitx5, Windows và macOS cũng vậy.
-- [ ] CI chạy kiểm tra định dạng, clippy, unit test, bộ kết quả chuẩn và IBus giả lập cho mỗi lần push.
-- [ ] Fuzz phần đọc D-Bus và lõi Telex. Bộ gõ nhận mọi phím, kể cả mật khẩu, nên không được sập.
-- [ ] Chế độ gỡ lỗi chỉ in mã phím, không in chữ người dùng gõ.
+- [x] Đưa code lên git và GitHub.
+- [x] Tách lõi Telex thành crate riêng, không phụ thuộc nền tảng. Lớp IBus dùng crate này, sau này Fcitx5, Windows và macOS cũng vậy.
+- [x] CI chạy kiểm tra định dạng, clippy, unit test, bộ kết quả chuẩn và IBus giả lập cho mỗi lần push.
+- [x] Fuzz phần đọc D-Bus và lõi Telex. Bộ gõ nhận mọi phím, kể cả mật khẩu, nên không được sập.
+- [x] Chế độ gỡ lỗi chỉ in mã phím, không in chữ người dùng gõ.
 
 ## Giai đoạn 1: Gõ đúng ở mọi nơi trên Linux
 

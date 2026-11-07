@@ -34,8 +34,8 @@ tools/ibus_sandbox_test.sh "$PWD/target/release/ibus-engine-rustype" <(target/re
 
 | Mức | Kiểm tra gì | Kết quả mong đợi |
 |---|---|---|
-| Unit test | Từng module: ghép chữ, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình | `16 passed` |
-| Bộ kết quả chuẩn | Nằm trong `cargo test`. 14.710 chuỗi phím trong `tests/golden.tsv`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi |
+| Unit test | Từng module: ghép chữ, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình | `5 passed` (core) + `11 passed` (ibus) |
+| Bộ kết quả chuẩn | Nằm trong `cargo test`. 14.710 chuỗi phím trong `rustype-core/tests/golden.tsv`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi |
 | IBus giả lập | Một ibus-daemon riêng và các ứng dụng giả: terminal, ứng dụng GUI, ứng dụng X11. Kiểm tra bấm chuột, Enter, BackSpace, đổi cửa sổ | `ALL PASS` |
 
 Kiểm thử IBus giả lập chạy trong `dbus-run-session` với địa chỉ, cấu hình và bộ nhớ đệm riêng. Nó không đụng tới IBus đang chạy trên máy.
@@ -48,7 +48,7 @@ echo "Vieetj Nam ddepj" | target/release/ibus-engine-rustype --feed
 
 ## Đổi luật gõ
 
-Luật nằm trong `src/tables.rs` và `src/telex.rs`, sửa trực tiếp. Sau khi sửa, `cargo test` sẽ báo những chuỗi phím có kết quả khác trước. Quy trình:
+Luật nằm trong `rustype-core/src/tables.rs` và `rustype-core/src/telex.rs`, sửa trực tiếp. Sau khi sửa, `cargo test` sẽ báo những chuỗi phím có kết quả khác trước. Quy trình:
 
 1. Build lại: `cargo build --release`.
 2. Xem mọi trường hợp bị đổi: `python3 -I tools/golden.py diff`.
@@ -59,7 +59,7 @@ Muốn tạo lại toàn bộ chuỗi phím đầu vào, ví dụ khi thêm lo�
 
 ## Gỡ lỗi trên máy thật
 
-Biến `RUSTYPE_DEBUG=1` in mã từng phím và chữ được commit ra stderr. Vì engine do ibus-daemon khởi chạy, muốn xem log thì phải tự chạy nó:
+Biến `RUSTYPE_DEBUG=1` in mã từng phím ra stderr (chỉ mã phím, không in chữ người dùng gõ). Vì engine do ibus-daemon khởi chạy, muốn xem log thì phải tự chạy nó:
 
 ```
 pkill -x ibus-engine-rus
@@ -70,7 +70,18 @@ Tên tiến trình bị Linux cắt còn 15 ký tự, nên lệnh `pkill` dùng 
 
 Sau khi chạy lệnh thứ hai, nhấn Super+Space để chuyển sang bộ gõ khác rồi chuyển lại Rustype. IBus chỉ dùng engine vừa chạy sau lần chuyển đó. Gỡ lỗi xong thì nhấn Ctrl+C và chạy `ibus restart`.
 
-> Log có thể chứa mật khẩu và mọi chữ bạn gõ. Đừng gửi log cho người khác nếu chưa đọc lại.
+> Log chứa mã phím, có thể suy ra nội dung gõ. Đừng gửi log cho người khác nếu chưa đọc lại.
+
+## Fuzz
+
+Fuzz lõi Telex bằng `cargo-fuzz` (cần cài riêng: `cargo install cargo-fuzz`):
+
+```
+cd fuzz
+cargo fuzz run fuzz_telex -- -max_total_time=300
+```
+
+Fuzz chạy không giới hạn nếu không đặt `max_total_time`. Crash được lưu vào `fuzz/artifacts/`.
 
 ## Phát hành
 

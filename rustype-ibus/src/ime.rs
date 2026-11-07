@@ -10,7 +10,7 @@
 //! - Backspace: fake BackSpace key events. Only used when the config forces `direct`.
 
 use crate::config::{Config, Mode};
-use crate::telex::Telex;
+use rustype_core::telex::Telex;
 
 pub const CAP_SURROUNDING_TEXT: u32 = 1 << 5;
 const PURPOSE_PASSWORD: u32 = 8;

@@ -1,6 +1,11 @@
 # Kiến trúc
 
-Rustype là một tiến trình duy nhất, `ibus-engine-rustype`, chạy một luồng và không dùng thư viện ngoài.
+Rustype là một Cargo workspace gồm hai crate:
+
+- **`rustype-core`**: lõi Telex thuần, không I/O, không phụ thuộc nền tảng. Crate này sẽ được tái sử dụng cho Fcitx5, Windows và macOS.
+- **`rustype-ibus`**: engine IBus, phụ thuộc `rustype-core`.
+
+Tiến trình duy nhất, `ibus-engine-rustype`, chạy một luồng và không dùng thư viện ngoài.
 ibus-daemon khởi chạy nó theo file component `/usr/share/ibus/component/rustype.xml` khi người dùng chọn bộ gõ.
 
 ```
@@ -11,27 +16,30 @@ ibus-daemon
    │  bus D-Bus riêng của IBus (socket trong ~/.cache/ibus)
    ▼
 ibus-engine-rustype
-   ├─ dbus.rs    đọc/ghi message D-Bus
-   ├─ ibus.rs    object Factory và Engine, xử lý từng message theo thứ tự đến
-   ├─ ime.rs     chọn cách hiện chữ cho từng ứng dụng, xử lý phím đặc biệt
-   ├─ telex.rs   ghép chữ Telex, đặt dấu, kiểm tra chính tả
-   ├─ tables.rs  bảng luật chính tả
-   └─ config.rs  đọc ~/.config/rustype/config
+   ├─ rustype-core/
+   │  ├─ telex.rs   ghép chữ Telex, đặt dấu, kiểm tra chính tả
+   │  └─ tables.rs  bảng luật chính tả
+   └─ rustype-ibus/
+      ├─ dbus.rs    đọc/ghi message D-Bus
+      ├─ ibus.rs    object Factory và Engine, xử lý từng message theo thứ tự đến
+      ├─ ime.rs     chọn cách hiện chữ cho từng ứng dụng, xử lý phím đặc biệt
+      ├─ config.rs  đọc ~/.config/rustype/config
+      └─ main.rs    dòng lệnh, tìm địa chỉ IBus, in file component
 ```
 
 ## Các module
 
 | File | Trách nhiệm | Phụ thuộc |
 |---|---|---|
-| `src/telex.rs` | Lõi Telex thuần, không I/O. Nhận từng ký tự, trả về "xóa N ký tự rồi chèn chuỗi S" | `tables.rs` |
-| `src/tables.rs` | Bảng âm đầu, vần, âm cuối, bảng dấu, danh sách từ tiếng Anh | không |
-| `src/ime.rs` | Một phiên gõ: chọn cách hiện chữ, xử lý BackSpace, Enter, phím tắt, ô mật khẩu | `telex.rs`, `config.rs` |
-| `src/dbus.rs` | Client D-Bus tối giản: xác thực, đóng gói, đọc message | thư viện chuẩn |
-| `src/ibus.rs` | Giao thức IBus: Factory, Engine, Properties, đóng gói IBusText | `dbus.rs`, `ime.rs` |
-| `src/config.rs` | Đọc file cấu hình khi thời điểm sửa của file thay đổi | `telex.rs` |
-| `src/main.rs` | Dòng lệnh, tìm địa chỉ IBus, in file component | tất cả |
+| `rustype-core/src/telex.rs` | Lõi Telex thuần, không I/O. Nhận từng ký tự, trả về "xóa N ký tự rồi chèn chuỗi S" | `tables.rs` |
+| `rustype-core/src/tables.rs` | Bảng âm đầu, vần, âm cuối, bảng dấu, danh sách từ tiếng Anh | không |
+| `rustype-ibus/src/ime.rs` | Một phiên gõ: chọn cách hiện chữ, xử lý BackSpace, Enter, phím tắt, ô mật khẩu | `rustype-core`, `config.rs` |
+| `rustype-ibus/src/dbus.rs` | Client D-Bus tối giản: xác thực, đóng gói, đọc message | thư viện chuẩn |
+| `rustype-ibus/src/ibus.rs` | Giao thức IBus: Factory, Engine, Properties, đóng gói IBusText | `dbus.rs`, `ime.rs` |
+| `rustype-ibus/src/config.rs` | Đọc file cấu hình khi thời điểm sửa của file thay đổi | `rustype-core` |
+| `rustype-ibus/src/main.rs` | Dòng lệnh, tìm địa chỉ IBus, in file component | tất cả |
 
-Lõi `telex.rs` không biết gì về IBus. Đây là phần sẽ được tách thành crate riêng để dùng lại cho Fcitx5, Windows và macOS, xem [ROADMAP.md](ROADMAP.md).
+Lõi `telex.rs` không biết gì về IBus. Đây là crate riêng (`rustype-core`) để dùng lại cho Fcitx5, Windows và macOS, xem [ROADMAP.md](ROADMAP.md).
 
 ## Đường đi của một phím
 
@@ -108,4 +116,4 @@ Hành vi mong đợi được ghi trong `tests/golden.tsv`, gồm 14.710 chuỗi
 
 - Engine không mở kết nối mạng và không ghi file nào khi chạy.
 - Ô có mục đích PASSWORD hoặc PIN được bỏ qua hoàn toàn: mọi phím đi thẳng vào ứng dụng.
-- Biến `RUSTYPE_DEBUG` in mã từng phím và chữ được commit ra stderr. Log này có thể chứa mật khẩu và nội dung riêng tư, chỉ bật khi đang gỡ lỗi. Kế hoạch bỏ phần in chữ nằm trong [ROADMAP.md](ROADMAP.md).
+- Biến `RUSTYPE_DEBUG` in mã từng phím ra stderr. Log không chứa nội dung người dùng gõ, chỉ chứa mã phím (keyval) và số lượng ký tự.

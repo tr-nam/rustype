@@ -1,0 +1,19 @@
+[package]
+name = "rustype-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rustype-core = { path = "../rustype-core" }
+
+# Fuzz targets
+
+[[bin]]
+name = "fuzz_telex"
+path = "fuzz_targets/fuzz_telex.rs"
+doc = false

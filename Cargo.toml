@@ -1,16 +1,6 @@
-[package]
-name = "rustype"
-version = "0.1.0"
-edition = "2021"
-description = "Bộ gõ tiếng Việt Telex siêu nhẹ cho IBus, không phụ thuộc thư viện ngoài"
-license = "MIT"
-publish = false
-
-[dependencies]
-
-[[bin]]
-name = "ibus-engine-rustype"
-path = "src/main.rs"
+[workspace]
+members = ["rustype-core", "rustype-ibus"]
+resolver = "2"
 
 [profile.release]
 opt-level = 3

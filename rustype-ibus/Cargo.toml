@@ -1,0 +1,14 @@
+[package]
+name = "rustype-ibus"
+version = "0.1.0"
+edition = "2021"
+description = "Bộ gõ tiếng Việt Telex siêu nhẹ cho IBus, không phụ thuộc thư viện ngoài"
+license = "MIT"
+publish = false
+
+[dependencies]
+rustype-core = { path = "../rustype-core" }
+
+[[bin]]
+name = "ibus-engine-rustype"
+path = "src/main.rs"

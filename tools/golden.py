@@ -10,7 +10,7 @@ import pathlib, random, re, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BIN = ROOT / "target" / "release" / "ibus-engine-rustype"
-GOLDEN = ROOT / "tests" / "golden.tsv"
+GOLDEN = ROOT / "rustype-core" / "tests" / "golden.tsv"
 HEADER = """\
 # Kết quả chuẩn của lõi Telex, được `cargo test` kiểm tra.
 # Mỗi dòng: phím gõ <TAB> chữ trên màn hình <TAB> ;
@@ -32,7 +32,7 @@ MARK = {"â": "aa", "ă": "aw", "ê": "ee", "ô": "oo", "ơ": "ow", "ư": "uw", 
 
 
 def rust_list(name):
-    src = (ROOT / "src" / "tables.rs").read_text(encoding="utf-8")
+    src = (ROOT / "rustype-core" / "src" / "tables.rs").read_text(encoding="utf-8")
     m = re.search(rf"pub const {name}: &\[&str\] = &\[(.*?)\];", src, re.S)
     return re.findall(r'"([^"]*)"', m.group(1))
 

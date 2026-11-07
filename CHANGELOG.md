@@ -7,9 +7,16 @@
 ### Thêm
 - Tài liệu: kiến trúc, phát triển, xử lý sự cố, lộ trình.
 - File giấy phép MIT cho Rustype.
-- Bộ kết quả chuẩn `tests/golden.tsv` gồm 14.710 chuỗi phím, kiểm tra trong `cargo test`, và công cụ `tools/golden.py` để xem và ghi nhận khác biệt khi đổi luật gõ.
+- Bộ kết quả chuẩn `rustype-core/tests/golden.tsv` gồm 14.710 chuỗi phím, kiểm tra trong `cargo test`, và công cụ `tools/golden.py` để xem và ghi nhận khác biệt khi đổi luật gõ.
+- Cargo workspace: `rustype-core` (lõi Telex thuần, không phụ thuộc nền tảng) và `rustype-ibus` (engine IBus).
+- CI GitHub Actions: kiểm tra định dạng, clippy, unit test, golden test, IBus giả lập.
+- Fuzz target cho lõi Telex bằng `cargo-fuzz`.
+
+### Đổi
+- Chế độ gỡ lỗi (`RUSTYPE_DEBUG`) chỉ in mã phím, không in chữ người dùng gõ.
+
 ### Bỏ
-- Công cụ so sánh với engine bên ngoài và công cụ sinh bảng luật. `src/tables.rs` giờ được sửa trực tiếp.
+- Công cụ so sánh với engine bên ngoài và công cụ sinh bảng luật. `rustype-core/src/tables.rs` giờ được sửa trực tiếp.
 
 ## [0.1.0] - 2026-11-07
 
