@@ -25,17 +25,14 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
-    name: Build & Package Release
+  meta:
+    name: Prepare Release Metadata
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Determine Version & Tag
-        id: meta
+      - id: meta
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.tag_name }}"
@@ -45,7 +42,17 @@ jobs:
           VERSION="${TAG#v}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Using Tag: ${TAG}, Version: ${VERSION}"
+          echo "Release Tag: ${TAG}, Version: ${VERSION}"
+
+  build-linux:
+    name: Build Linux (.deb & .tar.gz)
+    needs: meta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -62,32 +69,119 @@ jobs:
 
       - name: Package Standalone Tarball
         run: |
-          TAG="${{ steps.meta.outputs.tag }}"
-          VERSION="${{ steps.meta.outputs.version }}"
+          TAG="${{ needs.meta.outputs.tag }}"
+          VERSION="${{ needs.meta.outputs.version }}"
           TAR_NAME="rustype-${TAG}-linux-x86_64.tar.gz"
           STAGING="target/tar-staging/rustype-${VERSION}"
           rm -rf "target/tar-staging"
-          mkdir -p "$STAGING" "target/packages"
+          mkdir -p "$STAGING" "dist"
           cp target/release/ibus-engine-rustype "$STAGING/"
           cp -r tools assets gnome-shell-extension install.sh uninstall.sh Makefile LICENSE README.md docs "$STAGING/"
-          tar -czvf "target/packages/$TAR_NAME" -C target/tar-staging "rustype-${VERSION}"
+          tar -czvf "dist/$TAR_NAME" -C target/tar-staging "rustype-${VERSION}"
+          cp target/packages/*.deb dist/
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: dist/*
+          retention-days: 1
+
+  build-windows:
+    name: Build Windows (.exe & .zip)
+    needs: meta
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Windows Executable
+        run: cargo build --release -p rustype-windows
+
+      - name: Package Windows Artifacts
+        run: |
+          TAG="${{ needs.meta.outputs.tag }}"
+          mkdir -p dist
+          cp target/release/rustype-windows.exe dist/rustype.exe
+          cp target/release/rustype-windows.exe dist/rustype-windows.exe
+          7z a "dist/rustype-${TAG}-windows-x86_64.zip" ./dist/rustype.exe ./README.md ./LICENSE
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: dist/*
+          retention-days: 1
+
+  build-macos:
+    name: Build macOS (.app.zip)
+    needs: meta
+    runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build macOS InputMethodKit Bundle
+        run: |
+          chmod +x rustype-macos/build-macos.sh
+          ./rustype-macos/build-macos.sh
+
+      - name: Package macOS Artifacts
+        run: |
+          TAG="${{ needs.meta.outputs.tag }}"
+          mkdir -p dist
+          ditto -c -k --keepParent rustype-macos/Rustype.app "dist/rustype-${TAG}-macos.zip"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages
+          path: dist/*
+          retention-days: 1
+
+  publish:
+    name: Publish Multi-Platform Release
+    needs: [meta, build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-packages
+          merge-multiple: true
 
       - name: Compute SHA256 Checksums
         run: |
-          cd target/packages
+          cd all-packages
           rm -f SHA256SUMS
-          sha256sum *.deb *.tar.gz > SHA256SUMS
+          for f in *; do
+            if [ -f "$f" ]; then
+              sha256sum "$f" >> SHA256SUMS
+            fi
+          done
           cat SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: Rustype ${{ steps.meta.outputs.tag }}
-          files: |
-            target/packages/*.deb
-            target/packages/*.tar.gz
-            target/packages/SHA256SUMS
+          tag_name: ${{ needs.meta.outputs.tag }}
+          name: Rustype ${{ needs.meta.outputs.tag }}
+          files: all-packages/*
           generate_release_notes: true
           draft: ${{ github.event.inputs.draft || false }}
           prerelease: ${{ github.event.inputs.prerelease || false }}
