@@ -15,6 +15,7 @@ ibus-engine-rustype: bộ gõ tiếng Việt Telex cho IBus
   --ibus            chạy engine (IBus gọi lệnh này)
   --xml             in file component cho /usr/share/ibus/component
   --write-config    tạo ~/.config/rustype/config nếu chưa có
+  --doctor          kiểm tra chẩn đoán hệ thống và phát hiện lỗi
   --feed            đọc từng dòng phím Telex từ stdin, in chữ ra (để kiểm thử)
   --version";
 
@@ -118,6 +119,7 @@ fn main() {
                 println!("đã tạo {}", p.display());
             }
         }
+        "--doctor" => doctor(),
         "--feed" => {
             let mut t = telex::Telex::new(telex::Config::default());
             let stdin = io::stdin();
@@ -132,5 +134,113 @@ fn main() {
             eprintln!("{USAGE}");
             std::process::exit(2);
         }
+    }
+}
+
+fn doctor() {
+    println!("=== Chẩn đoán hệ thống Rustype v{} ===", env!("CARGO_PKG_VERSION"));
+    let mut ok_count = 0;
+    let mut warn_count = 0;
+    let mut fail_count = 0;
+
+    // 1. Desktop & Session
+    let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "chưa rõ".into());
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_else(|_| "chưa rõ".into());
+    println!("[i] Môi trường: {} ({})", desktop, session);
+
+    // 2. IBus daemon & address
+    match ibus_address() {
+        Some(addr) => {
+            println!("[✓] IBus daemon: đang chạy");
+            println!("    Địa chỉ: {}", addr);
+            ok_count += 1;
+        }
+        None => {
+            println!("[✗] IBus daemon: không tìm thấy socket hoặc daemon chưa chạy");
+            println!("    Gợi ý: Thử chạy lệnh 'ibus restart' hoặc kiểm tra biến môi trường IBUS_ADDRESS.");
+            fail_count += 1;
+        }
+    }
+
+    // 3. IBus Component XML
+    let xml_path = std::path::Path::new("/usr/share/ibus/component/rustype.xml");
+    if xml_path.exists() {
+        println!("[✓] File đăng ký: /usr/share/ibus/component/rustype.xml tồn tại");
+        ok_count += 1;
+    } else {
+        println!("[✗] File đăng ký: /usr/share/ibus/component/rustype.xml CHƯA CÓ");
+        println!("    Gợi ý: Chạy './install.sh' để đăng ký Rustype với IBus (cần quyền sudo).");
+        fail_count += 1;
+    }
+
+    // 4. GNOME input-sources
+    if let Ok(output) = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.input-sources", "sources"])
+        .output()
+    {
+        let s = String::from_utf8_lossy(&output.stdout);
+        if s.contains("('ibus', 'rustype')") {
+            println!("[✓] Nguồn nhập GNOME: Rustype đã được bật trong danh sách");
+            ok_count += 1;
+        } else {
+            println!("[!] Nguồn nhập GNOME: chưa có ('ibus', 'rustype')");
+            println!("    Gợi ý: Vào Cài đặt -> Bàn phím -> Thêm nguồn nhập 'Rustype (Tiếng Việt)' hoặc chạy './install.sh'.");
+            warn_count += 1;
+        }
+    }
+
+    // 5. GNOME Shell Extension
+    if let Some(home) = std::env::var_os("HOME") {
+        let ext_dir = PathBuf::from(home)
+            .join(".local/share/gnome-shell/extensions/rustype-focus@namtr.dev");
+        if ext_dir.exists() {
+            println!("[✓] GNOME Shell extension: đã cài đặt (rustype-focus@namtr.dev)");
+            ok_count += 1;
+        } else if session == "wayland" && desktop.to_lowercase().contains("gnome") {
+            println!("[!] GNOME Shell extension: chưa cài đặt (khuyên dùng trên GNOME Wayland để nhận diện app)");
+            println!("    Gợi ý: Chạy './install.sh' để tự động cài đặt extension.");
+            warn_count += 1;
+        }
+    }
+
+    // 6. Cấu hình
+    if let Some(p) = config::path() {
+        if p.exists() {
+            let mut cfg = config::parse(&std::fs::read_to_string(&p).unwrap_or_default());
+            config::load_extra_files(&mut cfg);
+            let mode_str = match cfg.mode {
+                config::Mode::Auto => "auto",
+                config::Mode::Preedit => "preedit",
+                config::Mode::Direct => "direct",
+            };
+            let method_str = match cfg.telex.input_method {
+                telex::InputMethod::Telex => "Telex",
+                telex::InputMethod::Vni => "VNI",
+            };
+            println!("[✓] Cấu hình: {}", p.display());
+            println!("    Kiểu gõ: {}, Chế độ: {}, Nhớ theo app: {}", method_str, mode_str, cfg.remember_state_per_app);
+            if cfg.telex.enable_macro {
+                println!("    Gõ tắt (Macro): Bật ({} từ)", cfg.telex.macros.len());
+            }
+            if !cfg.telex.custom_words.is_empty() {
+                println!("    Từ điển riêng: {} từ", cfg.telex.custom_words.len());
+            }
+            ok_count += 1;
+        } else {
+            println!("[!] Cấu hình: chưa có file {}", p.display());
+            println!("    (Rustype đang sử dụng cấu hình mặc định: Telex, chế độ Auto).");
+            println!("    Gợi ý: Chạy 'ibus-engine-rustype --write-config' để tạo file cấu hình mẫu.");
+            warn_count += 1;
+        }
+    }
+
+    // Kết luận
+    println!("\n--- Kết quả: {} tốt, {} cảnh báo, {} lỗi ---", ok_count, warn_count, fail_count);
+    if fail_count == 0 && warn_count == 0 {
+        println!("Mọi thứ hoàn hảo! Rustype đã sẵn sàng gõ tiếng Việt.");
+    } else if fail_count > 0 {
+        println!("Cần khắc phục các lỗi [✗] ở trên để Rustype hoạt động bình thường.");
+    } else {
+        println!("Rustype có thể hoạt động được. Xem các cảnh báo [!] để có trải nghiệm tối ưu nhất.");
     }
 }

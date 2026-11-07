@@ -51,10 +51,10 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 ## Giai đoạn 3: Giao diện
 
-- [ ] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật tắt, đổi kiểu gõ, mở cài đặt. IBus có sẵn cơ chế cho menu này.
-- [ ] App cài đặt bằng GTK4 và libadwaita, là chương trình riêng để engine vẫn nhẹ. Hai bên dùng chung file cấu hình.
-- [ ] Lệnh chẩn đoán: kiểm tra IBus, file đăng ký, nguồn nhập, biến môi trường, và ứng dụng đang dùng có Surrounding Text không.
-- [ ] Giao diện tiếng Việt và tiếng Anh.
+- [x] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật/tắt tiếng Việt, đổi kiểu gõ, mở cài đặt (IBus Panel Properties).
+- [x] App cài đặt bằng GTK4 và Libadwaita (`tools/rustype-settings`), độc lập giúp engine siêu nhẹ.
+- [x] Lệnh chẩn đoán: `ibus-engine-rustype --doctor` kiểm tra IBus, daemon, component XML, nguồn nhập, extension và cấu hình.
+- [x] Giao diện hỗ trợ song ngữ Tiếng Việt và Tiếng Anh.
 
 ## Giai đoạn 4: Đóng gói và phát hành
 

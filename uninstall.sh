@@ -16,6 +16,8 @@ if [[ -e /usr/share/ibus/component/rustype.xml ]]; then
     sudo rm -f /usr/share/ibus/component/rustype.xml
 fi
 rm -rf "$HOME/.local/share/gnome-shell/extensions/rustype-focus@namtr.dev"
+rm -f "$HOME/.local/bin/rustype-settings"
+rm -f "$HOME/.local/share/applications/rustype-settings.desktop"
 ibus restart >/dev/null 2>&1 || true
 rm -rf "$HOME/.local/lib/rustype"
 echo "Đã gỡ Rustype. Cấu hình vẫn ở ~/.config/rustype (xóa tay nếu muốn)."

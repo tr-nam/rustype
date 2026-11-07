@@ -20,6 +20,9 @@
 - Bảng gõ tắt (Macro) tương thích định dạng file Unikey (`~/.config/rustype/macro` hoặc mục `[macros]`).
 - Danh sách từ tiếng Anh người dùng tự thêm (`custom_words` hoặc file `~/.config/rustype/words`).
 - Tính năng nhớ trạng thái bật/tắt tiếng Việt theo từng ứng dụng (`remember_state_per_app = true`, giống EVKey).
+- Lệnh chẩn đoán hệ thống thông minh `ibus-engine-rustype --doctor` kiểm tra 6 thành phần hệ thống.
+- Menu IBus Panel Properties: bật/tắt tiếng Việt, đổi kiểu gõ và mở Cài đặt trực tiếp từ thanh trạng thái.
+- Ứng dụng cài đặt đồ họa native GNOME GTK4 + Libadwaita (`rustype-settings`) kèm launcher `.desktop`.
 
 ### Đổi
 - Chế độ gỡ lỗi (`RUSTYPE_DEBUG`) chỉ in mã phím, không in chữ người dùng gõ.

@@ -55,6 +55,11 @@ if [[ -d "$EXT_SRC" ]] && command -v gnome-shell >/dev/null 2>&1; then
     fi
 fi
 
+echo "==> Cài đặt ứng dụng Cài đặt (rustype-settings)"
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
+install -m755 tools/rustype-settings "$HOME/.local/bin/rustype-settings"
+install -m644 tools/rustype-settings.desktop "$HOME/.local/share/applications/rustype-settings.desktop"
+
 echo
 echo "Xong. Nhấn Super+Space để chuyển sang Rustype (biểu tượng VN trên thanh trên cùng)."
 echo "Cấu hình: ~/.config/rustype/config"

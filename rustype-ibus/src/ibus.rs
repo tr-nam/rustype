@@ -53,6 +53,48 @@ fn bool_variant(w: &mut Writer, v: bool) {
     w.boolean(v);
 }
 
+fn write_prop(w: &mut Writer, key: &str, ptype: u32, label: &str, icon: &str, state: u32) {
+    w.signature("(sa{sv}sv)");
+    w.struct_start();
+    w.string("IBusProperty");
+    let a = w.array_start(8);
+    w.array_end(a);
+    w.string(key);
+    w.u32(ptype);
+    write_text(w, label, false);
+    w.string(icon);
+    write_text(w, label, false);
+    w.boolean(true);
+    w.boolean(true);
+    w.u32(state);
+    w.signature("(sa{sv}av)");
+    w.struct_start();
+    w.string("IBusPropList");
+    let a1 = w.array_start(8);
+    w.array_end(a1);
+    let a2 = w.array_start(1);
+    w.array_end(a2);
+}
+
+fn write_prop_list(w: &mut Writer, enabled: bool, method: &str) {
+    w.signature("(sa{sv}av)");
+    w.struct_start();
+    w.string("IBusPropList");
+    let a = w.array_start(8);
+    w.array_end(a);
+    let props = w.array_start(1);
+
+    let status_label = if enabled { "Tiếng Việt (Bật)" } else { "Tiếng Anh (Tắt)" };
+    write_prop(w, "prop_toggle", 0, status_label, "", 0);
+
+    let method_label = format!("Kiểu gõ: {method}");
+    write_prop(w, "prop_method", 0, &method_label, "", 0);
+
+    write_prop(w, "prop_settings", 0, "Cài đặt Rustype...", "preferences-system", 0);
+
+    w.array_end(props);
+}
+
 pub struct Service {
     conn: Connection,
     engines: HashMap<String, Ime>,
@@ -300,6 +342,14 @@ impl Service {
                 ime.reset(&mut outs);
                 ime.set_app_id(app_id, &cfg);
                 ime.set_enabled(enabled, &mut outs);
+
+                let method_str = match cfg.telex.input_method {
+                    rustype_core::telex::InputMethod::Telex => "Telex",
+                    rustype_core::telex::InputMethod::Vni => "VNI",
+                };
+                let mut pw = Writer::new();
+                write_prop_list(&mut pw, enabled, method_str);
+                self.conn.signal(batch, path, ENGINE_IFACE, "RegisterProperties", "v", &pw.buf);
             }
             (ENGINE_IFACE, "FocusOut" | "FocusOutId" | "Reset" | "Disable") => {
                 self.engines.get_mut(path).unwrap().reset(&mut outs);
@@ -317,9 +367,65 @@ impl Service {
                     ime.set_surrounding_text(&text, cursor, anchor, &mut outs);
                 }
             }
+            (ENGINE_IFACE, "PropertyActivate") => {
+                let mut r = msg.body_reader();
+                let name = r.string().unwrap_or_default();
+                let _state = r.u32().unwrap_or(0);
+                match name.as_str() {
+                    "prop_toggle" => {
+                        let mut new_state = true;
+                        if let Some(app_id) = &self.current_app_id {
+                            let cur = self.app_states.entry(app_id.clone()).or_insert(true);
+                            *cur = !*cur;
+                            new_state = *cur;
+                        }
+                        let ime = self.engines.get_mut(path).unwrap();
+                        ime.set_enabled(new_state, &mut outs);
+                        let method = match self.config.current.telex.input_method {
+                            rustype_core::telex::InputMethod::Telex => "Telex",
+                            rustype_core::telex::InputMethod::Vni => "VNI",
+                        };
+                        let mut pw = Writer::new();
+                        write_prop_list(&mut pw, new_state, method);
+                        self.conn.signal(batch, path, ENGINE_IFACE, "RegisterProperties", "v", &pw.buf);
+                    }
+                    "prop_method" => {
+                        let next_method = match self.config.current.telex.input_method {
+                            rustype_core::telex::InputMethod::Telex => rustype_core::telex::InputMethod::Vni,
+                            rustype_core::telex::InputMethod::Vni => rustype_core::telex::InputMethod::Telex,
+                        };
+                        self.config.current.telex.input_method = next_method;
+                        for engine in self.engines.values_mut() {
+                            engine.apply_config(&self.config.current);
+                        }
+                        let ime = self.engines.get(path).unwrap();
+                        let enabled = ime.is_enabled();
+                        let method = match next_method {
+                            rustype_core::telex::InputMethod::Telex => "Telex",
+                            rustype_core::telex::InputMethod::Vni => "VNI",
+                        };
+                        let mut pw = Writer::new();
+                        write_prop_list(&mut pw, enabled, method);
+                        self.conn.signal(batch, path, ENGINE_IFACE, "RegisterProperties", "v", &pw.buf);
+                    }
+                    "prop_settings" => {
+                        let _ = std::process::Command::new("rustype-settings").spawn()
+                            .or_else(|_| {
+                                if let Ok(home) = std::env::var("HOME") {
+                                    std::process::Command::new("python3")
+                                        .arg(std::path::PathBuf::from(home).join(".local/bin/rustype-settings"))
+                                        .spawn()
+                                } else {
+                                    Err(std::io::Error::other("no home"))
+                                }
+                            });
+                    }
+                    _ => {}
+                }
+            }
             (
                 ENGINE_IFACE,
-                "Enable" | "SetCursorLocation" | "PropertyActivate" | "PropertyShow"
+                "Enable" | "SetCursorLocation" | "PropertyShow"
                 | "PropertyHide" | "CandidateClicked" | "PageUp" | "PageDown" | "CursorUp" | "CursorDown"
                 | "ProcessHandWritingEvent" | "CancelHandWriting" | "PanelExtensionReceived"
                 | "PanelExtensionRegisterKeys",

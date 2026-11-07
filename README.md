@@ -22,6 +22,9 @@ Cần Rust (`rustup`). Chạy một lần, script sẽ hỏi mật khẩu sudo �
 Sau đó nhấn Super+Space để chọn Rustype, biểu tượng là "VN".
 Sửa code xong thì chạy lại `./install.sh` để cập nhật. Gỡ bằng `./uninstall.sh`.
 
+Giao diện Cài đặt đồ họa: mở **Cài đặt Rustype** từ màn hình ứng dụng (hoặc chạy `rustype-settings`).
+Chẩn đoán hệ thống tự động: chạy `target/release/ibus-engine-rustype --doctor`.
+
 ## Cấu hình
 
 File `~/.config/rustype/config`, sửa xong bấm sang ô gõ khác là có hiệu lực:
