@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Rustype Settings: Native GNOME GTK4 + Libadwaita Preferences Window."""
 
+import json
 import os
 import pathlib
 import shutil
 import subprocess
 import sys
+import threading
+import urllib.request
 
 import gi
 
@@ -17,6 +20,34 @@ CONFIG_DIR = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() 
 CONFIG_FILE = CONFIG_DIR / "config"
 MACRO_FILE = CONFIG_DIR / "macro"
 WORDS_FILE = CONFIG_DIR / "words"
+
+
+def get_installed_version() -> str:
+    """Detects version from installed ibus-engine-rustype or falls back to default."""
+    candidates = [
+        pathlib.Path("/usr/libexec/ibus-engine-rustype"),
+        pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
+        pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
+        pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
+        pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
+        pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype",
+        pathlib.Path(__file__).resolve().parent / "target" / "release" / "ibus-engine-rustype",
+    ]
+    exe = shutil.which("ibus-engine-rustype")
+    if not exe:
+        for c in candidates:
+            if c.exists():
+                exe = str(c)
+                break
+    if exe:
+        try:
+            res = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=2)
+            for token in res.stdout.split():
+                if token and token[0].isdigit():
+                    return token.strip()
+        except Exception:
+            pass
+    return "0.1.0"
 
 
 class ConfigManager:
@@ -217,21 +248,96 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         self.grp_words.set_header_suffix(btn_add_word)
         self.refresh_words()
 
-        # ---------------- Trang 4: Chẩn đoán & Giới thiệu ----------------
-        page_diag = Adw.PreferencesPage(title="Chẩn đoán", icon_name="help-about-symbolic")
-        self.add(page_diag)
+        # ---------------- Trang 4: Giới thiệu & Chẩn đoán ----------------
+        self.version = get_installed_version()
 
-        grp_diag = Adw.PreferencesGroup(title="Chẩn đoán hệ thống")
-        page_diag.add(grp_diag)
+        page_about = Adw.PreferencesPage(title="Giới thiệu", icon_name="help-about-symbolic")
+        self.add(page_about)
 
-        btn_run_doctor = Gtk.Button(label="Chạy kiểm tra hệ thống", css_classes=["suggested-action"])
-        btn_run_doctor.connect("clicked", self.on_run_doctor_clicked)
-        grp_diag.add(btn_run_doctor)
+        # Nhóm Thông tin phần mềm
+        grp_about = Adw.PreferencesGroup(
+            title="Rustype",
+            description="Bộ gõ tiếng Việt siêu nhẹ cho Linux • Viết bằng Pure Rust",
+        )
+        page_about.add(grp_about)
 
-        self.tv_doctor = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD)
+        # Dòng Phiên bản & Kiểm tra cập nhật
+        self.row_version = Adw.ActionRow(
+            title="Phiên bản",
+            subtitle=f"v{self.version}",
+        )
+        self.btn_check_update = Gtk.Button(
+            label="Kiểm tra cập nhật",
+            icon_name="view-refresh-symbolic",
+            valign=Gtk.Align.CENTER,
+        )
+        self.btn_check_update.connect("clicked", self.on_check_update_clicked)
+        self.row_version.add_suffix(self.btn_check_update)
+        grp_about.add(self.row_version)
+
+        # Dòng Mã nguồn GitHub
+        row_github = Adw.ActionRow(
+            title="Mã nguồn GitHub",
+            subtitle="https://github.com/namtr/rustype",
+        )
+        btn_github = Gtk.Button(
+            icon_name="adw-external-link-symbolic",
+            valign=Gtk.Align.CENTER,
+            tooltip_text="Mở kho mã nguồn",
+        )
+        btn_github.connect(
+            "clicked",
+            lambda *_: Gio.AppInfo.launch_default_for_uri("https://github.com/namtr/rustype", None),
+        )
+        row_github.add_suffix(btn_github)
+        grp_about.add(row_github)
+
+        # Dòng Giấy phép
+        row_license = Adw.ActionRow(
+            title="Giấy phép",
+            subtitle="MIT License • 100% Mã nguồn mở, an toàn và bảo mật",
+        )
+        grp_about.add(row_license)
+
+        # Dòng Tác giả
+        row_author = Adw.ActionRow(
+            title="Tác giả",
+            subtitle="Nam Tran <tr.namm29@gmail.com>",
+        )
+        grp_about.add(row_author)
+
+        # Nhóm Chẩn đoán hệ thống
+        grp_diag = Adw.PreferencesGroup(
+            title="Chẩn đoán hệ thống",
+            description="Kiểm tra tình trạng IBus daemon, engine daemon, tệp component XML và tiện ích mở rộng GNOME Shell.",
+        )
+        page_about.add(grp_diag)
+
+        self.btn_run_doctor = Gtk.Button(
+            label="Chạy kiểm tra hệ thống",
+            icon_name="system-run-symbolic",
+            css_classes=["suggested-action"],
+        )
+        self.btn_run_doctor.connect("clicked", self.on_run_doctor_clicked)
+        grp_diag.add(self.btn_run_doctor)
+
+        self.tv_doctor = Gtk.TextView(
+            editable=False,
+            monospace=True,
+            wrap_mode=Gtk.WrapMode.WORD,
+        )
         self.tv_doctor.set_size_request(-1, 200)
+        self.tv_doctor.get_buffer().set_text('Nhấn "Chạy kiểm tra hệ thống" để quét và chẩn đoán toàn diện...')
         scrolled = Gtk.ScrolledWindow(child=self.tv_doctor, min_content_height=200)
         grp_diag.add(scrolled)
+
+    def notify(self, message: str, button_label: str = None, callback=None):
+        """Displays a clean in-app toast notification."""
+        toast = Adw.Toast.new(message)
+        if button_label and callback:
+            toast.set_button_label(button_label)
+            toast.connect("button-clicked", callback)
+        self.add_toast(toast)
 
     def on_method_changed(self, combo, _):
         self.cfg.input_method = "telex" if combo.get_selected() == 0 else "vni"
@@ -248,7 +354,6 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
 
     def refresh_macros(self):
         # Clear existing rows in macro group
-        # In Adw, children can be removed
         for k, v in sorted(self.cfg.macros.items()):
             row = Adw.ActionRow(title=k, subtitle=v)
             btn_del = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER)
@@ -259,8 +364,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
     def delete_macro(self, key):
         self.cfg.macros.pop(key, None)
         self.cfg.save()
-        # Simple notice
-        self.add_toast("Đã xóa từ gõ tắt")
+        self.notify("Đã xóa từ gõ tắt")
 
     def on_add_macro_clicked(self, _):
         dialog = Adw.MessageDialog(
@@ -285,7 +389,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
                 if k and v:
                     self.cfg.macros[k] = v
                     self.cfg.save()
-                    self.add_toast(f"Đã thêm: {k} ➔ {v}")
+                    self.notify(f"Đã thêm: {k} ➔ {v}")
 
         dialog.connect("response", on_resp)
         dialog.present()
@@ -302,7 +406,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         if word in self.cfg.custom_words:
             self.cfg.custom_words.remove(word)
             self.cfg.save()
-            self.add_toast(f"Đã xóa từ: {word}")
+            self.notify(f"Đã xóa từ: {word}")
 
     def on_add_word_clicked(self, _):
         dialog = Adw.MessageDialog(
@@ -322,36 +426,102 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
                 if w and w not in self.cfg.custom_words:
                     self.cfg.custom_words.append(w)
                     self.cfg.save()
-                    self.add_toast(f"Đã thêm từ: {w}")
+                    self.notify(f"Đã thêm từ: {w}")
 
         dialog.connect("response", on_resp)
         dialog.present()
 
+    def on_check_update_clicked(self, _):
+        self.btn_check_update.set_sensitive(False)
+        self.row_version.set_subtitle(f"v{self.version} • Đang kiểm tra bản cập nhật...")
+
+        def worker():
+            try:
+                url = "https://api.github.com/repos/namtr/rustype/releases/latest"
+                req = urllib.request.Request(
+                    url,
+                    headers={"User-Agent": f"RustypeSettings/{self.version}"},
+                )
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        tag = data.get("tag_name", "").lstrip("v").strip()
+                        html_url = data.get("html_url", "https://github.com/namtr/rustype/releases")
+                        GLib.idle_add(self._on_update_result, True, tag, html_url)
+                        return
+                GLib.idle_add(self._on_update_result, False, "HTTP error", "")
+            except Exception as e:
+                GLib.idle_add(self._on_update_result, False, str(e), "")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_result(self, success, tag_or_err, html_url):
+        self.btn_check_update.set_sensitive(True)
+        if not success:
+            self.row_version.set_subtitle(f"v{self.version} • Không thể kiểm tra (Lỗi kết nối mạng)")
+            self.notify("Không thể kết nối đến máy chủ kiểm tra cập nhật.")
+            return
+
+        latest_tag = tag_or_err
+
+        def parse_ver(v_str):
+            try:
+                clean = v_str.split("-")[0].split("+")[0]
+                return tuple(int(x) for x in clean.split("."))
+            except Exception:
+                return (0, 0, 0)
+
+        cur_v = parse_ver(self.version)
+        lat_v = parse_ver(latest_tag)
+
+        if lat_v > cur_v:
+            self.row_version.set_subtitle(f"v{self.version} • Có bản mới: v{latest_tag}!")
+            self.notify(
+                f"Đã có phiên bản mới: v{latest_tag}!",
+                button_label="Tải về",
+                callback=lambda *_: Gio.AppInfo.launch_default_for_uri(html_url, None),
+            )
+        else:
+            self.row_version.set_subtitle(f"v{self.version} • Bạn đang sử dụng phiên bản mới nhất")
+            self.notify("Bạn đang sử dụng phiên bản mới nhất!")
+
     def on_run_doctor_clicked(self, _):
         buffer = self.tv_doctor.get_buffer()
         buffer.set_text("Đang kiểm tra hệ thống...")
-        try:
-            candidates = [
-                pathlib.Path("/usr/libexec/ibus-engine-rustype"),
-                pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
-                pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
-                pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
-                pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
-                pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype",
-                pathlib.Path(__file__).resolve().parent / "target" / "release" / "ibus-engine-rustype",
-            ]
-            exe = shutil.which("ibus-engine-rustype")
-            if not exe:
-                for c in candidates:
-                    if c.exists():
-                        exe = str(c)
-                        break
-            if not exe:
-                exe = "ibus-engine-rustype"
-            res = subprocess.run([str(exe), "--doctor"], capture_output=True, text=True, timeout=5)
-            buffer.set_text(res.stdout or res.stderr)
-        except Exception as e:
-            buffer.set_text(f"Không thể chạy lệnh chẩn đoán: {e}")
+        self.btn_run_doctor.set_sensitive(False)
+
+        def worker():
+            out = ""
+            try:
+                candidates = [
+                    pathlib.Path("/usr/libexec/ibus-engine-rustype"),
+                    pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
+                    pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
+                    pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
+                    pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
+                    pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype",
+                    pathlib.Path(__file__).resolve().parent / "target" / "release" / "ibus-engine-rustype",
+                ]
+                exe = shutil.which("ibus-engine-rustype")
+                if not exe:
+                    for c in candidates:
+                        if c.exists():
+                            exe = str(c)
+                            break
+                if not exe:
+                    exe = "ibus-engine-rustype"
+                res = subprocess.run([str(exe), "--doctor"], capture_output=True, text=True, timeout=8)
+                out = res.stdout or res.stderr or "Không có phản hồi từ lệnh chẩn đoán."
+            except Exception as e:
+                out = f"Không thể chạy lệnh chẩn đoán: {e}"
+
+            def update_ui():
+                buffer.set_text(out)
+                self.btn_run_doctor.set_sensitive(True)
+
+            GLib.idle_add(update_ui)
+
+        threading.Thread(target=worker, daemon=True).start()
 
 
 def main():
