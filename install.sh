@@ -70,8 +70,9 @@ gtk-update-icon-cache -q -t -f "$ICON_BASE" 2>/dev/null || true
 echo "==> Cài đặt ứng dụng Cài đặt (rustype-settings)"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
 install -m755 tools/rustype-settings "$HOME/.local/bin/rustype-settings"
-install -m644 tools/rustype-settings.desktop "$HOME/.local/share/applications/rustype-settings.desktop"
-ln -sf rustype-settings.desktop "$HOME/.local/share/applications/dev.namtr.RustypeSettings.desktop"
+# Xóa file desktop cũ để tránh hiển thị 2 launcher
+rm -f "$HOME/.local/share/applications/rustype-settings.desktop"
+install -m644 tools/dev.namtr.RustypeSettings.desktop "$HOME/.local/share/applications/dev.namtr.RustypeSettings.desktop"
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 ln -sf "$BIN" "$HOME/.local/bin/ibus-engine-rustype"
 

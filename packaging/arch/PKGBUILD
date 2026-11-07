@@ -27,7 +27,7 @@ package() {
     install -Dm755 "tools/rustype-settings" "$pkgdir/usr/bin/rustype-settings"
 
     # Install desktop entry
-    install -Dm644 "tools/rustype-settings.desktop" "$pkgdir/usr/share/applications/rustype-settings.desktop"
+    install -Dm644 "tools/dev.namtr.RustypeSettings.desktop" "$pkgdir/usr/share/applications/dev.namtr.RustypeSettings.desktop"
 
     # Install IBus component XML
     mkdir -p "$pkgdir/usr/share/ibus/component"

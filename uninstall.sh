@@ -18,10 +18,10 @@ fi
 rm -rf "$HOME/.local/share/gnome-shell/extensions/rustype-focus@namtr.dev"
 rm -f "$HOME/.local/bin/rustype-settings"
 rm -f "$HOME/.local/bin/ibus-engine-rustype"
-rm -f "$HOME/.local/share/applications/rustype-settings.desktop"
-rm -f "$HOME/.local/share/icons/hicolor/scalable/apps/rustype.svg"
+rm -f "$HOME/.local/share/applications/dev.namtr.RustypeSettings.desktop" "$HOME/.local/share/applications/rustype-settings.desktop"
+rm -f "$HOME/.local/share/icons/hicolor/scalable/apps/rustype.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg"
 for s in 16 32 48 64 128 256 512; do
-    rm -f "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/rustype.png"
+    rm -f "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/rustype.png" "$HOME/.local/share/icons/hicolor/${s}x${s}/apps/dev.namtr.RustypeSettings.png"
 done
 gtk-update-icon-cache -q -t -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 ibus restart >/dev/null 2>&1 || true

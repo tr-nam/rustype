@@ -39,7 +39,7 @@ deb: build
 install: build
 	install -Dm755 target/release/ibus-engine-rustype $(DESTDIR)$(PREFIX)/libexec/ibus-engine-rustype
 	install -Dm755 tools/rustype-settings $(DESTDIR)$(PREFIX)/bin/rustype-settings
-	install -Dm644 tools/rustype-settings.desktop $(DESTDIR)$(PREFIX)/share/applications/rustype-settings.desktop
+	install -Dm644 tools/dev.namtr.RustypeSettings.desktop $(DESTDIR)$(PREFIX)/share/applications/dev.namtr.RustypeSettings.desktop
 	mkdir -p $(DESTDIR)$(PREFIX)/share/ibus/component
 	target/release/ibus-engine-rustype --xml > $(DESTDIR)$(PREFIX)/share/ibus/component/rustype.xml
 	for s in 16 32 48 64 128 256 512; do \
@@ -54,7 +54,7 @@ install: build
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/libexec/ibus-engine-rustype
 	rm -f $(DESTDIR)$(PREFIX)/bin/rustype-settings
-	rm -f $(DESTDIR)$(PREFIX)/share/applications/rustype-settings.desktop
+	rm -f $(DESTDIR)$(PREFIX)/share/applications/dev.namtr.RustypeSettings.desktop $(DESTDIR)$(PREFIX)/share/applications/rustype-settings.desktop
 	rm -f $(DESTDIR)$(PREFIX)/share/ibus/component/rustype.xml
 	rm -rf $(DESTDIR)$(PREFIX)/share/gnome-shell/extensions/rustype-focus@namtr.dev
 	rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/*/apps/rustype.png

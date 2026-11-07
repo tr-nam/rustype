@@ -55,8 +55,7 @@ mkdir -p "$STAGING/usr/libexec" \
 echo "==> [3/6] Cài đặt file thực thi và tài nguyên..."
 install -m755 "$ROOT_DIR/target/release/ibus-engine-rustype" "$STAGING/usr/libexec/ibus-engine-rustype"
 install -m755 "$ROOT_DIR/tools/rustype-settings" "$STAGING/usr/bin/rustype-settings"
-install -m644 "$ROOT_DIR/tools/rustype-settings.desktop" "$STAGING/usr/share/applications/rustype-settings.desktop"
-ln -sf rustype-settings.desktop "$STAGING/usr/share/applications/dev.namtr.RustypeSettings.desktop"
+install -m644 "$ROOT_DIR/tools/dev.namtr.RustypeSettings.desktop" "$STAGING/usr/share/applications/dev.namtr.RustypeSettings.desktop"
 
 # IBus Component XML trỏ vào /usr/libexec
 cat <<EOF > "$STAGING/usr/share/ibus/component/rustype.xml"

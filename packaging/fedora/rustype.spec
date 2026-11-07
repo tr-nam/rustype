@@ -36,7 +36,7 @@ install -Dm755 target/release/ibus-engine-rustype %{buildroot}%{_libexecdir}/ibu
 install -Dm755 tools/rustype-settings %{buildroot}%{_bindir}/rustype-settings
 
 # Desktop entry
-install -Dm644 tools/rustype-settings.desktop %{buildroot}%{_datadir}/applications/rustype-settings.desktop
+install -Dm644 tools/dev.namtr.RustypeSettings.desktop %{buildroot}%{_datadir}/applications/dev.namtr.RustypeSettings.desktop
 
 # IBus component XML
 mkdir -p %{buildroot}%{_datadir}/ibus/component
@@ -88,7 +88,7 @@ install -Dm644 docs/man/rustype-settings.1 %{buildroot}%{_mandir}/man1/rustype-s
 %doc README.md CHANGELOG.md docs/PRIVACY.md
 %{_libexecdir}/ibus-engine-rustype
 %{_bindir}/rustype-settings
-%{_datadir}/applications/rustype-settings.desktop
+%{_datadir}/applications/dev.namtr.RustypeSettings.desktop
 %{_datadir}/ibus/component/rustype.xml
 %{_datadir}/icons/hicolor/*/apps/rustype.*
 %{_datadir}/gnome-shell/extensions/rustype-focus@namtr.dev/

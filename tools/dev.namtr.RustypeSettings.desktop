@@ -9,5 +9,5 @@ Terminal=false
 Type=Application
 StartupNotify=true
 StartupWMClass=dev.namtr.RustypeSettings
-Categories=Settings;HardwareSettings;Utility;
-Keywords=Vietnamese;IME;IBus;Telex;VNI;Input;
+Categories=Settings;DesktopSettings;
+Keywords=Vietnamese;IME;IBus;Telex;VNI;Input;rustype;settings;
