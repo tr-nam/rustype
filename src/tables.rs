@@ -1,0 +1,132 @@
+// Vietnamese spelling rules and the English words restored on the word boundary.
+// After changing a rule, review `python3 -I tools/golden.py diff` and update the golden set.
+
+/// Initial consonants of a finished syllable.
+pub const VALID_INITIALS: &[&str] = &[
+    "", "b", "c", "ch", "d", "g", "gh", "gi", "h", "k",
+    "kh", "l", "m", "n", "ng", "ngh", "nh", "p", "ph", "qu",
+    "r", "s", "t", "th", "tr", "v", "x", "đ",
+];
+
+/// Initial consonants accepted while still typing ('q' before 'u').
+pub const VALID_INITIALS_TYPING: &[&str] = &[
+    "", "b", "c", "ch", "d", "g", "gh", "gi", "h", "k",
+    "kh", "l", "m", "n", "ng", "ngh", "nh", "p", "ph", "q",
+    "qu", "r", "s", "t", "th", "tr", "v", "x", "đ",
+];
+
+/// Final consonants.
+pub const VALID_FINALS: &[&str] = &[
+    "", "c", "ch", "m", "n", "ng", "nh", "p", "t",
+];
+
+/// Stop finals: only sắc or nặng are allowed with them.
+pub const STOP_FINALS: &[&str] = &[
+    "c", "ch", "p", "t",
+];
+
+/// Vowel nuclei of a finished syllable.
+pub const NUCLEI_COMMITTED: &[&str] = &[
+    "a", "ai", "ao", "au", "ay", "e", "eo", "i", "ia", "iu",
+    "iê", "iêu", "o", "oa", "oai", "oao", "oay", "oe", "oeo", "oi",
+    "oo", "oă", "u", "ua", "ui", "uy", "uya", "uyu", "uyê", "uâ",
+    "uây", "uê", "uô", "uôi", "uă", "uơ", "y", "ya", "yê", "yêu",
+    "â", "âu", "ây", "ê", "êu", "ô", "ôi", "ă", "ơ", "ơi",
+    "ư", "ưa", "ưi", "ưu", "ươ", "ươi", "ươu",
+];
+
+/// Vowel nuclei accepted while still typing.
+pub const NUCLEI_TYPING: &[&str] = &[
+    "a", "ai", "ao", "au", "ay", "e", "eo", "i", "ia", "ie",
+    "ieu", "iu", "iê", "iêu", "o", "oa", "oai", "oao", "oay", "oe",
+    "oeo", "oi", "oo", "oă", "u", "ua", "uay", "ue", "ui", "uo",
+    "uoi", "uou", "uy", "uya", "uye", "uyu", "uyê", "uâ", "uây", "uê",
+    "uô", "uôi", "uă", "uơ", "y", "ya", "ye", "yeu", "yê", "yêu",
+    "â", "âu", "ây", "ê", "êu", "ô", "ôi", "ă", "ơ", "ơi",
+    "ư", "ưa", "ưi", "ưo", "ưoi", "ưou", "ưu", "ươ", "ươi", "ươu",
+];
+
+/// Nuclei allowed right after adding a circumflex.
+pub const CIRCUMFLEX_NUCLEI: &[&str] = &[
+    "iê", "iêu", "uyê", "uâ", "uây", "uê", "uô", "uôi", "yê", "yêu",
+    "â", "âu", "ây", "ê", "êu", "ô", "ôi",
+];
+
+/// Nuclei that need a final consonant.
+pub const FORBIDDEN_OPEN_NUCLEI: &[&str] = &[
+    "iê", "oă", "uyê", "uâ", "uô", "uă", "yê", "â", "ă", "ươ",
+];
+
+/// Nuclei that never take a final consonant.
+pub const NO_FINAL_NUCLEI: &[&str] = &[
+    "ai", "ao", "au", "ay", "eo", "ia", "iu", "iêu", "oai", "oao",
+    "oay", "oeo", "oi", "ui", "uya", "uyu", "uây", "uôi", "yêu", "âu",
+    "ây", "êu", "ôi", "ơi", "ưa", "ưi", "ưu", "ươi", "ươu",
+];
+
+/// English words whose Telex reading looks Vietnamese; restored on the word boundary.
+pub const ENGLISH_COLLISION_WORDS: &[&str] = &[
+    "abuse", "accuse", "acquire", "add", "added", "admire", "adore", "adventure", "affect", "afford",
+    "amuse", "architecture", "arrange", "array", "arrive", "arrow", "assert", "assess", "assessment", "asset",
+    "assets", "assign", "assignment", "assist", "assistant", "assume", "assure", "audio", "auto", "avenue",
+    "aware", "barrel", "bass", "beer", "before", "berry", "best", "between", "blame", "bless",
+    "bloom", "blue", "bone", "boom", "boor", "bore", "borrow", "boss", "brew", "brochure",
+    "broom", "buff", "buffer", "came", "capture", "care", "career", "carrot", "carry", "cheer",
+    "cherry", "chew", "claw", "closure", "clue", "code", "coffee", "come", "compare", "cone",
+    "confuse", "continue", "core", "correct", "correctly", "creature", "crew", "cue", "culture", "cure",
+    "current", "dare", "declare", "deem", "deer", "departure", "desire", "devour", "diff", "differ",
+    "difference", "different", "dime", "disclosure", "dissolve", "done", "door", "draw", "drew", "due",
+    "effect", "effective", "effort", "empire", "enclosure", "endure", "engineer", "ensure", "entire", "error",
+    "errors", "essay", "essential", "excuse", "expire", "explore", "exposure", "failure", "fame", "fast",
+    "fax", "feature", "few", "figure", "fine", "fire", "firmware", "fix", "flame", "flaw",
+    "flew", "floor", "flour", "four", "fox", "frame", "freeware", "furniture", "fuse", "future",
+    "game", "gloom", "glue", "gone", "green", "grew", "groom", "guess", "hardware", "hire",
+    "home", "horror", "hour", "hue", "hurry", "ignore", "inquire", "inspire", "insure", "interview",
+    "isset", "issue", "jaw", "jeer", "just", "keen", "kiss", "knew", "lame", "law",
+    "lecture", "leisure", "less", "lesson", "lessons", "lime", "line", "literature", "loom", "loss",
+    "lure", "malware", "manufacture", "marry", "mass", "massive", "mature", "measure", "merry", "mess",
+    "message", "messages", "messy", "middleware", "mime", "mine", "mirror", "miss", "missed", "missing",
+    "mission", "mode", "moon", "moor", "more", "moss", "muse", "name", "narrow", "nature",
+    "necessary", "new", "next", "nine", "node", "none", "noon", "obscure", "odd", "off",
+    "offer", "office", "officer", "official", "offset", "overview", "parrot", "pass", "passed", "passing",
+    "passion", "passive", "password", "past", "paw", "peer", "picture", "pine", "pioneer", "pleasure",
+    "poor", "portfolio", "possible", "post", "pour", "prepare", "pressure", "preview", "procedure", "procure",
+    "pure", "queer", "radio", "rare", "ratio", "raw", "referred", "refuse", "require", "rescue",
+    "ress", "restore", "retire", "revenue", "review", "room", "same", "saw", "scenario", "score",
+    "scour", "screen", "screw", "secure", "seem", "seen", "seizure", "session", "shame", "share",
+    "sheer", "shore", "signature", "sneer", "software", "some", "soon", "sore", "sorrow", "sorry",
+    "sour", "spare", "spoon", "square", "stare", "statue", "steer", "stew", "store", "straw",
+    "structure", "studio", "sue", "suffer", "sure", "tame", "tariff", "teem", "temperature", "terrible",
+    "terror", "test", "text", "thaw", "therefore", "threw", "time", "tire", "tissue", "toffee",
+    "tomorrow", "tone", "tore", "toss", "tour", "treasure", "true", "use", "used", "user",
+    "uses", "value", "veer", "video", "view", "virtue", "volunteer", "ware", "wax", "west",
+    "wine", "wire", "wore", "worry", "your", "zone", "zoom",
+];
+
+/// Base vowel -> [no tone, sắc, huyền, hỏi, ngã, nặng].
+pub const VOWEL_TABLE: &[(char, [char; 6])] = &[
+    ('A', ['A', 'Á', 'À', 'Ả', 'Ã', 'Ạ']),
+    ('E', ['E', 'É', 'È', 'Ẻ', 'Ẽ', 'Ẹ']),
+    ('I', ['I', 'Í', 'Ì', 'Ỉ', 'Ĩ', 'Ị']),
+    ('O', ['O', 'Ó', 'Ò', 'Ỏ', 'Õ', 'Ọ']),
+    ('U', ['U', 'Ú', 'Ù', 'Ủ', 'Ũ', 'Ụ']),
+    ('Y', ['Y', 'Ý', 'Ỳ', 'Ỷ', 'Ỹ', 'Ỵ']),
+    ('a', ['a', 'á', 'à', 'ả', 'ã', 'ạ']),
+    ('e', ['e', 'é', 'è', 'ẻ', 'ẽ', 'ẹ']),
+    ('i', ['i', 'í', 'ì', 'ỉ', 'ĩ', 'ị']),
+    ('o', ['o', 'ó', 'ò', 'ỏ', 'õ', 'ọ']),
+    ('u', ['u', 'ú', 'ù', 'ủ', 'ũ', 'ụ']),
+    ('y', ['y', 'ý', 'ỳ', 'ỷ', 'ỹ', 'ỵ']),
+    ('Â', ['Â', 'Ấ', 'Ầ', 'Ẩ', 'Ẫ', 'Ậ']),
+    ('Ê', ['Ê', 'Ế', 'Ề', 'Ể', 'Ễ', 'Ệ']),
+    ('Ô', ['Ô', 'Ố', 'Ồ', 'Ổ', 'Ỗ', 'Ộ']),
+    ('â', ['â', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ']),
+    ('ê', ['ê', 'ế', 'ề', 'ể', 'ễ', 'ệ']),
+    ('ô', ['ô', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ']),
+    ('Ă', ['Ă', 'Ắ', 'Ằ', 'Ẳ', 'Ẵ', 'Ặ']),
+    ('ă', ['ă', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ']),
+    ('Ơ', ['Ơ', 'Ớ', 'Ờ', 'Ở', 'Ỡ', 'Ợ']),
+    ('ơ', ['ơ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ']),
+    ('Ư', ['Ư', 'Ứ', 'Ừ', 'Ử', 'Ữ', 'Ự']),
+    ('ư', ['ư', 'ứ', 'ừ', 'ử', 'ữ', 'ự']),
+];
