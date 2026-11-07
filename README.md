@@ -17,11 +17,20 @@ Thiết kế tối ưu cho Ubuntu GNOME trên Wayland, gõ mượt mà không l�
 
 ## Điểm nổi bật
 
-- **Gõ trong terminal không lặp chữ.** Terminal không cho bộ gõ sửa chữ đã gõ, nên Rustype giữ từ đang gõ ở dạng gạch chân và gửi đi khi hết từ, không gửi phím xóa lùi giả.
-- **Bấm chuột không mất chữ.** Chữ gạch chân được gửi ở chế độ COMMIT, nên GNOME giữ lại từ đang gõ dở khi bạn bấm chuột hoặc đổi cửa sổ.
-- **Không gạch chân ở ứng dụng thường.** Ứng dụng có Surrounding Text như trình duyệt hay VS Code nhận chữ trực tiếp, chỉ terminal mới gạch chân.
-- **Rất nhẹ.** Khoảng 2,5 MB RAM, file chạy khoảng 450 KB, mỗi phím xử lý trong khoảng 0,3 micro giây.
-- **Telex đầy đủ.** Đặt dấu kiểu cũ hoặc kiểu mới, tự trả lại từ tiếng Anh như "window", "software", "user", gõ đôi phím để thoát như "ss" hay "dd".
+- ⚡ **Siêu nhẹ & Tốc độ tức thì (Pure Rust):** Tiến trình daemon được viết hoàn toàn bằng Rust thuần không phụ thuộc runtime GUI nặng nề, chiếm chưa đến **2.5 MB RAM**, kích thước tệp thực thi chỉ ~**450 KB** và xử lý mỗi phím gõ chỉ mất khoảng **0.3 micro giây** ($\mu$s).
+- 💻 **Gõ trong Terminal không lặp chữ, không giật nháy:** Tối ưu hóa đặc biệt cho các terminal hiện đại trên Wayland (*Ptyxis, Alacritty, Ghostty, GNOME Terminal, Foot*) và các công cụ dòng lệnh (*Claude Code, Neovim, fzf*). Giữ từ đang gõ ở chế độ preedit mượt mà và đẩy ký tự dứt khoát khi kết thúc từ, hoàn toàn không gửi phím Backspace giả làm hỏng shell history hay giật màn hình.
+- 🎯 **Tự động nhận diện ứng dụng (Auto Display Mode):** Tự động chuyển đổi giữa Direct mode và Preedit mode. Với các ứng dụng đồ họa có hỗ trợ Surrounding Text (*Chrome, VS Code, Slack, LibreOffice*), chữ được đưa thẳng vào vị trí con trỏ không có đường gạch chân khó chịu.
+- 🖱️ **Bấm chuột hay đổi cửa sổ không mất chữ:** Ký tự đang gõ dở được tự động hoàn tất (COMMIT) ngay khi bạn nhấp chuột ra ngoài hoặc chuyển cửa sổ làm việc, không bao giờ bị nuốt chữ hay sót ký tự.
+- 🔄 **Nhớ trạng thái bật/tắt theo từng ứng dụng (Per-App State):** Tương tự tính năng được yêu thích trên EVKey, Rustype tự động ghi nhớ bạn đang bật gõ tiếng Việt ở trình duyệt/chat nhưng giữ nguyên chế độ tiếng Anh khi chuyển sang Terminal hoặc IDE lập trình.
+- ⌨️ **Hỗ trợ đầy đủ Telex & VNI cùng tính năng thông minh:**
+  - Tùy chọn đặt dấu kiểu mới (`hoà, khoẻ, thuý`) hoặc truyền thống (`hòa, khỏe, thúy`).
+  - Tự động phục hồi từ tiếng Anh phổ biến (`window`, `software`, `user`...) khi gõ xong.
+  - Gõ đôi phím thoát dấu (`ss`, `dd`), gõ tắt (Macro) tốc độ cao và thêm từ điển riêng (Custom Words).
+- 🎛️ **Thao tác nhanh trên Top Bar & Giao diện GTK4 Libadwaita:**
+  - Bật/tắt tiếng Việt (chuyển đổi icon trạng thái `VN`/`EN` động) và đổi kiểu gõ Telex/VNI chỉ với 1 cú nhấp chuột ngay trên khay hệ thống GNOME.
+  - Ứng dụng Cài đặt hiện đại viết bằng GTK4 + Libadwaita, tự động thích ứng chế độ Sáng/Tối (Dark/Light style) chuẩn GNOME HIG.
+- 🩺 **Chẩn đoán hệ thống tự động (Built-in Doctor):** Tích hợp sẵn công cụ kiểm tra toàn diện cấu hình IBus daemon, socket, component XML và extension (`ibus-engine-rustype --doctor` hoặc chạy trực tiếp từ trang Giới thiệu trong app Cài đặt).
+- 🔒 **Bảo mật & Quyền riêng tư 100% (Offline & Zero Telemetry):** Hoàn toàn ngoại tuyến, không gửi telemetry, không lưu phím gõ và tự động bypass ở các trường nhập mật khẩu an toàn.
 
 ## Cài đặt
 
