@@ -41,6 +41,20 @@ impl Config {
             if let Some(m) = self.app_modes.get(id) {
                 return *m;
             }
+            if let Some(base) = id.strip_suffix(".desktop") {
+                if let Some(m) = self.app_modes.get(base) {
+                    return *m;
+                }
+            }
+            let lower = id.to_lowercase();
+            if let Some(m) = self.app_modes.get(&lower) {
+                return *m;
+            }
+            if let Some(base) = lower.strip_suffix(".desktop") {
+                if let Some(m) = self.app_modes.get(base) {
+                    return *m;
+                }
+            }
         }
         self.mode
     }
@@ -303,6 +317,11 @@ org.gnome.Ptyxis = preedit
         assert_eq!(c.mode_for_app(Some("org.gnome.Ptyxis")), Mode::Preedit);
         assert_eq!(c.mode_for_app(Some("kitty")), Mode::Preedit);
         assert_eq!(c.mode_for_app(Some("google-chrome")), Mode::Auto);
+        assert_eq!(c.mode_for_app(Some("google-chrome.desktop")), Mode::Auto);
+        assert_eq!(
+            c.mode_for_app(Some("org.gnome.Ptyxis.desktop")),
+            Mode::Preedit
+        );
         assert_eq!(c.mode_for_app(Some("unknown")), Mode::Auto);
         assert_eq!(c.mode_for_app(None), Mode::Auto);
     }
