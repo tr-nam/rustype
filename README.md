@@ -35,7 +35,7 @@ Thiết kế tối ưu cho Ubuntu GNOME trên Wayland, gõ mượt mà không l�
 ## Cài đặt
 
 ### Cách 1: Cài đặt bằng gói `.deb` (Khuyên dùng cho Ubuntu / Debian)
-Tải gói `.deb` từ mục [Releases](https://github.com/namtr/rustype/releases) hoặc tự đóng gói nhanh bằng:
+Tải gói `.deb` từ mục [Releases](https://github.com/tr-nam/rustype/releases) hoặc tự đóng gói nhanh bằng:
 ```bash
 make deb
 sudo apt install ./target/packages/rustype_*.deb
