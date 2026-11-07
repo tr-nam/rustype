@@ -4,6 +4,22 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Phiên bản phát hành (ví dụ: v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+      draft:
+        description: 'Tạo bản nháp (Draft)?'
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Đánh dấu là bản thử nghiệm (Pre-release)?'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -15,6 +31,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version & Tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Using Tag: ${TAG}, Version: ${VERSION}"
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -31,26 +62,32 @@ jobs:
 
       - name: Package Standalone Tarball
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          TAR_NAME="rustype-${GITHUB_REF_NAME}-linux-x86_64.tar.gz"
-          mkdir -p target/packages
-          tar -czvf "target/packages/$TAR_NAME" \
-            -C target/release ibus-engine-rustype \
-            -C ../.. tools assets gnome-shell-extension install.sh uninstall.sh LICENSE README.md docs/PRIVACY.md
+          TAG="${{ steps.meta.outputs.tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          TAR_NAME="rustype-${TAG}-linux-x86_64.tar.gz"
+          STAGING="target/tar-staging/rustype-${VERSION}"
+          rm -rf "target/tar-staging"
+          mkdir -p "$STAGING" "target/packages"
+          cp target/release/ibus-engine-rustype "$STAGING/"
+          cp -r tools assets gnome-shell-extension install.sh uninstall.sh Makefile LICENSE README.md docs "$STAGING/"
+          tar -czvf "target/packages/$TAR_NAME" -C target/tar-staging "rustype-${VERSION}"
 
       - name: Compute SHA256 Checksums
         run: |
           cd target/packages
-          sha256sum * > SHA256SUMS
+          rm -f SHA256SUMS
+          sha256sum *.deb *.tar.gz > SHA256SUMS
           cat SHA256SUMS
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Rustype ${{ steps.meta.outputs.tag }}
           files: |
             target/packages/*.deb
             target/packages/*.tar.gz
             target/packages/SHA256SUMS
           generate_release_notes: true
-          draft: false
-          prerelease: false
+          draft: ${{ github.event.inputs.draft || false }}
+          prerelease: ${{ github.event.inputs.prerelease || false }}
