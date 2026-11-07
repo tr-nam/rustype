@@ -1,11 +1,11 @@
-# Maintainer: Nam Tran <tr.namm29@gmail.com>
+# Maintainer: Nam Tran <support@namtr.dev>
 pkgname=rustype-ibus
 _pkgname=rustype
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Lightweight, privacy-friendly Vietnamese input method engine for IBus"
 arch=('x86_64' 'aarch64')
-url="https://github.com/namtr/rustype"
+url="https://namtr.dev"
 license=('MIT')
 depends=('ibus' 'python' 'python-gobject' 'libadwaita')
 makedepends=('cargo')
@@ -40,7 +40,7 @@ package() {
     <version>${pkgver}</version>
     <author>Nam Trần</author>
     <license>MIT</license>
-    <homepage>https://github.com/namtr/rustype</homepage>
+    <homepage>https://namtr.dev</homepage>
     <textdomain>rustype</textdomain>
     <engines>
         <engine>

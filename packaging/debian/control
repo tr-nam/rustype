@@ -3,8 +3,8 @@ Version: 0.1.0-1
 Section: utils
 Priority: optional
 Architecture: any
-Maintainer: Nam Tran <tr.namm29@gmail.com>
-Homepage: https://github.com/namtr/rustype
+Maintainer: Nam Tran <support@namtr.dev>
+Homepage: https://namtr.dev
 Provides: ibus-rustype
 Depends: libc6 (>= 2.34), ibus (>= 1.5.0), python3 (>= 3.8), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1
 Recommends: gnome-shell

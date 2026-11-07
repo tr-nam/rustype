@@ -44,8 +44,10 @@ install: build
 	target/release/ibus-engine-rustype --xml > $(DESTDIR)$(PREFIX)/share/ibus/component/rustype.xml
 	for s in 16 32 48 64 128 256 512; do \
 		install -Dm644 assets/icons/$${s}x$${s}/rustype.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/$${s}x$${s}/apps/rustype.png; \
+		ln -sf rustype.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/$${s}x$${s}/apps/dev.namtr.RustypeSettings.png; \
 	done
 	install -Dm644 assets/icons/scalable/rustype.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/rustype.svg
+	ln -sf rustype.svg $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg
 	mkdir -p $(DESTDIR)$(PREFIX)/share/gnome-shell/extensions/rustype-focus@namtr.dev
 	cp -a gnome-shell-extension/rustype-focus@namtr.dev/* $(DESTDIR)$(PREFIX)/share/gnome-shell/extensions/rustype-focus@namtr.dev/
 	install -Dm644 docs/man/ibus-engine-rustype.1 $(DESTDIR)$(PREFIX)/share/man/man1/ibus-engine-rustype.1

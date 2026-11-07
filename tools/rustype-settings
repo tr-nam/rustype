@@ -13,10 +13,14 @@ import urllib.request
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
-CONFIG_DIR = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "rustype"
+CONFIG_DIR = (
+    pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config"))
+    / "rustype"
+)
 CONFIG_FILE = CONFIG_DIR / "config"
 MACRO_FILE = CONFIG_DIR / "macro"
 WORDS_FILE = CONFIG_DIR / "words"
@@ -30,8 +34,14 @@ def get_installed_version() -> str:
         pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
         pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
         pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
-        pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype",
-        pathlib.Path(__file__).resolve().parent / "target" / "release" / "ibus-engine-rustype",
+        pathlib.Path(__file__).resolve().parent.parent
+        / "target"
+        / "release"
+        / "ibus-engine-rustype",
+        pathlib.Path(__file__).resolve().parent
+        / "target"
+        / "release"
+        / "ibus-engine-rustype",
     ]
     exe = shutil.which("ibus-engine-rustype")
     if not exe:
@@ -41,7 +51,9 @@ def get_installed_version() -> str:
                 break
     if exe:
         try:
-            res = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=2)
+            res = subprocess.run(
+                [str(exe), "--version"], capture_output=True, text=True, timeout=2
+            )
             for token in res.stdout.split():
                 if token and token[0].isdigit():
                     return token.strip()
@@ -87,15 +99,32 @@ class ConfigManager:
                         elif k == "input_method":
                             self.input_method = v
                         elif k == "modern_orthography":
-                            self.modern_orthography = v.lower() in ("true", "1", "yes", "on")
+                            self.modern_orthography = v.lower() in (
+                                "true",
+                                "1",
+                                "yes",
+                                "on",
+                            )
                         elif k == "auto_restore_english":
-                            self.auto_restore_english = v.lower() in ("true", "1", "yes", "on")
+                            self.auto_restore_english = v.lower() in (
+                                "true",
+                                "1",
+                                "yes",
+                                "on",
+                            )
                         elif k == "remember_state_per_app":
-                            self.remember_state_per_app = v.lower() in ("true", "1", "yes", "on")
+                            self.remember_state_per_app = v.lower() in (
+                                "true",
+                                "1",
+                                "yes",
+                                "on",
+                            )
                         elif k == "enable_macro":
                             self.enable_macro = v.lower() in ("true", "1", "yes", "on")
                         elif k == "custom_words":
-                            self.custom_words = [w.strip().strip('"') for w in v.split(",") if w.strip()]
+                            self.custom_words = [
+                                w.strip().strip('"') for w in v.split(",") if w.strip()
+                            ]
 
         if MACRO_FILE.exists():
             for line in MACRO_FILE.read_text(encoding="utf-8").splitlines():
@@ -138,7 +167,10 @@ class ConfigManager:
 
 class RustypeSettingsApp(Adw.Application):
     def __init__(self):
-        super().__init__(application_id="dev.namtr.RustypeSettings", flags=Gio.ApplicationFlags.FLAGS_NONE)
+        super().__init__(
+            application_id="dev.namtr.RustypeSettings",
+            flags=Gio.ApplicationFlags.FLAGS_NONE,
+        )
         self.cfg = ConfigManager()
 
     def do_activate(self):
@@ -151,10 +183,12 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         super().__init__(application=app, title="Cài đặt Rustype")
         self.cfg = cfg
         self.set_default_size(680, 560)
-        self.set_icon_name("rustype")
+        self.set_icon_name("dev.namtr.RustypeSettings")
 
         # ---------------- Trang 1: Cơ bản ----------------
-        page_general = Adw.PreferencesPage(title="Cơ bản", icon_name="preferences-system-symbolic")
+        page_general = Adw.PreferencesPage(
+            title="Cơ bản", icon_name="preferences-system-symbolic"
+        )
         self.add(page_general)
 
         # Nhóm Kiểu gõ
@@ -171,11 +205,13 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         grp_display = Adw.PreferencesGroup(title="Hiển thị chữ (Display Mode)")
         page_general.add(grp_display)
 
-        mode_model = Gtk.StringList.new([
-            "Tự động (Auto) - Gạch chân trong terminal, trực tiếp ở ứng dụng thường",
-            "Luôn gạch chân (Preedit) - Ổn định nhất",
-            "Không gạch chân (Direct)",
-        ])
+        mode_model = Gtk.StringList.new(
+            [
+                "Tự động (Auto) - Gạch chân trong terminal, trực tiếp ở ứng dụng thường",
+                "Luôn gạch chân (Preedit) - Ổn định nhất",
+                "Không gạch chân (Direct)",
+            ]
+        )
         self.row_mode = Adw.ComboRow(title="Chế độ hiển thị", model=mode_model)
         mode_idx = 0 if cfg.mode == "auto" else (1 if cfg.mode == "preedit" else 2)
         self.row_mode.set_selected(mode_idx)
@@ -191,7 +227,12 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             subtitle="Mặc định tắt: hòa, khỏe, thúy",
             active=cfg.modern_orthography,
         )
-        self.sw_modern.connect("notify::active", lambda *_: self.on_switch_changed("modern_orthography", self.sw_modern.get_active()))
+        self.sw_modern.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed(
+                "modern_orthography", self.sw_modern.get_active()
+            ),
+        )
         grp_features.add(self.sw_modern)
 
         self.sw_english = Adw.SwitchRow(
@@ -199,7 +240,12 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             subtitle="Phục hồi window, software, user... khi gõ hết từ",
             active=cfg.auto_restore_english,
         )
-        self.sw_english.connect("notify::active", lambda *_: self.on_switch_changed("auto_restore_english", self.sw_english.get_active()))
+        self.sw_english.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed(
+                "auto_restore_english", self.sw_english.get_active()
+            ),
+        )
         grp_features.add(self.sw_english)
 
         self.sw_remember = Adw.SwitchRow(
@@ -207,11 +253,18 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             subtitle="Giữ trạng thái bật/tắt riêng cho từng cửa sổ như EVKey",
             active=cfg.remember_state_per_app,
         )
-        self.sw_remember.connect("notify::active", lambda *_: self.on_switch_changed("remember_state_per_app", self.sw_remember.get_active()))
+        self.sw_remember.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed(
+                "remember_state_per_app", self.sw_remember.get_active()
+            ),
+        )
         grp_features.add(self.sw_remember)
 
         # ---------------- Trang 2: Gõ tắt (Macro) ----------------
-        page_macro = Adw.PreferencesPage(title="Gõ tắt", icon_name="document-edit-symbolic")
+        page_macro = Adw.PreferencesPage(
+            title="Gõ tắt", icon_name="document-edit-symbolic"
+        )
         self.add(page_macro)
 
         grp_macro_cfg = Adw.PreferencesGroup(title="Tính năng gõ tắt")
@@ -222,19 +275,28 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             subtitle="Tự động mở rộng từ viết tắt khi nhấn dấu cách hoặc dấu câu",
             active=cfg.enable_macro,
         )
-        self.sw_macro.connect("notify::active", lambda *_: self.on_switch_changed("enable_macro", self.sw_macro.get_active()))
+        self.sw_macro.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed(
+                "enable_macro", self.sw_macro.get_active()
+            ),
+        )
         grp_macro_cfg.add(self.sw_macro)
 
         self.grp_macro_list = Adw.PreferencesGroup(title="Danh sách từ gõ tắt")
         page_macro.add(self.grp_macro_list)
 
-        btn_add_macro = Gtk.Button(label="Thêm từ gõ tắt", icon_name="list-add-symbolic")
+        btn_add_macro = Gtk.Button(
+            label="Thêm từ gõ tắt", icon_name="list-add-symbolic"
+        )
         btn_add_macro.connect("clicked", self.on_add_macro_clicked)
         self.grp_macro_list.set_header_suffix(btn_add_macro)
         self.refresh_macros()
 
         # ---------------- Trang 3: Từ điển tiếng Anh ----------------
-        page_words = Adw.PreferencesPage(title="Từ điển riêng", icon_name="format-text-strikethrough-symbolic")
+        page_words = Adw.PreferencesPage(
+            title="Từ điển riêng", icon_name="format-text-strikethrough-symbolic"
+        )
         self.add(page_words)
 
         self.grp_words = Adw.PreferencesGroup(
@@ -251,7 +313,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         # ---------------- Trang 4: Giới thiệu & Chẩn đoán ----------------
         self.version = get_installed_version()
 
-        page_about = Adw.PreferencesPage(title="Giới thiệu", icon_name="help-about-symbolic")
+        page_about = Adw.PreferencesPage(
+            title="Giới thiệu", icon_name="help-about-symbolic"
+        )
         self.add(page_about)
 
         # Nhóm Thông tin phần mềm
@@ -275,6 +339,44 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         self.row_version.add_suffix(self.btn_check_update)
         grp_about.add(self.row_version)
 
+        # Dòng Tác giả & Website namtr.dev
+        row_author = Adw.ActionRow(
+            title="Tác giả",
+            subtitle="Nam Tran • namtr.dev",
+        )
+        btn_website = Gtk.Button(
+            icon_name="adw-external-link-symbolic",
+            valign=Gtk.Align.CENTER,
+            tooltip_text="Mở trang web tác giả: https://namtr.dev",
+            css_classes=["flat"],
+        )
+        btn_website.connect(
+            "clicked",
+            lambda *_: Gio.AppInfo.launch_default_for_uri("https://namtr.dev", None),
+        )
+        row_author.add_suffix(btn_website)
+        grp_about.add(row_author)
+
+        # Dòng Hỗ trợ kỹ thuật
+        row_support = Adw.ActionRow(
+            title="Hỗ trợ & Liên hệ",
+            subtitle="support@namtr.dev",
+        )
+        btn_mail = Gtk.Button(
+            icon_name="mail-send-symbolic",
+            valign=Gtk.Align.CENTER,
+            tooltip_text="Gửi email hỗ trợ: support@namtr.dev",
+            css_classes=["flat"],
+        )
+        btn_mail.connect(
+            "clicked",
+            lambda *_: Gio.AppInfo.launch_default_for_uri(
+                "mailto:support@namtr.dev", None
+            ),
+        )
+        row_support.add_suffix(btn_mail)
+        grp_about.add(row_support)
+
         # Dòng Mã nguồn GitHub
         row_github = Adw.ActionRow(
             title="Mã nguồn GitHub",
@@ -284,10 +386,13 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             icon_name="adw-external-link-symbolic",
             valign=Gtk.Align.CENTER,
             tooltip_text="Mở kho mã nguồn",
+            css_classes=["flat"],
         )
         btn_github.connect(
             "clicked",
-            lambda *_: Gio.AppInfo.launch_default_for_uri("https://github.com/namtr/rustype", None),
+            lambda *_: Gio.AppInfo.launch_default_for_uri(
+                "https://github.com/namtr/rustype", None
+            ),
         )
         row_github.add_suffix(btn_github)
         grp_about.add(row_github)
@@ -299,37 +404,76 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         )
         grp_about.add(row_license)
 
-        # Dòng Tác giả
-        row_author = Adw.ActionRow(
-            title="Tác giả",
-            subtitle="Nam Tran <tr.namm29@gmail.com>",
-        )
-        grp_about.add(row_author)
-
-        # Nhóm Chẩn đoán hệ thống
+        # Nhóm Chẩn đoán hệ thống (Thiết kế lại hoàn toàn)
         grp_diag = Adw.PreferencesGroup(
             title="Chẩn đoán hệ thống",
-            description="Kiểm tra tình trạng IBus daemon, engine daemon, tệp component XML và tiện ích mở rộng GNOME Shell.",
+            description="Kiểm tra trạng thái IBus daemon, daemon engine, tệp XML component và extension GNOME Shell.",
         )
         page_about.add(grp_diag)
 
+        # 1. Hàng thực thi kiểm tra chẩn đoán
+        self.row_doctor = Adw.ActionRow(
+            title="Tình trạng hoạt động hệ thống",
+            subtitle="Nhấn nút bên phải để bắt đầu quét và chẩn đoán toàn diện",
+        )
+        self.img_doctor_status = Gtk.Image(
+            icon_name="dialog-information-symbolic",
+            pixel_size=20,
+        )
+        self.row_doctor.add_prefix(self.img_doctor_status)
+
+        self.spinner_doctor = Gtk.Spinner(spinning=False, visible=False)
+        self.row_doctor.add_suffix(self.spinner_doctor)
+
         self.btn_run_doctor = Gtk.Button(
-            label="Chạy kiểm tra hệ thống",
+            label="Chạy chẩn đoán",
             icon_name="system-run-symbolic",
             css_classes=["suggested-action"],
+            valign=Gtk.Align.CENTER,
         )
         self.btn_run_doctor.connect("clicked", self.on_run_doctor_clicked)
-        grp_diag.add(self.btn_run_doctor)
+        self.row_doctor.add_suffix(self.btn_run_doctor)
+        grp_diag.add(self.row_doctor)
+
+        # 2. Hàng mở rộng xem chi tiết nhật ký
+        self.expander_log = Adw.ExpanderRow(
+            title="Chi tiết nhật ký chẩn đoán",
+            subtitle="Nhấn để xem hoặc sao chép kết quả quét",
+        )
+        self.expander_log.add_prefix(
+            Gtk.Image(icon_name="utilities-terminal-symbolic", pixel_size=18)
+        )
+
+        btn_copy_log = Gtk.Button(
+            icon_name="edit-copy-symbolic",
+            valign=Gtk.Align.CENTER,
+            tooltip_text="Sao chép toàn bộ nhật ký",
+            css_classes=["flat"],
+        )
+        btn_copy_log.connect("clicked", self.on_copy_doctor_log_clicked)
+        self.expander_log.add_action(btn_copy_log)
 
         self.tv_doctor = Gtk.TextView(
             editable=False,
             monospace=True,
             wrap_mode=Gtk.WrapMode.WORD,
+            left_margin=12,
+            right_margin=12,
+            top_margin=10,
+            bottom_margin=10,
         )
-        self.tv_doctor.set_size_request(-1, 200)
-        self.tv_doctor.get_buffer().set_text('Nhấn "Chạy kiểm tra hệ thống" để quét và chẩn đoán toàn diện...')
-        scrolled = Gtk.ScrolledWindow(child=self.tv_doctor, min_content_height=200)
-        grp_diag.add(scrolled)
+        self.tv_doctor.get_buffer().set_text(
+            'Nhấn "Chạy chẩn đoán" để kiểm tra toàn bộ dịch vụ IBus, cấu hình và tiện ích mở rộng.'
+        )
+
+        scrolled = Gtk.ScrolledWindow(
+            child=self.tv_doctor,
+            min_content_height=200,
+            max_content_height=320,
+            css_classes=["card"],
+        )
+        self.expander_log.add_row(Adw.PreferencesRow(child=scrolled))
+        grp_diag.add(self.expander_log)
 
     def notify(self, message: str, button_label: str = None, callback=None):
         """Displays a clean in-app toast notification."""
@@ -356,7 +500,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         # Clear existing rows in macro group
         for k, v in sorted(self.cfg.macros.items()):
             row = Adw.ActionRow(title=k, subtitle=v)
-            btn_del = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER)
+            btn_del = Gtk.Button(
+                icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER
+            )
             btn_del.connect("clicked", lambda _, key=k: self.delete_macro(key))
             row.add_suffix(btn_del)
             self.grp_macro_list.add(row)
@@ -397,7 +543,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
     def refresh_words(self):
         for w in self.cfg.custom_words:
             row = Adw.ActionRow(title=w)
-            btn_del = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER)
+            btn_del = Gtk.Button(
+                icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER
+            )
             btn_del.connect("clicked", lambda _, word=w: self.delete_word(word))
             row.add_suffix(btn_del)
             self.grp_words.add(row)
@@ -433,7 +581,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
 
     def on_check_update_clicked(self, _):
         self.btn_check_update.set_sensitive(False)
-        self.row_version.set_subtitle(f"v{self.version} • Đang kiểm tra bản cập nhật...")
+        self.row_version.set_subtitle(
+            f"v{self.version} • Đang kiểm tra bản cập nhật..."
+        )
 
         def worker():
             try:
@@ -446,7 +596,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
                     if resp.status == 200:
                         data = json.loads(resp.read().decode("utf-8"))
                         tag = data.get("tag_name", "").lstrip("v").strip()
-                        html_url = data.get("html_url", "https://github.com/namtr/rustype/releases")
+                        html_url = data.get(
+                            "html_url", "https://github.com/namtr/rustype/releases"
+                        )
                         GLib.idle_add(self._on_update_result, True, tag, html_url)
                         return
                 GLib.idle_add(self._on_update_result, False, "HTTP error", "")
@@ -458,7 +610,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
     def _on_update_result(self, success, tag_or_err, html_url):
         self.btn_check_update.set_sensitive(True)
         if not success:
-            self.row_version.set_subtitle(f"v{self.version} • Không thể kiểm tra (Lỗi kết nối mạng)")
+            self.row_version.set_subtitle(
+                f"v{self.version} • Không thể kiểm tra (Lỗi kết nối mạng)"
+            )
             self.notify("Không thể kết nối đến máy chủ kiểm tra cập nhật.")
             return
 
@@ -475,20 +629,36 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         lat_v = parse_ver(latest_tag)
 
         if lat_v > cur_v:
-            self.row_version.set_subtitle(f"v{self.version} • Có bản mới: v{latest_tag}!")
+            self.row_version.set_subtitle(
+                f"v{self.version} • Có bản mới: v{latest_tag}!"
+            )
             self.notify(
                 f"Đã có phiên bản mới: v{latest_tag}!",
                 button_label="Tải về",
                 callback=lambda *_: Gio.AppInfo.launch_default_for_uri(html_url, None),
             )
         else:
-            self.row_version.set_subtitle(f"v{self.version} • Bạn đang sử dụng phiên bản mới nhất")
+            self.row_version.set_subtitle(
+                f"v{self.version} • Bạn đang sử dụng phiên bản mới nhất"
+            )
             self.notify("Bạn đang sử dụng phiên bản mới nhất!")
 
-    def on_run_doctor_clicked(self, _):
+    def on_copy_doctor_log_clicked(self, _):
         buffer = self.tv_doctor.get_buffer()
-        buffer.set_text("Đang kiểm tra hệ thống...")
+        start, end = buffer.get_bounds()
+        text = buffer.get_text(start, end, True)
+        if text.strip():
+            display = Gdk.Display.get_default()
+            if display:
+                display.get_clipboard().set(text)
+            self.notify("Đã sao chép báo cáo chẩn đoán vào bộ nhớ tạm")
+
+    def on_run_doctor_clicked(self, _):
         self.btn_run_doctor.set_sensitive(False)
+        self.spinner_doctor.set_visible(True)
+        self.spinner_doctor.start()
+        self.row_doctor.set_subtitle("Đang quét toàn diện các thành phần hệ thống...")
+        self.img_doctor_status.set_from_icon_name("process-working-symbolic")
 
         def worker():
             out = ""
@@ -496,11 +666,21 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
                 candidates = [
                     pathlib.Path("/usr/libexec/ibus-engine-rustype"),
                     pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
-                    pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
+                    pathlib.Path.home()
+                    / ".local"
+                    / "lib"
+                    / "rustype"
+                    / "ibus-engine-rustype",
                     pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
                     pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
-                    pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / "ibus-engine-rustype",
-                    pathlib.Path(__file__).resolve().parent / "target" / "release" / "ibus-engine-rustype",
+                    pathlib.Path(__file__).resolve().parent.parent
+                    / "target"
+                    / "release"
+                    / "ibus-engine-rustype",
+                    pathlib.Path(__file__).resolve().parent
+                    / "target"
+                    / "release"
+                    / "ibus-engine-rustype",
                 ]
                 exe = shutil.which("ibus-engine-rustype")
                 if not exe:
@@ -510,14 +690,43 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
                             break
                 if not exe:
                     exe = "ibus-engine-rustype"
-                res = subprocess.run([str(exe), "--doctor"], capture_output=True, text=True, timeout=8)
+                res = subprocess.run(
+                    [str(exe), "--doctor"], capture_output=True, text=True, timeout=8
+                )
                 out = res.stdout or res.stderr or "Không có phản hồi từ lệnh chẩn đoán."
             except Exception as e:
                 out = f"Không thể chạy lệnh chẩn đoán: {e}"
 
             def update_ui():
-                buffer.set_text(out)
+                self.tv_doctor.get_buffer().set_text(out)
+                self.spinner_doctor.stop()
+                self.spinner_doctor.set_visible(False)
                 self.btn_run_doctor.set_sensitive(True)
+                self.expander_log.set_expanded(True)
+
+                if "[✗]" in out:
+                    self.row_doctor.set_subtitle(
+                        "Phát hiện lỗi cần khắc phục (Xem chi tiết bên dưới)"
+                    )
+                    self.img_doctor_status.set_from_icon_name(
+                        "dialog-error-symbolic"
+                    )
+                elif "[!]" in out:
+                    self.row_doctor.set_subtitle(
+                        "Bộ gõ hoạt động tốt (Có một vài cảnh báo cần lưu ý)"
+                    )
+                    self.img_doctor_status.set_from_icon_name(
+                        "dialog-warning-symbolic"
+                    )
+                else:
+                    self.row_doctor.set_subtitle(
+                        "Tất cả thành phần hệ thống đang hoạt động hoàn hảo"
+                    )
+                    self.img_doctor_status.set_from_icon_name(
+                        "emblem-ok-symbolic"
+                    )
+
+                self.notify("Đã hoàn thành chẩn đoán hệ thống")
 
             GLib.idle_add(update_ui)
 

@@ -1,10 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: rustype
-Upstream-Contact: Nam Tran <tr.namm29@gmail.com>
-Source: https://github.com/namtr/rustype
+Upstream-Contact: Nam Tran <contact@namtr.dev>
+Source: https://namtr.dev
 
 Files: *
-Copyright: 2026 Nam Tran <tr.namm29@gmail.com>
+Copyright: 2026 NamTr_n Systems <contact@namtr.dev>
 License: MIT
 
 License: MIT

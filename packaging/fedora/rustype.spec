@@ -4,8 +4,8 @@ Release:        1%{?dist}
 Summary:        Lightweight Vietnamese input method engine for IBus
 
 License:        MIT
-URL:            https://github.com/namtr/rustype
-Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
+URL:            https://namtr.dev
+Source0:        https://github.com/namtr/rustype/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  cargo
 BuildRequires:  rust >= 1.70.0
@@ -49,7 +49,7 @@ cat <<EOF > %{buildroot}%{_datadir}/ibus/component/rustype.xml
     <version>%{version}</version>
     <author>Nam Trần</author>
     <license>MIT</license>
-    <homepage>https://github.com/namtr/rustype</homepage>
+    <homepage>https://namtr.dev</homepage>
     <textdomain>rustype</textdomain>
     <engines>
         <engine>
@@ -72,8 +72,10 @@ chmod 644 %{buildroot}%{_datadir}/ibus/component/rustype.xml
 # Icons
 for s in 16 32 48 64 128 256 512; do
     install -Dm644 assets/icons/${s}x${s}/rustype.png %{buildroot}%{_datadir}/icons/hicolor/${s}x${s}/apps/rustype.png
+    ln -sf rustype.png %{buildroot}%{_datadir}/icons/hicolor/${s}x${s}/apps/dev.namtr.RustypeSettings.png
 done
 install -Dm644 assets/icons/scalable/rustype.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/rustype.svg
+ln -sf rustype.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg
 
 # GNOME Shell extension
 mkdir -p %{buildroot}%{_datadir}/gnome-shell/extensions/rustype-focus@namtr.dev
@@ -90,10 +92,10 @@ install -Dm644 docs/man/rustype-settings.1 %{buildroot}%{_mandir}/man1/rustype-s
 %{_bindir}/rustype-settings
 %{_datadir}/applications/dev.namtr.RustypeSettings.desktop
 %{_datadir}/ibus/component/rustype.xml
-%{_datadir}/icons/hicolor/*/apps/rustype.*
+%{_datadir}/icons/hicolor/*/apps/*
 %{_datadir}/gnome-shell/extensions/rustype-focus@namtr.dev/
 %{_mandir}/man1/*.1*
 
 %changelog
-* Sat Nov 07 2026 Nam Tran <tr.namm29@gmail.com> - 0.1.0-1
+* Sat Nov 07 2026 Nam Tran <support@namtr.dev> - 0.1.0-1
 - Initial release for Fedora and RPM distributions.

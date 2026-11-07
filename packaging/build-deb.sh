@@ -67,7 +67,7 @@ cat <<EOF > "$STAGING/usr/share/ibus/component/rustype.xml"
     <version>${VERSION}</version>
     <author>Nam Trần</author>
     <license>MIT</license>
-    <homepage>https://github.com/namtr/rustype</homepage>
+    <homepage>https://namtr.dev</homepage>
     <textdomain>rustype</textdomain>
     <engines>
         <engine>
