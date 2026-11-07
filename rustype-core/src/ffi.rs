@@ -50,6 +50,147 @@ pub unsafe extern "C" fn rustype_telex_reset(telex: *mut RustypeTelex) {
     }
 }
 
+/// Sets the input method: 0 = Telex, 1 = VNI.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_set_input_method(telex: *mut RustypeTelex, method: u32) {
+    if let Some(t) = telex.as_mut() {
+        t.inner.cfg.input_method = match method {
+            1 => crate::telex::InputMethod::Vni,
+            _ => crate::telex::InputMethod::Telex,
+        };
+    }
+}
+
+/// Configures modern orthography (false: hòa, khỏe; true: hoà, khoẻ).
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_set_modern_orthography(
+    telex: *mut RustypeTelex,
+    modern: bool,
+) {
+    if let Some(t) = telex.as_mut() {
+        t.inner.cfg.modern_orthography = modern;
+    }
+}
+
+/// Configures automatic restoration of English words on word boundaries.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_set_auto_restore_english(
+    telex: *mut RustypeTelex,
+    enable: bool,
+) {
+    if let Some(t) = telex.as_mut() {
+        t.inner.cfg.auto_restore_english = enable;
+    }
+}
+
+/// Enables or disables macro expansion.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_set_macro_enabled(telex: *mut RustypeTelex, enable: bool) {
+    if let Some(t) = telex.as_mut() {
+        t.inner.cfg.enable_macro = enable;
+    }
+}
+
+/// Adds a macro shortcut mapping.
+///
+/// # Safety
+/// `telex`, `key`, and `value` must be valid non-null C strings.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_add_macro(
+    telex: *mut RustypeTelex,
+    key: *const c_char,
+    value: *const c_char,
+) {
+    let Some(t) = telex.as_mut() else { return };
+    if key.is_null() || value.is_null() {
+        return;
+    }
+    if let (Ok(k), Ok(v)) = (CStr::from_ptr(key).to_str(), CStr::from_ptr(value).to_str()) {
+        t.inner.cfg.macros.insert(k.to_string(), v.to_string());
+    }
+}
+
+/// Clears all macro shortcut mappings.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_clear_macros(telex: *mut RustypeTelex) {
+    if let Some(t) = telex.as_mut() {
+        t.inner.cfg.macros.clear();
+    }
+}
+
+/// Adds an English/foreign custom word to avoid accents.
+///
+/// # Safety
+/// `telex` and `word` must be valid non-null C strings.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_add_custom_word(
+    telex: *mut RustypeTelex,
+    word: *const c_char,
+) {
+    let Some(t) = telex.as_mut() else { return };
+    if word.is_null() {
+        return;
+    }
+    if let Ok(w) = CStr::from_ptr(word).to_str() {
+        let ws = w.to_string();
+        if !t.inner.cfg.custom_words.contains(&ws) {
+            t.inner.cfg.custom_words.push(ws);
+        }
+    }
+}
+
+/// Clears all custom words.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_clear_custom_words(telex: *mut RustypeTelex) {
+    if let Some(t) = telex.as_mut() {
+        t.inner.cfg.custom_words.clear();
+    }
+}
+
+/// Checks if the composition buffer is empty.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_is_empty(telex: *mut RustypeTelex) -> bool {
+    let Some(t) = telex.as_mut() else { return true };
+    t.inner.is_empty()
+}
+
+/// Gets the currently displayed preedit composition text.
+///
+/// # Safety
+/// `telex` must be a valid pointer or null. `out_buf` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn rustype_telex_get_displayed(
+    telex: *mut RustypeTelex,
+    out_buf: *mut c_char,
+    out_buf_len: usize,
+) -> usize {
+    let Some(t) = telex.as_mut() else { return 0 };
+    let text = t.inner.displayed();
+    write_c_string(&text, out_buf, out_buf_len);
+    text.len()
+}
+
 unsafe fn write_c_string(text: &str, out_buf: *mut c_char, max_len: usize) {
     if out_buf.is_null() || max_len == 0 {
         return;
@@ -199,6 +340,35 @@ mod tests {
                 commit.len(),
             );
             assert!(!h); // empty now, passes to app
+
+            rustype_telex_free(t);
+        }
+    }
+
+    #[test]
+    fn ffi_vni_and_options() {
+        unsafe {
+            let t = rustype_telex_new(false, true);
+            rustype_telex_set_input_method(t, 1); // VNI
+
+            let input = CString::new("Viet65 Nam").unwrap();
+            let mut out = [0 as c_char; 128];
+            let len = rustype_telex_feed(t, input.as_ptr(), out.as_mut_ptr(), out.len());
+            assert!(len > 0);
+            let res = CStr::from_ptr(out.as_ptr()).to_str().unwrap();
+            assert_eq!(res, "Việt Nam");
+
+            // Macro
+            rustype_telex_set_macro_enabled(t, true);
+            let k = CString::new("hn").unwrap();
+            let v = CString::new("Hà Nội").unwrap();
+            rustype_telex_add_macro(t, k.as_ptr(), v.as_ptr());
+
+            let mut out_m = [0 as c_char; 128];
+            let input_m = CString::new("hn ").unwrap();
+            rustype_telex_feed(t, input_m.as_ptr(), out_m.as_mut_ptr(), out_m.len());
+            let res_m = CStr::from_ptr(out_m.as_ptr()).to_str().unwrap();
+            assert_eq!(res_m, "Hà Nội ");
 
             rustype_telex_free(t);
         }

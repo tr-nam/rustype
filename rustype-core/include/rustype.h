@@ -35,6 +35,57 @@ void rustype_telex_free(RustypeTelex* telex);
 void rustype_telex_reset(RustypeTelex* telex);
 
 /**
+ * Sets the input method: 0 = Telex, 1 = VNI.
+ */
+void rustype_telex_set_input_method(RustypeTelex* telex, uint32_t method);
+
+/**
+ * Configures modern orthography (false: hòa, khỏe; true: hoà, khoẻ).
+ */
+void rustype_telex_set_modern_orthography(RustypeTelex* telex, bool modern);
+
+/**
+ * Configures automatic restoration of English words on word boundaries.
+ */
+void rustype_telex_set_auto_restore_english(RustypeTelex* telex, bool enable);
+
+/**
+ * Enables or disables macro expansion.
+ */
+void rustype_telex_set_macro_enabled(RustypeTelex* telex, bool enable);
+
+/**
+ * Adds a macro shortcut mapping.
+ */
+void rustype_telex_add_macro(RustypeTelex* telex, const char* key, const char* value);
+
+/**
+ * Clears all macro shortcut mappings.
+ */
+void rustype_telex_clear_macros(RustypeTelex* telex);
+
+/**
+ * Adds an English/foreign custom word to avoid accents.
+ */
+void rustype_telex_add_custom_word(RustypeTelex* telex, const char* word);
+
+/**
+ * Clears all custom words.
+ */
+void rustype_telex_clear_custom_words(RustypeTelex* telex);
+
+/**
+ * Checks if the composition buffer is empty.
+ */
+bool rustype_telex_is_empty(RustypeTelex* telex);
+
+/**
+ * Gets the currently displayed preedit composition text.
+ * @return Length of displayed text in bytes.
+ */
+size_t rustype_telex_get_displayed(RustypeTelex* telex, char* out_buf, size_t out_buf_len);
+
+/**
  * Processes a single character key press.
  * @param ch Unicode codepoint.
  * @param out_handled Set to true if the key was handled by the engine.

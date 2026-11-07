@@ -65,13 +65,13 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 
 Vì không dùng thư viện ngoài, Rustype đóng gói cho Debian và PPA dễ hơn hầu hết dự án Rust khác.
 
-## Giai đoạn 5: Windows và macOS, cho bản 2
+## Giai đoạn 5: Windows và macOS (Bản 2.0)
 
-- [ ] Windows, chọn một trong hai hướng:
-  - Text Services Framework: cách chuẩn, có chữ gạch chân như bộ gõ thật, nhưng khó làm.
-  - Bắt phím và gửi phím xóa giả như Unikey: dễ hơn, chạy cả trong game, nhưng hay bị phần mềm diệt virus nghi ngờ.
-- [ ] macOS: InputMethodKit, lớp vỏ Swift gọi lõi Rust.
-- [ ] Chứng chỉ ký code cho cả hai nền tảng, nếu không người dùng gặp cảnh báo bảo mật khi cài. Có phí hằng năm.
+- [x] Nâng cấp `rustype-core` C FFI (`include/rustype.h`): hỗ trợ Telex, VNI, Macro, Custom Words và Preedit qua C ABI.
+- [x] Windows: triển khai crate `rustype-windows` theo cơ chế Low-Level Keyboard Hook (`SetWindowsHookExW` + `SendInput`) và khay hệ thống (System Tray `Shell_NotifyIconW`), tương tự Unikey/EVKey, siêu nhẹ và tương thích tốt trong mọi app/game.
+- [x] macOS: cấu trúc Input Method bundle `rustype-macos` (`Rustype.app`), lớp vỏ InputMethodKit (`IMKServer` & `IMKInputController`) liên kết tĩnh với `librustype_core.a`.
+- [x] Ma trận kiểm thử CI/CD đa nền tảng trên GitHub Actions cho cả Linux, Windows (`windows-latest`) và macOS (`macos-latest`).
+- [ ] Chứng chỉ ký code (Code Signing) cho Windows Authenticode và Apple Developer ID (Notarization).
 
 ## Giai đoạn 6: Ra mắt
 

@@ -1,9 +1,24 @@
-# Kiến trúc
+# Kiến trúc Đa nền tảng (Cross-Platform Architecture)
 
-Rustype là một Cargo workspace gồm hai crate:
+Rustype là một Cargo workspace được thiết kế theo kiến trúc module đa nền tảng:
 
-- **`rustype-core`**: lõi Telex thuần, không I/O, không phụ thuộc nền tảng. Crate này sẽ được tái sử dụng cho Fcitx5, Windows và macOS.
-- **`rustype-ibus`**: engine IBus, phụ thuộc `rustype-core`.
+- **`rustype-core`**: lõi Telex & VNI thuần, không I/O, không phụ thuộc nền tảng, có C FFI (`rustype.h`). Được tái sử dụng trực tiếp trên cả Linux, Windows và macOS.
+- **`rustype-ibus`**: engine IBus độc lập cho Linux GNOME/Wayland.
+- **`rustype-windows`**: engine Windows siêu nhẹ sử dụng Low-Level Keyboard Hook (`SetWindowsHookExW` + `SendInput`) và khay hệ thống (System Tray).
+- **`rustype-macos`**: wrapper InputMethodKit (`IMKServer` & `IMKInputController`) liên kết tĩnh với `librustype_core.a`.
+- **`rustype-fcitx5`**: module C++ addon cho bộ gõ Fcitx5.
+
+```
+                  ┌────────────────────────────────────────┐
+                  │              rustype-core              │
+                  │ (Lõi Telex & VNI, Bảng luật, C FFI)   │
+                  └───────────────────┬────────────────────┘
+          ┌───────────────────────────┼───────────────────────────┐
+          ▼                           ▼                           ▼
+  [🐧 Linux]                     [🪟 Windows]                 [🍎 macOS]
+  rustype-ibus / fcitx5          rustype-windows              rustype-macos
+  (IBus D-Bus & Wayland)         (Low-Level Hook & Tray)      (InputMethodKit .app)
+```
 
 Tiến trình duy nhất, `ibus-engine-rustype`, chạy một luồng và không dùng thư viện ngoài.
 ibus-daemon khởi chạy nó theo file component `/usr/share/ibus/component/rustype.xml` khi người dùng chọn bộ gõ.

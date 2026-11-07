@@ -65,3 +65,27 @@ jobs:
         run: |
           dpkg-deb -I target/packages/*.deb
           dpkg-deb -c target/packages/*.deb
+
+  windows:
+    name: Windows Build & Test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check Windows components
+        run: cargo check -p rustype-core -p rustype-windows
+      - name: Test Core on Windows
+        run: cargo test -p rustype-core
+
+  macos:
+    name: macOS Build & Test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test Core on macOS
+        run: cargo test -p rustype-core
+      - name: Build macOS InputMethodKit Bundle
+        run: |
+          chmod +x rustype-macos/build-macos.sh
+          ./rustype-macos/build-macos.sh
