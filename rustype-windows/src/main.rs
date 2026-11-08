@@ -5,12 +5,13 @@
 #[cfg(windows)]
 fn main() {
     use rustype_windows::config::WinConfig;
-    use rustype_windows::hook::win::{install_hook, uninstall_hook};
-    use rustype_windows::tray::win::{init_tray, remove_tray};
+    use rustype_windows::hook::win::{install_hook, set_notify_window, uninstall_hook};
+    use rustype_windows::tray::win::{init_tray, remove_tray, tray_wnd_proc};
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
     let config = WinConfig::load();
-    if !install_hook(config.clone()) {
+    let enabled = config.enabled;
+    if !install_hook(config) {
         eprintln!("Failed to install low-level keyboard hook.");
         return;
     }
@@ -25,7 +26,7 @@ fn main() {
 
         let mut wc: WNDCLASSEXW = std::mem::zeroed();
         wc.cbSize = std::mem::size_of::<WNDCLASSEXW>() as u32;
-        wc.lpfnWndProc = Some(DefWindowProcW);
+        wc.lpfnWndProc = Some(tray_wnd_proc);
         wc.hInstance = h_instance;
         wc.lpszClassName = class_name.as_ptr();
         RegisterClassExW(&wc);
@@ -45,11 +46,16 @@ fn main() {
             std::ptr::null_mut(),
         );
 
-        if !hwnd.is_null() {
-            init_tray(hwnd, config);
+        if hwnd.is_null() {
+            eprintln!("Failed to create the tray message window.");
+            uninstall_hook();
+            return;
         }
 
-        // Standard Win32 Message Loop
+        set_notify_window(hwnd);
+        init_tray(hwnd, enabled);
+
+        // Standard Win32 Message Loop; exits when the tray menu posts WM_QUIT.
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
             TranslateMessage(&msg);

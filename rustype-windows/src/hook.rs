@@ -4,18 +4,23 @@
 pub mod win {
     use crate::config::{SwitchShortcut, WinConfig};
     use rustype_core::telex::{Config as CoreConfig, Telex};
-    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
     use std::sync::Mutex;
-    use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
+
+    /// Posted to the notify window when the engine changed a setting from the hook
+    /// (for example the Ctrl+Shift or Alt+Z shortcut), so the window can save it and update the tray.
+    pub const WM_CONFIG_CHANGED: u32 = WM_APP + 1;
 
     #[derive(Clone, Copy)]
     struct SendHHook(HHOOK);
     unsafe impl Send for SendHHook {}
 
-    static HOOK_HANDLE: Mutex<Option<SendHHook>> = Mutex::new(None);
+    static HOOK_HANDLES: Mutex<Vec<SendHHook>> = Mutex::new(Vec::new());
     static ENGINE: Mutex<Option<HookEngine>> = Mutex::new(None);
+    static NOTIFY_HWND: AtomicIsize = AtomicIsize::new(0);
     pub static RUNNING: AtomicBool = AtomicBool::new(true);
 
     pub struct HookEngine {
@@ -24,6 +29,10 @@ pub mod win {
         ctrl_down: bool,
         shift_down: bool,
         alt_down: bool,
+        /// True while Ctrl and Shift are both held and no other key has been pressed since.
+        chord_candidate: bool,
+        /// Foreground window seen on the previous key event; a change resets composition.
+        last_foreground: isize,
     }
 
     impl HookEngine {
@@ -40,6 +49,8 @@ pub mod win {
                 ctrl_down: false,
                 shift_down: false,
                 alt_down: false,
+                chord_candidate: false,
+                last_foreground: 0,
             }
         }
 
@@ -54,6 +65,37 @@ pub mod win {
             self.config.enabled = !self.config.enabled;
             self.telex.reset();
             self.config.enabled
+        }
+    }
+
+    /// Registers the window that receives `WM_CONFIG_CHANGED` notifications.
+    pub fn set_notify_window(hwnd: HWND) {
+        NOTIFY_HWND.store(hwnd as isize, Ordering::Relaxed);
+    }
+
+    /// Returns a copy of the engine's current configuration.
+    pub fn snapshot_config() -> Option<WinConfig> {
+        let lock = ENGINE.lock().ok()?;
+        lock.as_ref().map(|engine| engine.config.clone())
+    }
+
+    /// Applies `change` to the engine's configuration, resets composition and returns the new configuration.
+    pub fn modify_config(change: impl FnOnce(&mut WinConfig)) -> Option<WinConfig> {
+        let mut lock = ENGINE.lock().ok()?;
+        let engine = lock.as_mut()?;
+        let mut cfg = engine.config.clone();
+        change(&mut cfg);
+        engine.reload_config(cfg.clone());
+        engine.telex.reset();
+        Some(cfg)
+    }
+
+    fn notify_config_changed() {
+        let hwnd = NOTIFY_HWND.load(Ordering::Relaxed);
+        if hwnd != 0 {
+            unsafe {
+                PostMessageW(hwnd as HWND, WM_CONFIG_CHANGED, 0, 0);
+            }
         }
     }
 
@@ -79,54 +121,85 @@ pub mod win {
 
         let msg = w_param as u32;
         let is_down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
-        let _is_up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+        let is_up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
 
         let mut lock = ENGINE.lock().unwrap();
         let Some(engine) = lock.as_mut() else {
             return CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param);
         };
 
+        // Switching to another window ends any composition in progress.
+        let foreground = GetForegroundWindow() as isize;
+        if foreground != engine.last_foreground {
+            engine.last_foreground = foreground;
+            engine.telex.reset();
+        }
+
+        let vk = kbd.vkCode;
+        let is_ctrl = matches!(vk as u16, VK_LCONTROL | VK_RCONTROL | VK_CONTROL);
+        let is_shift = matches!(vk as u16, VK_LSHIFT | VK_RSHIFT | VK_SHIFT);
+        let is_alt = matches!(vk as u16, VK_LMENU | VK_RMENU | VK_MENU);
+        let is_modifier = is_ctrl || is_shift || is_alt;
+
         // Track modifiers
-        match kbd.vkCode as u16 {
-            VK_LCONTROL | VK_RCONTROL | VK_CONTROL => {
-                engine.ctrl_down = is_down;
-            }
-            VK_LSHIFT | VK_RSHIFT | VK_SHIFT => {
-                engine.shift_down = is_down;
-                if is_down
-                    && engine.ctrl_down
+        if is_ctrl {
+            engine.ctrl_down = is_down;
+        } else if is_shift {
+            engine.shift_down = is_down;
+        } else if is_alt {
+            engine.alt_down = is_down;
+        }
+
+        // Ctrl+Shift toggle: only when both were pressed and released with no other key in between.
+        if is_ctrl || is_shift {
+            if is_down {
+                if engine.ctrl_down && engine.shift_down {
+                    engine.chord_candidate = true;
+                }
+            } else if is_up {
+                if engine.chord_candidate
                     && engine.config.switch_shortcut == SwitchShortcut::CtrlShift
                 {
                     engine.toggle_enabled();
+                    notify_config_changed();
                 }
+                engine.chord_candidate = false;
             }
-            VK_LMENU | VK_RMENU | VK_MENU => {
-                engine.alt_down = is_down;
-            }
-            _ => {}
+        } else if is_down {
+            // Any other key press breaks a Ctrl+Shift chord.
+            engine.chord_candidate = false;
         }
 
         // Check Alt+Z shortcut
         if is_down
             && engine.alt_down
-            && kbd.vkCode == b'Z' as u32
+            && vk == b'Z' as u32
             && engine.config.switch_shortcut == SwitchShortcut::AltZ
         {
             engine.toggle_enabled();
+            notify_config_changed();
             return 1; // Consume key
+        }
+
+        // Ctrl/Alt shortcuts, Enter and Esc end the current composition.
+        if is_down
+            && !is_modifier
+            && (engine.ctrl_down
+                || engine.alt_down
+                || vk == VK_RETURN as u32
+                || vk == VK_ESCAPE as u32)
+        {
+            engine.telex.reset();
         }
 
         // If Vietnamese mode is disabled or holding Ctrl/Alt, bypass to application
         if !engine.config.enabled || engine.ctrl_down || engine.alt_down {
-            if is_down && (kbd.vkCode == VK_RETURN as u32 || kbd.vkCode == VK_ESCAPE as u32) {
-                engine.telex.reset();
-            }
             return CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param);
         }
 
-        if is_down {
+        if is_down && !is_modifier {
             // Handle Backspace
-            if kbd.vkCode == VK_BACK as u32 {
+            if vk == VK_BACK as u32 {
                 let res = engine.telex.backspace();
                 if res.handled {
                     send_replacement(res.backspaces, &res.commit);
@@ -136,7 +209,7 @@ pub mod win {
             }
 
             // Convert Virtual Key to character using active keyboard state
-            if let Some(ch) = vk_to_char(kbd.vkCode, kbd.scanCode) {
+            if let Some(ch) = vk_to_char(vk, kbd.scanCode) {
                 let res = engine.telex.key(ch);
                 if res.handled {
                     send_replacement(res.backspaces, &res.commit);
@@ -148,6 +221,30 @@ pub mod win {
             }
         }
 
+        CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param)
+    }
+
+    /// Low-level mouse hook callback procedure. A button press moves the caret, so it ends composition.
+    ///
+    /// # Safety
+    /// Called by the OS hook subsystem; `l_param` is not dereferenced.
+    pub unsafe extern "system" fn low_level_mouse_proc(
+        n_code: i32,
+        w_param: WPARAM,
+        l_param: LPARAM,
+    ) -> LRESULT {
+        if n_code == HC_ACTION as i32
+            && matches!(
+                w_param as u32,
+                WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_XBUTTONDOWN
+            )
+        {
+            if let Ok(mut lock) = ENGINE.lock() {
+                if let Some(engine) = lock.as_mut() {
+                    engine.telex.reset();
+                }
+            }
+        }
         CallNextHookEx(std::ptr::null_mut(), n_code, w_param, l_param)
     }
 
@@ -223,7 +320,7 @@ pub mod win {
         }
     }
 
-    /// Installs the low-level keyboard hook.
+    /// Installs the low-level keyboard and mouse hooks.
     pub fn install_hook(config: WinConfig) -> bool {
         unsafe {
             let mut engine_lock = ENGINE.lock().unwrap();
@@ -231,24 +328,31 @@ pub mod win {
 
             let h_instance =
                 windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null());
-            let hook =
+            let keyboard =
                 SetWindowsHookExW(WH_KEYBOARD_LL, Some(low_level_keyboard_proc), h_instance, 0);
-
-            if !hook.is_null() {
-                let mut hook_lock = HOOK_HANDLE.lock().unwrap();
-                *hook_lock = Some(SendHHook(hook));
-                true
-            } else {
-                false
+            if keyboard.is_null() {
+                *engine_lock = None;
+                return false;
             }
+
+            let mut handles = HOOK_HANDLES.lock().unwrap();
+            handles.push(SendHHook(keyboard));
+
+            let mouse = SetWindowsHookExW(WH_MOUSE_LL, Some(low_level_mouse_proc), h_instance, 0);
+            if mouse.is_null() {
+                eprintln!("Warning: failed to install low-level mouse hook.");
+            } else {
+                handles.push(SendHHook(mouse));
+            }
+            true
         }
     }
 
-    /// Uninstalls the low-level keyboard hook.
+    /// Uninstalls the low-level keyboard and mouse hooks.
     pub fn uninstall_hook() {
         unsafe {
-            let mut hook_lock = HOOK_HANDLE.lock().unwrap();
-            if let Some(hook) = hook_lock.take() {
+            let mut handles = HOOK_HANDLES.lock().unwrap();
+            for hook in handles.drain(..) {
                 UnhookWindowsHookEx(hook.0);
             }
             let mut engine_lock = ENGINE.lock().unwrap();
