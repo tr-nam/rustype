@@ -81,7 +81,8 @@ bool rustype_telex_is_empty(RustypeTelex* telex);
 
 /**
  * Gets the currently displayed preedit composition text.
- * @return Length of displayed text in bytes.
+ * Text that does not fit is cut at a UTF-8 character boundary.
+ * @return Bytes written to out_buf, excluding the terminating null byte.
  */
 size_t rustype_telex_get_displayed(RustypeTelex* telex, char* out_buf, size_t out_buf_len);
 
@@ -117,7 +118,9 @@ bool rustype_telex_backspace(
 
 /**
  * Feeds a string of keys and writes the composed output to out_buf.
- * @return Number of bytes written (excluding terminating null byte).
+ * Output that does not fit is cut at a UTF-8 character boundary.
+ * @return Bytes written to out_buf, excluding the terminating null byte.
+ *         Less than the full output length when it was truncated.
  */
 size_t rustype_telex_feed(
     RustypeTelex* telex,

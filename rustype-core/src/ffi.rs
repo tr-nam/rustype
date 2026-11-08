@@ -187,18 +187,22 @@ pub unsafe extern "C" fn rustype_telex_get_displayed(
 ) -> usize {
     let Some(t) = telex.as_mut() else { return 0 };
     let text = t.inner.displayed();
-    write_c_string(&text, out_buf, out_buf_len);
-    text.len()
+    write_c_string(&text, out_buf, out_buf_len)
 }
 
-unsafe fn write_c_string(text: &str, out_buf: *mut c_char, max_len: usize) {
+/// Copies `text` into a NUL-terminated buffer of `max_len` bytes. Longer text is cut at the
+/// last UTF-8 character boundary that fits. Returns the bytes copied, excluding the NUL.
+unsafe fn write_c_string(text: &str, out_buf: *mut c_char, max_len: usize) -> usize {
     if out_buf.is_null() || max_len == 0 {
-        return;
+        return 0;
     }
-    let bytes = text.as_bytes();
-    let copy_len = bytes.len().min(max_len - 1);
-    ptr::copy_nonoverlapping(bytes.as_ptr() as *const c_char, out_buf, copy_len);
+    let mut copy_len = text.len().min(max_len - 1);
+    while !text.is_char_boundary(copy_len) {
+        copy_len -= 1;
+    }
+    ptr::copy_nonoverlapping(text.as_ptr() as *const c_char, out_buf, copy_len);
     *out_buf.add(copy_len) = 0;
+    copy_len
 }
 
 /// Processes a single unicode character input.
@@ -276,8 +280,7 @@ pub unsafe extern "C" fn rustype_telex_feed(
         return 0;
     };
     let result = t.inner.feed(cstr);
-    write_c_string(&result, out_buf, out_buf_len);
-    result.len()
+    write_c_string(&result, out_buf, out_buf_len)
 }
 
 #[no_mangle]
@@ -340,6 +343,43 @@ mod tests {
                 commit.len(),
             );
             assert!(!h); // empty now, passes to app
+
+            rustype_telex_free(t);
+        }
+    }
+
+    #[test]
+    fn ffi_truncates_on_char_boundary() {
+        unsafe {
+            let t = rustype_telex_new(false, true);
+            // "Việt" is 6 bytes: V, i, ệ (3 bytes), t.
+            let input = CString::new("Vieetj").unwrap();
+            let mut out = [0x7f as c_char; 8];
+            for (cap, want) in [
+                (0usize, ""),
+                (1, ""),
+                (2, "V"),
+                (3, "Vi"),
+                (4, "Vi"),
+                (5, "Vi"),
+                (6, "Việ"),
+                (7, "Việt"),
+            ] {
+                let n = rustype_telex_feed(t, input.as_ptr(), out.as_mut_ptr(), cap);
+                assert_eq!(n, want.len(), "capacity {cap}");
+                if cap > 0 {
+                    let got = CStr::from_ptr(out.as_ptr()).to_str().unwrap();
+                    assert_eq!(got, want, "capacity {cap}");
+                }
+            }
+
+            // get_displayed: the composition buffer still holds "Việt".
+            let n = rustype_telex_get_displayed(t, out.as_mut_ptr(), 5);
+            assert_eq!(n, 2);
+            assert_eq!(CStr::from_ptr(out.as_ptr()).to_str().unwrap(), "Vi");
+            let n = rustype_telex_get_displayed(t, out.as_mut_ptr(), 7);
+            assert_eq!(n, 6);
+            assert_eq!(CStr::from_ptr(out.as_ptr()).to_str().unwrap(), "Việt");
 
             rustype_telex_free(t);
         }

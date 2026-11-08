@@ -6,6 +6,10 @@
 use crate::tables::*;
 use std::collections::HashMap;
 
+/// Letters composed in one word. Letter number 33 and later are typed literally, so each key
+/// costs O(1) instead of re-rendering and re-validating the whole word.
+const MAX_WORD_LETTERS: usize = 32;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum InputMethod {
     #[default]
@@ -86,6 +90,8 @@ pub struct Telex {
     last_mod: Option<char>,
     prev: Option<PrevWord>,
     prev_trailing: usize,
+    /// Length of `raw` right after the last double-key escape (e.g. 'ff' in 'affected').
+    escape_at: Option<usize>,
 }
 
 fn lower(c: char) -> char {
@@ -114,6 +120,11 @@ fn is_base_vowel(c: char) -> bool {
 
 fn is_modified_vowel(c: char) -> bool {
     matches!(c, 'ă' | 'â' | 'ê' | 'ô' | 'ơ' | 'ư')
+}
+
+/// Open 'huơ', 'khuơ', 'thuơ' (thuở): the 'u' stays plain. 'ươ' needs a final consonant.
+fn keeps_plain_u(s: &Split) -> bool {
+    s.fin.is_empty() && matches!(s.initial.as_str(), "h" | "kh" | "th")
 }
 
 fn in_set(set: &[&str], s: &str) -> bool {
@@ -188,6 +199,7 @@ impl Telex {
             last_mod: None,
             prev: None,
             prev_trailing: 0,
+            escape_at: None,
         }
     }
 
@@ -205,6 +217,7 @@ impl Telex {
         self.disabled = false;
         self.has_backspaced = false;
         self.last_mod = None;
+        self.escape_at = None;
     }
 
     fn commit_word(&mut self) {
@@ -244,10 +257,18 @@ impl Telex {
         self.render()
     }
 
-    fn disable_as_literal(&mut self) {
+    /// Freezes the word as it is on screen; later keys are appended literally.
+    fn freeze_literal(&mut self) {
         self.chars = self.render().chars().collect();
         self.tone = 0;
         self.disabled = true;
+    }
+
+    /// A double-key escape ('aa' -> 'aa', 'ss' -> 's'): the word is frozen and remembers where it
+    /// happened, so that a word with letters after the escape can be restored to its raw keys.
+    fn disable_as_literal(&mut self) {
+        self.freeze_literal();
+        self.escape_at = Some(self.raw.len());
     }
 
     fn disable_as_raw(&mut self) {
@@ -324,6 +345,23 @@ impl Telex {
         Some(v[1]) // oai, oay, uya, khuỷu, ngoèo
     }
 
+    /// 'uu' + horn key -> 'ưu' (Lưu, lựu): the first u takes the horn. Returns false otherwise.
+    fn horn_first_u(&mut self, s: &Split) -> bool {
+        if s.vowel != "uu" {
+            return false;
+        }
+        let i1 = s.vidx[0];
+        self.chars[i1] = cased('ư', self.chars[i1]);
+        true
+    }
+
+    /// 'uo' -> 'ươ' (both horned). An open 'huơ' / 'khuơ' / 'thuơ' keeps the plain 'u'.
+    fn horn_uo(&mut self, s: &Split, i1: usize, i2: usize) {
+        let u = if keeps_plain_u(s) { 'u' } else { 'ư' };
+        self.chars[i1] = cased(u, self.chars[i1]);
+        self.chars[i2] = cased('ơ', self.chars[i2]);
+    }
+
     fn render(&self) -> String {
         if self.chars.is_empty() {
             return String::new();
@@ -398,7 +436,10 @@ impl Telex {
         } else {
             NUCLEI_TYPING
         };
-        if !in_set(nuclei, &s.vowel) {
+        // While typing, 'uu' is the start of 'ưu' (Lưu): the horn key comes next.
+        let typing_uu = !committed && s.fin.is_empty() && s.vowel == "uu";
+        let nucleus = if typing_uu { "ưu" } else { s.vowel.as_str() };
+        if !in_set(nuclei, nucleus) {
             return false;
         }
         if s.vowel == "oo" {
@@ -438,6 +479,46 @@ impl Telex {
         true
     }
 
+    /// After a Backspace on a frozen word: finds the longest raw prefix whose composition is the
+    /// text on screen and makes that composition live again. Nothing is emitted. If no prefix
+    /// matches, the frozen state is kept exactly as it was.
+    fn revive_frozen(&mut self) {
+        let target: String = self.chars.iter().collect();
+        let raw = self.raw.clone();
+        let saved = (
+            self.raw.clone(),
+            self.chars.clone(),
+            self.tone,
+            self.disabled,
+            self.last_mod,
+            self.escape_at,
+        );
+        for k in (1..=raw.len()).rev() {
+            self.clear_word();
+            for &ch in &raw[..k] {
+                if self.cfg.input_method == InputMethod::Vni {
+                    self.process_vni(ch);
+                } else {
+                    self.process_char(ch);
+                }
+            }
+            if self.displayed() == target {
+                // The replay set escape_at itself, so a still-frozen prefix can revive again.
+                self.has_backspaced = true;
+                return;
+            }
+        }
+        (
+            self.raw,
+            self.chars,
+            self.tone,
+            self.disabled,
+            self.last_mod,
+            self.escape_at,
+        ) = saved;
+        self.has_backspaced = true;
+    }
+
     /// Backspace: deletes the last visible character, keeping the tone when it can.
     pub fn backspace(&mut self) -> KeyResult {
         if self.raw.is_empty() && self.chars.is_empty() {
@@ -451,17 +532,24 @@ impl Telex {
             return KeyResult::pass();
         }
         self.has_backspaced = true;
-        let old = self.displayed();
-        if old.is_empty() {
-            self.clear_word();
-            return KeyResult::pass();
-        }
         if self.disabled {
             self.raw.pop();
             self.chars.pop();
             if self.chars.is_empty() {
                 self.clear_word();
+                return KeyResult::pass();
             }
+            // The app erases the last char itself. A word frozen by a double-key escape
+            // ('aa', 'ss', 'ff', ...) is composed again if the rest still matches the screen,
+            // so later keys can change tones. Words disabled as invalid are left as they are.
+            if self.escape_at.is_some() && self.raw.len() <= MAX_WORD_LETTERS {
+                self.revive_frozen();
+            }
+            return KeyResult::pass();
+        }
+        let old = self.displayed();
+        if old.is_empty() {
+            self.clear_word();
             return KeyResult::pass();
         }
         let s = self.split();
@@ -496,6 +584,16 @@ impl Telex {
         let is_vni_digit = is_vni && ch.is_ascii_digit() && !self.chars.is_empty();
         if !ch.is_alphabetic() && !is_vni_digit {
             return self.boundary(ch);
+        }
+        if self.raw.len() >= MAX_WORD_LETTERS {
+            // Past the cap: freeze the word once, then append literally. Nothing is re-rendered.
+            if !self.disabled {
+                self.freeze_literal();
+                self.escape_at = None;
+            }
+            self.raw.push(ch);
+            self.chars.push(ch);
+            return KeyResult::pass();
         }
         let old = self.displayed();
         if is_vni {
@@ -552,7 +650,9 @@ impl Telex {
         // 1. Gõ tắt (Macro)
         if self.cfg.enable_macro && !self.has_backspaced && !raw.is_empty() {
             if let Some(expanded) = self.find_macro(&raw) {
-                self.commit_word();
+                // The expansion is final text: Backspace must not re-open the raw keys.
+                self.clear_word();
+                self.prev = None;
                 let mut commit = expanded;
                 commit.push(ch);
                 return KeyResult {
@@ -571,9 +671,11 @@ impl Telex {
                 .custom_words
                 .iter()
                 .any(|w| w.to_lowercase() == raw_lc);
+            // 'affected', 'arrived': the escape pair is followed by more letters.
+            let escaped_english = self.escape_at.is_some_and(|n| self.raw.len() > n);
             let restore = is_custom
                 || if self.disabled {
-                    in_set(ENGLISH_COLLISION_WORDS, &raw_lc)
+                    in_set(ENGLISH_COLLISION_WORDS, &raw_lc) || escaped_english
                 } else {
                     !self.is_valid(true)
                 };
@@ -703,8 +805,7 @@ impl Telex {
                     let (i1, i2) = (s.vidx[pos], s.vidx[pos + 1]);
                     let (v1, v2) = (lower(self.chars[i1]), lower(self.chars[i2]));
                     if matches!(v1, 'u' | 'ư') && matches!(v2, 'o' | 'ô' | 'ơ') {
-                        self.chars[i1] = cased('ư', self.chars[i1]);
-                        self.chars[i2] = cased('ơ', self.chars[i2]);
+                        self.horn_uo(&s, i1, i2);
                         self.last_mod = Some('7');
                         return;
                     }
@@ -713,6 +814,13 @@ impl Telex {
                     let i1 = s.vidx[0];
                     self.chars[i1] = cased('ư', self.chars[i1]);
                     self.last_mod = Some('7');
+                    return;
+                }
+                if self.horn_first_u(&s) {
+                    self.last_mod = Some('7');
+                    if restore && !self.is_valid(false) {
+                        self.disable_as_raw();
+                    }
                     return;
                 }
                 for (p, &idx) in s.vidx.iter().enumerate().rev() {
@@ -902,8 +1010,7 @@ impl Telex {
                     let (i1, i2) = (s.vidx[pos], s.vidx[pos + 1]);
                     let (v1, v2) = (lower(self.chars[i1]), lower(self.chars[i2]));
                     if matches!(v1, 'u' | 'ư') && matches!(v2, 'o' | 'ô' | 'ơ') {
-                        self.chars[i1] = cased('ư', self.chars[i1]);
-                        self.chars[i2] = cased('ơ', self.chars[i2]);
+                        self.horn_uo(&s, i1, i2);
                         self.last_mod = Some('w');
                         return;
                     }
@@ -913,6 +1020,13 @@ impl Telex {
                     let i1 = s.vidx[0];
                     self.chars[i1] = cased('ư', self.chars[i1]);
                     self.last_mod = Some('w');
+                    return;
+                }
+                if self.horn_first_u(&s) {
+                    self.last_mod = Some('w');
+                    if restore && !self.is_valid(false) {
+                        self.disable_as_raw();
+                    }
                     return;
                 }
                 for (p, &idx) in s.vidx.iter().enumerate().rev() {
@@ -1056,6 +1170,188 @@ mod tests {
             "terminal",
         ] {
             assert_eq!(feed(&format!("{w} ")), format!("{w} "), "word {w}");
+        }
+    }
+
+    #[test]
+    fn macro_backspace_never_reopens_raw_keys() {
+        let mut macros = HashMap::new();
+        macros.insert("vn".into(), "Việt Nam".into());
+        let mut t = Telex::new(Config {
+            enable_macro: true,
+            macros,
+            ..Default::default()
+        });
+        // Each Backspace removes one on-screen character of the expansion, never 'vn'.
+        assert_eq!(t.feed("hi vn \u{8}\u{8}\u{8}"), "hi Việt N");
+        assert_eq!(t.feed("hi vn \u{8}"), "hi Việt Nam");
+        // 'hi Việt Nam ' has 12 characters.
+        assert_eq!(t.feed(&format!("hi vn {}", "\u{8}".repeat(12))), "");
+    }
+
+    #[test]
+    fn escaped_english_restored_when_letters_follow() {
+        let mut t = Telex::new(Config::default());
+        for (input, want) in [
+            ("affected ", "affected "),
+            ("arrived ", "arrived "),
+            ("arrive ", "arrive "),
+            ("affair ", "affair "),
+            ("arrest ", "arrest "),
+            // The escape pair ends the word: today's behaviour is kept.
+            ("aff ", "af "),
+            ("pass ", "pass "),
+            ("as ", "á "),
+        ] {
+            assert_eq!(t.feed(input), want, "input {input:?}");
+        }
+        let mut off = Telex::new(Config {
+            auto_restore_english: false,
+            ..Default::default()
+        });
+        assert_eq!(off.feed("affected "), "afected ");
+    }
+
+    #[test]
+    fn open_uo_keeps_plain_u_after_h_and_th() {
+        let mut t = Telex::new(Config::default());
+        for (input, want) in [
+            ("thuowr ", "thuở "),
+            ("huow ", "huơ "),
+            ("khuow ", "khuơ "),
+            ("thuowng ", "thương "),
+            ("quowr ", "quở "),
+            // Other open 'ươ' syllables stay rejected.
+            ("luow ", "luow "),
+        ] {
+            assert_eq!(t.feed(input), want, "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn long_word_is_literal_past_cap() {
+        let mut t = Telex::new(Config::default());
+        let input: String = "bcdfgh".chars().cycle().take(100_000).collect();
+        assert_eq!(t.feed(&input), input);
+    }
+
+    #[test]
+    fn long_word_backspace_stays_consistent() {
+        let mut t = Telex::new(Config::default());
+        let word = "b".repeat(40);
+        assert_eq!(
+            t.feed(&format!("{word}{}", "\u{8}".repeat(10))),
+            "b".repeat(30)
+        );
+        assert_eq!(t.feed(&format!("{word}{}", "\u{8}".repeat(40))), "");
+        assert_eq!(t.feed(&format!("{word} ")), format!("{word} "));
+    }
+
+    #[test]
+    fn backspace_revives_frozen_word() {
+        let mut t = Telex::new(Config::default());
+        for (input, want) in [
+            ("Baorr\u{8}r", "Bảo"),
+            ("Baorrn\u{8}\u{8}r", "Bảo"),
+            ("Baorr\u{8}s", "Báo"),
+            ("Baorr\u{8}\u{8}\u{8}aor", "Bảo"),
+            ("hoaff\u{8}f", "hòa"),
+            ("Vieetjj\u{8}j", "Việt"),
+            ("tieengss\u{8}s", "tiếng"),
+            ("aaa\u{8}s", "á"),
+            ("Baorr\u{8}", "Bao"),
+            ("Baorr\u{8}\u{8}\u{8}\u{8}Baor", "Bảo"),
+            ("BAORR\u{8}R", "BẢO"),
+            ("Baorr\u{8}r ", "Bảo "),
+            ("facebook\u{8}\u{8}", "facebo"),
+        ] {
+            assert_eq!(t.feed(input), want, "input {input:?}");
+        }
+        let mut vni = Telex::new(Config {
+            input_method: InputMethod::Vni,
+            ..Default::default()
+        });
+        assert_eq!(vni.feed("ba11\u{8}1"), "bá");
+    }
+
+    #[test]
+    fn horn_on_uu_takes_first_u() {
+        let mut t = Telex::new(Config::default());
+        for (input, want) in [
+            ("Luuw ", "Lưu "),
+            ("luuwj ", "lựu "),
+            ("huuw ", "hưu "),
+            ("cuuws ", "cứu "),
+            ("muuw ", "mưu "),
+            ("uuw ", "ưu "),
+            ("LUUW ", "LƯU "),
+            // Double horn key escapes, as for other 'ww' inputs.
+            ("Luuww ", "Luuw "),
+            ("Luuw\u{8}", "Lư"),
+            ("Luuw\u{8}u ", "Lưu "),
+            // Other rimes keep their behaviour.
+            ("Luu ", "Luu "),
+            ("ruouwj ", "rượu "),
+            ("muoiw ", "mươi "),
+            ("tuw ", "tư "),
+            ("tuaw ", "tưa "),
+            ("duongw ", "dương "),
+        ] {
+            assert_eq!(t.feed(input), want, "input {input:?}");
+        }
+        let mut vni = Telex::new(Config {
+            input_method: InputMethod::Vni,
+            ..Default::default()
+        });
+        assert_eq!(vni.feed("Luu7 "), "Lưu ");
+        assert_eq!(vni.feed("luu72 "), "lừu ");
+    }
+
+    /// Every Backspace leaves the engine's composition as the tail of the screen, and an
+    /// app-handled Backspace removes exactly one character.
+    #[test]
+    fn backspace_screen_stays_consistent_random() {
+        let alphabet: Vec<char> = "aaeooowwrrssffxjzbh\u{8}".chars().collect();
+        let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
+        for _ in 0..2000 {
+            let mut t = Telex::new(Config::default());
+            let mut screen: Vec<char> = Vec::new();
+            let mut keys = Vec::new();
+            for _ in 0..60 {
+                seed = seed
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let ch = alphabet[(seed >> 33) as usize % alphabet.len()];
+                keys.push(ch);
+                let before = screen.len();
+                if ch == '\u{8}' {
+                    let r = t.backspace();
+                    if r.handled {
+                        for _ in 0..r.backspaces {
+                            screen.pop();
+                        }
+                        screen.extend(r.commit.chars());
+                    } else {
+                        screen.pop();
+                        assert_eq!(screen.len() + 1, before.max(1), "keys {keys:?}");
+                    }
+                } else {
+                    let r = t.key(ch);
+                    if r.handled {
+                        for _ in 0..r.backspaces {
+                            screen.pop();
+                        }
+                        screen.extend(r.commit.chars());
+                    } else {
+                        screen.push(ch);
+                    }
+                }
+                let disp: Vec<char> = t.displayed().chars().collect();
+                assert!(
+                    screen.ends_with(&disp),
+                    "keys {keys:?}: screen {screen:?}, composing {disp:?}"
+                );
+            }
         }
     }
 

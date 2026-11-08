@@ -23,7 +23,7 @@ Dự án cung cấp giải pháp gõ tiếng Việt đồng nhất, dứt khoát
 - **Windows**: Chạy độc lập qua cơ chế Low-Level Keyboard Hook (`SetWindowsHookExW` + `SendInput`) và khay hệ thống (System Tray), mượt mà trong mọi ứng dụng và game.
 - **macOS**: Đóng gói chuẩn InputMethodKit (`Rustype.app`), tương thích hoàn toàn Apple Silicon (M-series) và Intel.
 
-Trải nghiệm gõ thử trực tuyến tại trang chủ: **[namtr.dev](https://namtr.dev)**
+Trải nghiệm gõ thử trực tuyến tại trang chủ: **[rustype.namtr.dev](https://rustype.namtr.dev)**
 
 ---
 
