@@ -123,8 +123,9 @@ fn is_modified_vowel(c: char) -> bool {
 }
 
 /// Open 'huơ', 'khuơ', 'thuơ' (thuở): the 'u' stays plain. 'ươ' needs a final consonant.
+/// Only the two-vowel pair: 'hươu' (deer) takes the horn on both vowels.
 fn keeps_plain_u(s: &Split) -> bool {
-    s.fin.is_empty() && matches!(s.initial.as_str(), "h" | "kh" | "th")
+    s.vidx.len() == 2 && s.fin.is_empty() && matches!(s.initial.as_str(), "h" | "kh" | "th")
 }
 
 fn in_set(set: &[&str], s: &str) -> bool {
@@ -881,9 +882,22 @@ impl Telex {
 
         self.chars.push(ch);
         self.last_mod = None;
+        self.fix_open_uo();
 
         if restore && !self.is_valid(false) {
             self.disable_as_raw();
+        }
+    }
+
+    /// uơ / ưo + final or glide -> ươ. Shared by Telex and VNI: 'hu7o7ng' is 'hương'.
+    fn fix_open_uo(&mut self) {
+        let s = self.split();
+        if (matches!(s.vowel.as_str(), "uơ" | "ưo") && !s.fin.is_empty())
+            || matches!(s.vowel.as_str(), "uơi" | "ưoi" | "uơu" | "ưou")
+        {
+            let (i1, i2) = (s.vidx[0], s.vidx[1]);
+            self.chars[i1] = cased('ư', self.chars[i1]);
+            self.chars[i2] = cased('ơ', self.chars[i2]);
         }
     }
 
@@ -1077,15 +1091,7 @@ impl Telex {
         self.chars.push(ch);
         self.last_mod = None;
 
-        // uơ / ưo + final or glide -> ươ
-        let s = self.split();
-        if (matches!(s.vowel.as_str(), "uơ" | "ưo") && !s.fin.is_empty())
-            || matches!(s.vowel.as_str(), "uơi" | "ưoi" | "uơu" | "ưou")
-        {
-            let (i1, i2) = (s.vidx[0], s.vidx[1]);
-            self.chars[i1] = cased('ư', self.chars[i1]);
-            self.chars[i2] = cased('ơ', self.chars[i2]);
-        }
+        self.fix_open_uo();
 
         if restore && !self.is_valid(false) {
             self.disable_as_raw();
