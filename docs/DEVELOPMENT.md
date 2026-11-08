@@ -2,48 +2,40 @@
 
 ## Cần có
 
-- Rust stable, cài bằng [rustup](https://rustup.rs). Engine không dùng crate ngoài nào, nên build được cả khi không có mạng.
-- Để chạy công cụ kiểm thử: `python3`, `python3-gi`, `gir1.2-ibus-1.0`, `ibus` và `dbus-run-session`. Trên Ubuntu các gói này thường có sẵn khi đã cài IBus.
+- Rust stable, cài bằng [rustup](https://rustup.rs). Crate `rustype-linux` và `rustype-core` chỉ dùng thư viện chuẩn, nên build được cả khi không có mạng.
+- Để chạy sandbox và thử với client libibus thật: `python3`, `python3-gi`, `gir1.2-ibus-1.0`, `ibus` và `dbus-run-session`. Trên Ubuntu các gói này thường có sẵn khi đã cài IBus.
 
 ## Build và cài thử
 
 ```
-cargo build --release          # tạo target/release/ibus-engine-rustype
-./install.sh                   # build, cài vào ~/.local/lib/rustype, đăng ký với IBus
+cargo build --release          # tạo target/release/rustype-linux
+./install.sh                   # build và đưa rustype-linux vào phiên GNOME (không cần sudo)
 ```
 
-`install.sh` làm lần lượt:
+`install.sh` tự kiểm tra kết quả và tự khôi phục ibus nếu có lỗi. Để quay về ibus-daemon: `./uninstall.sh`. Chi tiết về drop-in systemd nằm trong [ARCHITECTURE.md](ARCHITECTURE.md#tiếp-quản-dịch-vụ-ibus-trên-gnome).
 
-1. Build bản release.
-2. Chép engine vào `~/.local/lib/rustype/ibus-engine-rustype`.
-3. Tạo `~/.config/rustype/config` nếu chưa có.
-4. Ghi file component vào `/usr/share/ibus/component/rustype.xml`. Chỉ bước này cần sudo, và chỉ chạy khi nội dung file thay đổi.
-5. Chạy `ibus restart` để IBus nạp engine mới.
-6. Thêm Rustype vào danh sách bộ gõ của GNOME nếu chưa có.
-
-Sau mỗi lần sửa code, chạy lại `./install.sh`. Lúc đó thường không cần sudo nữa.
+Sau mỗi lần sửa code, chạy lại `cargo build --release` rồi `./install.sh`.
 
 ## Kiểm thử
 
-Có hai lệnh, nên chạy cả hai trước khi phát hành:
-
 ```
-cargo test --release
-tools/ibus_sandbox_test.sh "$PWD/target/release/ibus-engine-rustype" <(target/release/ibus-engine-rustype --xml) rustype
+cargo test
+tools/rustype_linux_sandbox.sh target/release/rustype-linux
 ```
 
 | Mức | Kiểm tra gì | Kết quả mong đợi |
 |---|---|---|
-| Unit test | Từng module: ghép chữ, FFI, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình, chẩn đoán | Mọi crate đều báo `test result: ok`, không có test nào fail |
-| Bộ kết quả chuẩn | Nằm trong `cargo test`. Các chuỗi phím trong `rustype-core/tests/golden.tsv`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi |
-| IBus giả lập | Một ibus-daemon riêng và các ứng dụng giả: terminal, ứng dụng GUI, ô thanh địa chỉ (URL), ứng dụng X11. Kiểm tra bấm chuột, Enter, BackSpace, đổi cửa sổ | `ALL PASS` |
+| Unit test | Từng module: ghép chữ, FFI, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình, chẩn đoán | `cargo test` kết thúc với `test result: ok` ở mọi crate |
+| Bộ kết quả chuẩn | `rustype-core/tests/golden.tsv`, chạy trong `cargo test`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi, trừ khi đã cố ý đổi luật (xem dưới) |
+| Mô hình Omnibox | `rustype-linux/tests/omnibox_model.rs`, chạy bộ kết quả chuẩn qua một mô hình của ô thanh địa chỉ Chrome | `cargo test` không báo lỗi |
+| Sandbox | `tools/rustype_linux_sandbox.sh`: bus riêng trong `dbus-run-session`, client libibus thật, panel, và kiểm tra dọn dẹp khi nhận SIGTERM | `ALL PASS` hoặc không có lỗi nào |
 
-Kiểm thử IBus giả lập chạy trong `dbus-run-session` với địa chỉ, cấu hình và bộ nhớ đệm riêng. Nó không đụng tới IBus đang chạy trên máy.
+Sandbox chạy với địa chỉ, cấu hình và bộ nhớ đệm riêng. Nó không đụng tới IBus đang chạy trên máy.
 
 **Thử nhanh một chuỗi phím** mà không cần IBus:
 
 ```
-echo "Vieetj Nam ddepj" | target/release/ibus-engine-rustype --feed
+echo "Vieetj Nam ddepj" | target/release/rustype-linux --feed
 ```
 
 ## Đổi luật gõ
@@ -59,16 +51,26 @@ Muốn tạo lại toàn bộ chuỗi phím đầu vào, ví dụ khi thêm lo�
 
 ## Gỡ lỗi trên máy thật
 
-Biến `RUSTYPE_DEBUG=1` in mã từng phím ra stderr (chỉ mã phím, không in chữ người dùng gõ). Vì engine do ibus-daemon khởi chạy, muốn xem log thì phải tự chạy nó:
+Biến `RUSTYPE_DEBUG=1` làm `rustype-linux` in mã từng phím ra stderr (chỉ mã phím, không in chữ người dùng gõ). Khi chạy dưới systemd, stderr đi vào journal:
 
 ```
-pkill -x ibus-engine-rus
-RUSTYPE_DEBUG=1 ~/.local/lib/rustype/ibus-engine-rustype --ibus
+systemctl --user edit org.freedesktop.IBus.session.GNOME.service
 ```
 
-Tên tiến trình bị Linux cắt còn 15 ký tự, nên lệnh `pkill` dùng `ibus-engine-rus`.
+Trong trình soạn thảo mở ra, thêm:
 
-Sau khi chạy lệnh thứ hai, nhấn Super+Space để chuyển sang bộ gõ khác rồi chuyển lại Rustype. IBus chỉ dùng engine vừa chạy sau lần chuyển đó. Gỡ lỗi xong thì nhấn Ctrl+C và chạy `ibus restart`.
+```
+[Service]
+Environment=RUSTYPE_DEBUG=1
+```
+
+Sau đó khởi động lại unit, nhấn Super+Space để chuyển sang nguồn nhập khác rồi chuyển lại Rustype, và xem log:
+
+```
+journalctl --user -u org.freedesktop.IBus.session.GNOME.service -f
+```
+
+Gỡ lỗi xong, xóa dòng `Environment=` (hoặc chạy `systemctl --user revert org.freedesktop.IBus.session.GNOME.service`), rồi khởi động lại unit.
 
 > Log chứa mã phím, có thể suy ra nội dung gõ. Đừng gửi log cho người khác nếu chưa đọc lại.
 
@@ -83,18 +85,16 @@ cargo fuzz run fuzz_telex -- -max_total_time=300
 
 Fuzz chạy không giới hạn nếu không đặt `max_total_time`. Crash được lưu vào `fuzz/artifacts/`.
 
-## Đóng gói và Phát hành
-
-Quy trình đóng gói đã được tự động hóa qua `Makefile` và GitHub Actions:
+## Đóng gói và phát hành
 
 1. **Đóng gói .deb cục bộ**:
    ```bash
    make deb
    ```
-   Tạo file `.deb` chuẩn FHS tại `target/packages/rustype_*.deb`.
+   Tạo file `.deb` tại `target/packages/rustype_*.deb`.
 
 2. **Quy trình phát hành bản mới**:
    - Kiểm tra mã nguồn: `make check`.
-   - Cập nhật `version` trong `Cargo.toml`, `packaging/debian/changelog`.
+   - Cập nhật `version` trong `Cargo.toml` và `packaging/debian/changelog`.
    - Ghi chú thay đổi vào [CHANGELOG.md](../CHANGELOG.md).
-   - Đẩy tag lên GitHub (ví dụ: `git tag v0.1.0 && git push origin v0.1.0`). GitHub Actions sẽ tự động biên dịch, sinh file `.deb`, tarball, tính checksum SHA256 và đăng tải bản phát hành.
+   - Đẩy tag lên GitHub (ví dụ: `git tag v0.1.0 && git push origin v0.1.0`). GitHub Actions sẽ biên dịch, sinh file `.deb`, tarball, tính checksum SHA256 và đăng tải bản phát hành.

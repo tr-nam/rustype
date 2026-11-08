@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>Bộ gõ tiếng Việt đa nền tảng siêu nhẹ, hiệu năng cao viết hoàn toàn bằng Pure Rust cho Linux, Windows và macOS.</strong>
+  <strong>Bộ gõ tiếng Việt siêu nhẹ viết hoàn toàn bằng Rust cho Linux (GNOME trên Wayland), Windows và macOS.</strong>
 </p>
 
 <p align="center">
@@ -16,67 +16,87 @@
 
 ---
 
-Rustype là bộ gõ tiếng Việt thế hệ mới hỗ trợ kiểu gõ Telex & VNI, được xây dựng hoàn toàn bằng ngôn ngữ Rust thuần không phụ thuộc thư viện runtime bên ngoài.
+Rustype là bộ gõ tiếng Việt hỗ trợ kiểu gõ Telex & VNI, được xây dựng bằng Rust thuần, dùng thư viện chuẩn của Rust.
 
-Dự án cung cấp giải pháp gõ tiếng Việt đồng nhất, dứt khoát trên cả 3 nền tảng:
-- **Linux (Ubuntu/Debian Wayland & X11)**: Tích hợp sâu qua IBus, giải quyết dứt điểm lỗi lặp chữ trong terminal (*Ptyxis, Alacritty, Ghostty, Claude Code*), không nháy màn hình, bấm chuột không mất chữ.
-- **Windows**: Chạy độc lập qua cơ chế Low-Level Keyboard Hook (`SetWindowsHookExW` + `SendInput`) và khay hệ thống (System Tray), mượt mà trong mọi ứng dụng và game.
-- **macOS**: Đóng gói chuẩn InputMethodKit (`Rustype.app`), tương thích hoàn toàn Apple Silicon (M-series) và Intel.
+Trên từng nền tảng:
+- **Linux (GNOME Shell trên Wayland)**: chạy như một tiến trình duy nhất, `rustype-linux`, thay cho `ibus-daemon` và engine IBus cũ. Giải quyết lỗi lặp chữ trong terminal (*Ptyxis, GNOME Terminal, kitty, Alacritty, WezTerm*), không nháy màn hình, bấm chuột không mất chữ. Chỉ hỗ trợ GNOME; xem [COMPATIBILITY.md](docs/COMPATIBILITY.md).
+- **Windows**: chạy độc lập qua Low-Level Keyboard Hook (`SetWindowsHookExW` + `SendInput`) và khay hệ thống (System Tray).
+- **macOS**: đóng gói theo InputMethodKit (`Rustype.app`), chạy trên Apple Silicon và Intel.
 
 Trải nghiệm gõ thử trực tuyến tại trang chủ: **[rustype.namtr.dev](https://rustype.namtr.dev)**
 
 ---
 
-## ⚡ Hiệu năng thực tế (Benchmarks)
+## ⚡ Hiệu năng
 
-Kiểm thử bằng bộ benchmark chuyên dụng (`cargo bench -p rustype-core`) trên profile `release`:
+Đo bằng `cargo bench -p rustype-core` trên profile `release`, máy phát triển:
 
-| Chỉ số kiểm thử | Kết quả thực tế | Ý nghĩa thực tế |
+| Chỉ số | Kết quả | Ý nghĩa |
 |---|---|---|
-| **Throughput gõ từng phím** | **~2.520.000 keys/giây** | Gấp ~**170.000 lần** tốc độ gõ của con người (~15 keys/s) |
-| **Throughput xử lý văn bản (feed)** | **~2.480.000 keys/s** (~2.4 MB/s) | Chuyển đổi hàng loạt tài liệu lớn tức thì |
-| **Độ trễ trung vị (p50)** | **461 ns** (~0.46 $\mu$s) | Xử lý gần như bằng 0 trong một chu kỳ CPU |
-| **Độ trễ phân vị cao (p99)** | **892 ns** (< 1 $\mu$s) | Cực kỳ ổn định, không bao giờ có độ trễ giật lag |
-| **Độ trễ tối đa (Max latency)** | **20.5 $\mu$s** (0.02 ms) | Thấp hơn **50 lần** so với ngưỡng mắt người cảm nhận được (1 ms) |
-| **Phục hồi từ tiếng Anh** | **~4.980.000 keys/giây** | Tự nhận diện và khôi phục từ tiếng Anh chỉ mất ~200 ns |
-| **Kích thước Struct lõi** | **200 bytes** (`Telex`) | Bộ nhớ tiêu thụ cực thấp, RAM daemon ~**2.5 MB** |
-| **Độ chính xác ngữ pháp** | **14.710 / 14.710 test cases** (100%) | Vượt qua toàn bộ bộ dữ liệu golden set chuẩn |
+| **Độ trễ trung vị (p50), một phím** | **461 ns** | Lõi gõ xử lý mỗi phím dưới 1 micro giây |
+| **Độ trễ p99** | **892 ns** | 99% số phím được xử lý trong khoảng dưới 1 micro giây |
+| **Độ trễ tối đa** | **20,5 µs** | Thấp hơn nhiều so với ngưỡng người dùng cảm nhận được (1 ms) |
+| **Throughput gõ từng phím** | **~2.520.000 phím/giây** | Nhanh hơn rất nhiều so với tốc độ gõ của người (~15 phím/giây) |
+| **Kích thước struct lõi** | **200 byte** (`Telex`) | Bộ nhớ tiêu thụ thấp |
+| **Bộ kết quả chuẩn** | **14.710 chuỗi phím** | Kiểm tra hồi quy: mỗi lần đổi luật gõ được so với bộ chuẩn này |
+
+Đo trên Linux, bản release, cùng một máy, qua socket IBus (không gồm GNOME Shell và ứng dụng):
+
+| | Vòng phím (trung vị) | Bộ nhớ | Binary |
+|---|---|---|---|
+| `rustype-linux` | 189–228 µs | khoảng 3 MB | khoảng 755 KB |
+| `ibus-daemon` + engine cũ | 435–502 µs | khoảng 59 MB (cả tiến trình con) | — |
+
+Con số vòng phím không gồm Mutter, GNOME Shell và ứng dụng, nên lợi ích thực tế khi gõ sẽ nhỏ hơn. Đã chạy thử trên một máy Ubuntu GNOME Wayland.
 
 ---
 
 ## 🌟 Điểm nổi bật
 
-- ⚡ **Siêu nhẹ & Tốc độ tức thì (Pure Rust):** Lõi gõ được tối ưu hóa zero-allocation trên đường dẫn gõ phím nóng. Không phụ thuộc runtime GUI nặng nề, binary ~450 KB, tiêu thụ ~2.5 MB RAM.
-- 💻 **Terminal không lặp chữ, không giật nháy:** Tối ưu hóa đặc biệt cho các terminal hiện đại trên Wayland (*Ptyxis, Alacritty, Ghostty, Foot, GNOME Terminal*) và các công cụ dòng lệnh (*Claude Code, Neovim, fzf*). Giữ từ đang gõ ở chế độ preedit mượt mà và commit dứt khoát khi kết thúc từ, hoàn toàn không gửi phím Backspace giả làm hỏng shell history hay giật màn hình.
-- 🎯 **Tự động nhận diện ứng dụng (Auto Display Mode):** Tự động chuyển đổi giữa Direct mode và Preedit mode. Với các ứng dụng đồ họa có hỗ trợ Surrounding Text (*Chrome, VS Code, Slack, LibreOffice*), chữ được đưa thẳng vào vị trí con trỏ không có đường gạch chân.
-- 🖱️ **Bấm chuột hay đổi cửa sổ không mất chữ:** Ký tự đang gõ dở được tự động hoàn tất (COMMIT) ngay khi bạn nhấp chuột ra ngoài hoặc chuyển cửa sổ làm việc.
-- 🔄 **Nhớ trạng thái bật/tắt theo từng ứng dụng (Per-App State):** Tương tự EVKey, Rustype tự động ghi nhớ bạn đang bật gõ tiếng Việt ở trình duyệt/chat nhưng giữ nguyên chế độ tiếng Anh khi chuyển sang Terminal hoặc IDE lập trình.
-- ⌨️ **Hỗ trợ đầy đủ Telex & VNI cùng tính năng thông minh:**
-  - Tùy chọn đặt dấu kiểu mới (`hoà, khoẻ, thuý`) hoặc truyền thống (`hòa, khỏe, thúy`).
-  - Tự động phục hồi từ tiếng Anh phổ biến (`window`, `software`, `docker`, `terminal`...) khi gõ xong.
-  - Gõ đôi phím thoát dấu (`ss`, `dd`), gõ tắt (Macro) tốc độ cao và thêm từ điển riêng (Custom Words).
-- 🎛️ **Giao diện GTK4 Libadwaita & System Tray:**
-  - Bật/tắt tiếng Việt (icon động `VN`/`EN`) và đổi kiểu gõ trực tiếp từ khay hệ thống.
-  - Ứng dụng Cài đặt hiện đại viết bằng GTK4 + Libadwaita, tự động thích ứng chế độ Sáng/Tối (Dark/Light style) chuẩn GNOME HIG.
-- 🩺 **Chẩn đoán hệ thống tự động (Built-in Doctor):** Tích hợp sẵn công cụ kiểm tra toàn diện cấu hình IBus daemon, socket, component XML và extension (`ibus-engine-rustype --doctor` hoặc chạy trực tiếp từ trang Giới thiệu trong app Cài đặt).
-- 🔒 **Bảo mật & Quyền riêng tư 100% (Offline & Zero Telemetry):** Hoàn toàn ngoại tuyến, không gửi telemetry, không lưu phím gõ và tự động bypass ở các trường nhập mật khẩu an toàn.
+- ⚡ **Nhẹ và nhanh (Pure Rust):** lõi gõ không phụ thuộc thư viện ngoài. Trên Linux, `rustype-linux` là một file khoảng 755 KB, dùng khoảng 3 MB RAM.
+- 💻 **Terminal không lặp chữ, không giật nháy:** giữ từ đang gõ ở dạng gạch chân và commit một lần khi hết từ. Không gửi phím Backspace giả, nên không làm hỏng shell history. Đã thử trên GNOME Wayland với Ptyxis, GNOME Terminal, kitty, Alacritty và WezTerm, và các công cụ dòng lệnh như Claude Code.
+- 🎯 **Tự chọn cách hiện chữ theo ứng dụng:** ứng dụng báo có Surrounding Text (*Chrome, VS Code, Slack, LibreOffice, Firefox*) thì chữ hiện thẳng vào con trỏ, không gạch chân. Terminal và ứng dụng khác dùng gạch chân.
+- 🖱️ **Bấm chuột hay đổi cửa sổ không mất chữ:** ký tự đang gõ dở được commit ngay khi bạn nhấp chuột ra ngoài hoặc chuyển cửa sổ.
+- 🔄 **Nhớ trạng thái bật/tắt theo từng ứng dụng:** như EVKey, Rustype nhớ bạn đang bật tiếng Việt ở trình duyệt hoặc chat, nhưng giữ tiếng Anh khi chuyển sang terminal hoặc IDE.
+- ⌨️ **Telex & VNI với nhiều tính năng:**
+  - Đặt dấu kiểu mới (`hoà, khoẻ, thuý`) hoặc kiểu truyền thống (`hòa, khỏe, thúy`).
+  - Tự trả lại từ tiếng Anh phổ biến (`window`, `software`, `docker`, `terminal`...) khi gõ xong.
+  - Gõ đôi phím để thoát dấu (`ss`, `dd`), gõ tắt (Macro) và từ điển riêng (Custom Words).
+- 🎛️ **Giao diện GTK4 Libadwaita & khay hệ thống:**
+  - Bật/tắt tiếng Việt và đổi kiểu gõ từ menu trên thanh GNOME (Linux) hoặc khay hệ thống (Windows).
+  - Ứng dụng Cài đặt viết bằng GTK4 + Libadwaita, tự thích ứng chế độ Sáng/Tối theo GNOME HIG.
+- 🩺 **Chẩn đoán tự động:** `rustype-linux --doctor` kiểm tra cài đặt, bus, file đăng ký và cấu hình, rồi đưa ra gợi ý khắc phục.
+- 🔒 **Quyền riêng tư:** engine không có mã mạng và không ghi nhật ký phím gõ. Ô mật khẩu luôn được bỏ qua. Ứng dụng Cài đặt chỉ có một yêu cầu mạng, khi bạn bấm "Kiểm tra cập nhật" (xem [PRIVACY.md](docs/PRIVACY.md)).
 
 ---
 
 ## 📦 Tải về & Cài đặt
 
-Tải về phiên bản mới nhất tại **[GitHub Releases](https://github.com/tr-nam/rustype/releases)**:
+Tải về phiên bản mới nhất tại **[GitHub Releases](https://github.com/tr-nam/rustype/releases)**.
 
-### 1. Ubuntu / Debian (Linux)
-Tải gói `.deb` từ Releases và cài đặt:
+### 1. Linux (GNOME trên Wayland)
+
+Chỉ hỗ trợ GNOME Shell trên Wayland. Các desktop và kiểu ứng dụng khác chưa được hỗ trợ, xem [COMPATIBILITY.md](docs/COMPATIBILITY.md).
+
+**Gói `.deb` (Ubuntu / Debian):**
 ```bash
 sudo apt install ./rustype_*.deb
 ```
-Hoặc tự đóng gói từ mã nguồn:
+Sau khi cài, đăng xuất rồi đăng nhập lại.
+
+**Cài từ mã nguồn** (cần Rust qua [rustup](https://rustup.rs)):
 ```bash
-make deb
-sudo apt install ./target/packages/rustype_*.deb
+./install.sh
 ```
+Script không cần sudo. Nó build `rustype-linux`, đưa tiến trình này vào vị trí của IBus trong phiên GNOME, tự kiểm tra, và tự khôi phục ibus nếu có lỗi.
+
+Gói `ibus` vẫn phải được cài, vì GNOME Shell cần thư viện libibus. ibus-daemon không chạy khi dùng Rustype.
+
+Để quay về ibus-daemon:
+```bash
+./uninstall.sh
+```
+Với gói `.deb`, gỡ bằng `sudo apt remove rustype`, rồi đăng xuất và đăng nhập lại.
 
 ### 2. Windows
 1. Tải file `rustype.exe` hoặc `rustype-v*-windows-x86_64.zip` từ mục Releases.
@@ -92,23 +112,17 @@ sudo apt install ./target/packages/rustype_*.deb
    ```
 4. Đăng xuất hoặc khởi động lại máy, sau đó vào **System Settings $\rightarrow$ Keyboard $\rightarrow$ Input Sources** và thêm **Rustype**.
 
-### 4. Cài đặt cho nhà phát triển (Linux source)
-Yêu cầu Rust toolchain (`rustup`). Chạy script cài đặt tự động:
-```bash
-./install.sh
-```
-
 ---
 
 ## ⚙️ Sử dụng & Cấu hình
 
 ### Bật / Tắt gõ tiếng Việt
-- **Linux**: Nhấn phím tắt **Super + Space** hoặc click vào biểu tượng bộ gõ trên Top Bar để gạt công tắc **"Bật tiếng Việt"**. Icon chuyển đổi trực quan giữa `VN` và `EN`.
-- **Windows**: Nhấn phím tắt chuyển đổi hoặc click biểu tượng `V`/`E` ở khay hệ thống.
-- **macOS**: Chọn Rustype từ menu Input Sources ở thanh menu trên cùng.
+- **Linux**: nhấn **Super + Space** để chuyển nguồn nhập, hoặc nhấp vào biểu tượng bộ gõ trên thanh GNOME để gạt công tắc **"Bật tiếng Việt"**. Biểu tượng hiện `VN` hoặc `EN`.
+- **Windows**: nhấn phím tắt chuyển đổi hoặc nhấp biểu tượng `V`/`E` ở khay hệ thống.
+- **macOS**: chọn Rustype từ menu Input Sources ở thanh menu trên cùng.
 
 ### Tùy chỉnh cấu hình
-File cấu hình tự động được đọc tại `~/.config/rustype/config` (Linux) hoặc quản lý trực tiếp qua ứng dụng đồ họa **Cài đặt Rustype** (`rustype-settings`):
+File cấu hình tự động được đọc tại `~/.config/rustype/config` (Linux), hoặc chỉnh qua ứng dụng **Cài đặt Rustype** (`rustype-settings`):
 
 ```ini
 mode = auto                 # auto (khuyên dùng) | preedit | direct
@@ -120,40 +134,35 @@ remember_state_per_app = true # nhớ trạng thái bật/tắt theo từng app 
 custom_words = this, test   # danh sách từ tiếng Anh không thêm dấu
 ```
 
-- `auto`: không gạch chân ở ứng dụng văn phòng/trình duyệt, hiển thị preedit gạch chân trong terminal để tránh lặp chữ.
+- `auto`: không gạch chân ở ứng dụng có Surrounding Text (trình duyệt, ứng dụng văn phòng), gạch chân trong terminal để tránh lặp chữ.
 - `preedit`: luôn gạch chân ở mọi ứng dụng.
-- `direct`: luôn gửi ký tự trực tiếp.
+- `direct`: không gạch chân ở ứng dụng có Surrounding Text. Ứng dụng không có Surrounding Text vẫn dùng gạch chân như `preedit`, vì phím chuyển tiếp không hoạt động trong Chrome và VTE trên GNOME Wayland.
 
 ### Kiểm tra & Chẩn đoán hệ thống (Linux)
-Chạy lệnh chẩn đoán tự động:
 ```bash
-ibus-engine-rustype --doctor
+rustype-linux --doctor
 ```
-Gỡ cài đặt hoàn toàn:
-```bash
-./uninstall.sh
-```
+Nếu Rustype không hoạt động, xem [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ---
 
-## 🏗️ Cấu trúc dự án (Workspace Architecture)
+## 🏗️ Cấu trúc dự án (Workspace)
 
 ```
 rustype/
-├── rustype-core/       # Lõi Telex & VNI thuần (Pure Rust, 0 dependencies, C FFI headers)
+├── rustype-core/       # Lõi Telex & VNI thuần (Pure Rust, không I/O, có C FFI)
 │   ├── src/telex.rs    # Máy trạng thái ghép âm, bỏ dấu, khôi phục từ tiếng Anh
 │   ├── src/tables.rs   # Bảng ngữ âm tiếng Việt chuẩn
 │   ├── src/ffi.rs      # Giao tiếp C ABI cho các nền tảng khác nhúng vào
 │   ├── include/        # rustype.h cho C/C++/Objective-C
-│   └── benches/        # Benchmark hiệu năng thực tế (engine_perf.rs)
-├── rustype-ibus/       # Daemon IBus cho Linux Wayland & X11
-│   ├── src/ime.rs      # Xử lý phiên gõ, surrounding text, phím tắt
-│   ├── src/ibus.rs     # Giao thức IBus engine
-│   └── src/dbus.rs     # Client D-Bus siêu nhẹ thuần Rust
+│   ├── tests/          # Bộ kết quả chuẩn golden.tsv
+│   └── benches/        # Benchmark hiệu năng (engine_perf.rs)
+├── rustype-linux/      # Bus IBus và engine trong một tiến trình, cho GNOME trên Wayland
+│   └── src/            # bus, server, sasl, wire, service, ime, config, dbus, props, ...
 ├── rustype-windows/    # Bộ gõ Windows (Low-Level Keyboard Hook & System Tray)
 ├── rustype-macos/      # Bộ gõ macOS InputMethodKit (Rustype.app bundle)
-├── tools/              # Ứng dụng Cài đặt GTK4 + Libadwaita (rustype-settings)
-├── website/            # Trang giới thiệu portal & bộ gõ thử nghiệm trực tiếp
+├── tools/              # Ứng dụng Cài đặt GTK4 + Libadwaita (rustype-settings) và script thử nghiệm
+├── website/            # Trang giới thiệu và bộ gõ thử nghiệm trực tuyến
 └── packaging/          # Đóng gói deb, rpm, PKGBUILD
 ```
 
@@ -163,13 +172,13 @@ rustype/
 
 | Tài liệu | Đối tượng | Nội dung |
 |---|---|---|
-| [Trang chủ chính thức](https://namtr.dev) | Mọi người | Giới thiệu, tải gói cài đặt, hỏi đáp và gõ thử nghiệm trực tuyến |
-| [Tương thích](docs/COMPATIBILITY.md) | Mọi người | Ma trận ứng dụng, cơ chế hiển thị chữ, cấu hình theo từng ứng dụng |
-| [Quyền riêng tư](docs/PRIVACY.md) | Mọi người | Cam kết 100% ngoại tuyến, zero telemetry, không ghi phím gõ |
-| [Xử lý sự cố](docs/TROUBLESHOOTING.md) | Người dùng | Hướng dẫn chẩn đoán, gạch chân, lặp chữ, xử lý lỗi thường gặp |
-| [Kiến trúc](docs/ARCHITECTURE.md) | Nhà phát triển | Thiết kế hệ thống, mô hình đa nền tảng, đường đi của phím bấm |
-| [Phát triển](docs/DEVELOPMENT.md) | Nhà phát triển | Hướng dẫn build, chạy kiểm thử, tạo release và gỡ lỗi |
-| [Lộ trình phát triển](docs/ROADMAP.md) | Mọi người | Kế hoạch hoàn thiện các giai đoạn từ bản 0.1 đến 1.0 |
+| [Trang chủ chính thức](https://rustype.namtr.dev) | Mọi người | Giới thiệu, tải gói cài đặt, hỏi đáp và gõ thử trực tuyến |
+| [Tương thích](docs/COMPATIBILITY.md) | Mọi người | Phạm vi hỗ trợ, ứng dụng đã thử, cách hiện chữ |
+| [Quyền riêng tư](docs/PRIVACY.md) | Mọi người | Engine không có mã mạng, không ghi nhật ký phím gõ, và quyền riêng tư của Surrounding Text |
+| [Xử lý sự cố](docs/TROUBLESHOOTING.md) | Người dùng | Cách kiểm tra, gạch chân, lặp chữ, cách quay về ibus-daemon |
+| [Kiến trúc](docs/ARCHITECTURE.md) | Nhà phát triển | Thiết kế một tiến trình, các module, đường đi của phím bấm |
+| [Phát triển](docs/DEVELOPMENT.md) | Nhà phát triển | Build, kiểm thử, bộ kết quả chuẩn, gỡ lỗi và đóng gói |
+| [Lộ trình phát triển](docs/ROADMAP.md) | Mọi người | Các hạng mục đã xong và đang làm |
 | [Lịch sử thay đổi](CHANGELOG.md) | Mọi người | Chi tiết các bản cập nhật qua từng phiên bản |
 
 ---

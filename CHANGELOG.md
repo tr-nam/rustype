@@ -4,23 +4,32 @@
 
 ## [Chưa phát hành]
 
+### Thay đổi quan trọng
+- `rustype-linux` thay thế engine IBus và addon Fcitx5. Đây là một tiến trình duy nhất, gồm bus IBus và engine, và là đường cài đặt mặc định trên Linux. `./install.sh` không cần sudo và tự khôi phục ibus nếu có lỗi. `./uninstall.sh` quay về ibus-daemon.
+- Linux chỉ hỗ trợ GNOME Shell trên Wayland. Ứng dụng Flatpak, KDE, Sway, Hyprland, engine IBus khác và emoji panel chưa được hỗ trợ.
+- Chế độ `mode = direct` không còn gửi phím BackSpace giả. Ứng dụng không có Surrounding Text dùng preedit.
+
+### Sửa lỗi
+- Thanh địa chỉ Chrome: ô URL dùng Surrounding Text không gạch chân, giữ được gợi ý và phím Enter. Khi Chrome bỏ qua lệnh xóa vì đang chọn gợi ý, engine xóa phần đuôi rồi commit lại từ.
+- Backspace mở lại được từ vừa bị đóng băng để sửa tiếp.
+- Gõ `uu` rồi phím móc `w` đặt dấu móc lên u đầu: `uuw` ra "ưu", `Luuw` ra "Lưu".
+
 ### Thêm
 - Tài liệu: kiến trúc, phát triển, xử lý sự cố, lộ trình, bảng tương thích ứng dụng (`docs/COMPATIBILITY.md`).
 - File giấy phép MIT cho Rustype.
 - Bộ kết quả chuẩn `rustype-core/tests/golden.tsv` gồm 14.710 chuỗi phím, kiểm tra trong `cargo test`, và công cụ `tools/golden.py` để xem và ghi nhận khác biệt khi đổi luật gõ.
-- Cargo workspace: `rustype-core` (lõi Telex thuần, không phụ thuộc nền tảng) và `rustype-ibus` (engine IBus).
+- Cargo workspace với `rustype-core` (lõi Telex thuần, không phụ thuộc nền tảng).
 - CI GitHub Actions: kiểm tra định dạng, clippy, unit test, golden test, IBus giả lập.
 - Fuzz target cho lõi Telex bằng `cargo-fuzz`.
 - Xử lý `SetSurroundingText` và selection autocomplete cho thanh địa chỉ Chrome / Firefox / Electron.
 - Hỗ trợ cấu hình chế độ hiển thị riêng cho từng ứng dụng qua mục `[app_modes]` trong `config`.
 - Interface D-Bus `SetFocusApp` và GNOME Shell extension `rustype-focus@namtr.dev` để nhận diện app focus trên Wayland.
 - C FFI cho `rustype-core` (`rustype.h`, thư viện tĩnh `librustype_core.a` và động `librustype_core.so`).
-- Khung addon cho Fcitx5 (`rustype-fcitx5/`).
 - Kiểu gõ VNI (`input_method = vni`) với luật gõ số và phím lặp thoát dấu.
 - Bảng gõ tắt (Macro) tương thích định dạng file Unikey (`~/.config/rustype/macro` hoặc mục `[macros]`).
 - Danh sách từ tiếng Anh người dùng tự thêm (`custom_words` hoặc file `~/.config/rustype/words`).
 - Tính năng nhớ trạng thái bật/tắt tiếng Việt theo từng ứng dụng (`remember_state_per_app = true`, giống EVKey).
-- Lệnh chẩn đoán hệ thống thông minh `ibus-engine-rustype --doctor` kiểm tra 6 thành phần hệ thống.
+- Lệnh chẩn đoán `rustype-linux --doctor`.
 - Menu IBus Panel Properties: bật/tắt tiếng Việt, đổi kiểu gõ và mở Cài đặt trực tiếp từ thanh trạng thái.
 - Ứng dụng cài đặt đồ họa native GNOME GTK4 + Libadwaita (`rustype-settings`) kèm launcher `.desktop`.
 
@@ -29,6 +38,8 @@
 
 ### Bỏ
 - Công cụ so sánh với engine bên ngoài và công cụ sinh bảng luật. `rustype-core/src/tables.rs` giờ được sửa trực tiếp.
+- Chế độ hiện chữ bằng phím BackSpace giả của `mode = direct`. Không hoạt động trong Chrome và VTE trên GNOME Wayland.
+- Đường cài đặt `rustype-ibus` và `rustype-fcitx5`, cùng `ibus-engine-rustype --doctor`. Thay bằng `rustype-linux`, và `rustype-linux --doctor`.
 
 ## [0.1.0] - 2026-11-07
 

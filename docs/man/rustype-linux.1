@@ -1,0 +1,92 @@
+.TH RUSTYPE-LINUX 1 "November 2026" "Rustype 0.1.0" "User Commands"
+.SH NAME
+rustype-linux \- Vietnamese input method bus and engine for GNOME Shell on Wayland
+.SH SYNOPSIS
+.B rustype-linux
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B rustype-linux
+is the Rustype input method for Linux. It is a single process, written in Rust with only the standard library, that speaks the IBus protocol to GNOME Shell and its libibus clients and runs the Rustype engine in the same process. It replaces both
+.B ibus-daemon
+and the former IBus engine.
+.PP
+Only GNOME Shell on Wayland is supported. Flatpak applications, KDE, Sway, Hyprland, other IBus engines and the IBus emoji panel are not supported. The
+.B ibus
+package stays installed because GNOME Shell needs libibus, but
+.B ibus-daemon
+does not run while Rustype is in use.
+.PP
+Normally the process is started by systemd as the user unit
+.IR org.freedesktop.IBus.session.GNOME.service ,
+which the installer points at
+.BR "rustype-linux --own-session-name" .
+.SH OPTIONS
+.TP
+.B \-\-doctor
+Run system diagnostic checks: installation, the bus, component registration, GNOME input sources, the GNOME Shell focus extension, and the configuration file. Prints a recommendation for each failing check.
+.TP
+.B \-\-write\-config
+Create the default configuration file at \fI~/.config/rustype/config\fR if it does not exist.
+.TP
+.B \-\-feed
+Read keystrokes from standard input and print the resulting text, without running a bus. Useful for quick checks of the Telex and VNI engine, for example:
+.B echo "Vieetj Nam" | rustype-linux --feed
+.TP
+.B \-\-own\-session\-name
+Connect to the session bus (\fBDBUS_SESSION_BUS_ADDRESS\fR) and claim the well-known name
+.BR org.freedesktop.IBus .
+This is the option the systemd unit uses.
+.TP
+.BI \-\-address " unix:path=PATH"
+Serve the bus on the given Unix socket. Without this option the socket is \fI$XDG_RUNTIME_DIR/rustype/bus\fR. Only \fBunix:path=\fR addresses are supported.
+.TP
+.B \-\-replace
+Take over an address file that points at a live bus. The previous process is not stopped by this option.
+.TP
+.B \-v\fR, \fB\-\-version
+Print the software version and exit.
+.TP
+.B \-h\fR, \fB\-\-help
+Display command-line help information and exit.
+.SH ENVIRONMENT
+.TP
+.B RUSTYPE_DEBUG
+When set (e.g. \fBRUSTYPE_DEBUG=1\fR), writes diagnostic logging to standard error. Debug output only records hardware key codes and input states, never the text typed or committed.
+.TP
+.B IBUS_ADDRESS, IBUS_ADDRESS_FILE
+Used by clients to find the bus. \fBIBUS_ADDRESS_FILE\fR names the address file that the process writes.
+.TP
+.B XDG_RUNTIME_DIR, XDG_CONFIG_HOME, XDG_CACHE_HOME
+Locations of the default socket, the configuration, and the address file.
+.SH FILES
+.TP
+.I ~/.config/rustype/config
+Main configuration file. Controls the input method (Telex or VNI), display mode, orthography, English word restoration, macros, and per-application modes.
+.TP
+.I ~/.config/rustype/macro
+Macro file with abbreviation mappings, one pair per line: \fIabbreviation:expansion\fR. Compatible with Unikey macro files.
+.TP
+.I ~/.config/rustype/words
+Custom list of English words that should never receive Vietnamese tone marks.
+.TP
+.I ~/.config/ibus/bus/
+Address file for the bus, written by the process so that libibus clients can find it.
+.TP
+.I /usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf
+Vendor drop-in installed by the package. It points the systemd user unit at
+.BR rustype-linux .
+A source install writes an equivalent drop-in under \fI~/.config/systemd/user/\fR.
+.SH PRIVACY & SECURITY
+.IP \(bu 2
+\fBNo network code:\fR the process uses only the standard library and a local Unix socket. It does not open network connections.
+.IP \(bu 2
+\fBNo keystroke logs:\fR keystrokes are held in memory while a word is being formed and discarded when it is committed or the focus changes. Nothing typed is written to disk.
+.IP \(bu 2
+\fBPassword and PIN fields:\fR keystrokes pass straight to the application when the input field reports the password or PIN purpose.
+.SH SEE ALSO
+.BR rustype-settings (1),
+.BR ibus (1)
+.SH AUTHORS
+Written and maintained by Nam Tran and the Rustype contributors.
+.SH COPYRIGHT
+Copyright \(co 2026 Nam Tran. Released under the terms of the MIT License.

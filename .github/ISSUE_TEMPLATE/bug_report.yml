@@ -22,14 +22,12 @@ body:
     id: desktop
     attributes:
       label: Môi trường Desktop (DE)
+      description: Linux chỉ được hỗ trợ trên GNOME Shell với Wayland. Nếu bạn dùng desktop khác, chọn mục cuối và ghi rõ tên trong phần mô tả.
       options:
-        - "GNOME (Mặc định Ubuntu / Debian / Fedora)"
-        - "KDE Plasma 6"
-        - "Sway / Hyprland (Wayland Tiling)"
-        - "XFCE / Cinnamon / MATE"
+        - "GNOME Shell trên Wayland (Ubuntu / Debian / Fedora)"
         - "Windows"
         - "macOS"
-        - "Khác"
+        - "Desktop Linux khác (không được hỗ trợ, ghi rõ tên)"
     validations:
       required: true
 
@@ -40,7 +38,7 @@ body:
       options:
         - "Wayland"
         - "X11 (Xorg)"
-        - "Không rõ / Nền tảng khác"
+        - "Không áp dụng / không rõ"
     validations:
       required: true
 
@@ -67,10 +65,10 @@ body:
     id: doctor_output
     attributes:
       label: Kết quả lệnh chẩn đoán (bắt buộc trên Linux)
-      description: Vui lòng chạy lệnh `ibus-engine-rustype --doctor` trong terminal (hoặc mở ứng dụng Cài đặt Rustype -> tab Giới thiệu -> Chạy chẩn đoán) và dán kết quả vào đây.
+      description: Vui lòng chạy lệnh `rustype-linux --doctor` trong terminal (hoặc mở ứng dụng Cài đặt Rustype -> tab Giới thiệu -> Chạy chẩn đoán) và dán kết quả vào đây.
       placeholder: |
-        [✓] Daemon ibus-daemon đang chạy
-        [✓] File đăng ký: /usr/share/ibus/component/rustype.xml tồn tại
+        [✓] Bus IBus của rustype-linux đang chạy
+        [✓] Nguồn nhập Rustype có trong GNOME
         ...
       render: shell
     validations:
