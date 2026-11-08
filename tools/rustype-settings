@@ -74,6 +74,53 @@ def strip_comment(line: str) -> str:
     return line
 
 
+def drop_macro_lines(text: str, key: str) -> str:
+    """Removes the lines whose macro key, parsed as load() does, equals key. Other lines stay."""
+    out = []
+    for line in text.splitlines(keepends=True):
+        body = strip_comment(line.rstrip("\r\n")).strip()
+        if ":" in body and body.split(":", 1)[0].strip() == key:
+            continue
+        out.append(line)
+    return "".join(out)
+
+
+def drop_word_lines(text: str, word: str) -> str:
+    """Removes the lines whose word, parsed as load() does, equals word. Other lines stay."""
+    out = []
+    for line in text.splitlines(keepends=True):
+        if strip_comment(line.rstrip("\r\n")).strip() == word:
+            continue
+        out.append(line)
+    return "".join(out)
+
+
+def rewrite_file(path: pathlib.Path, transform):
+    """Applies transform to the text of an existing file. Writes a sibling temp file, then renames
+    it over the target, following a symlink first, as the engine's config writer does. Returns None
+    on success or when the file is missing, otherwise the error text."""
+    if not path.exists():
+        return None
+    tmp = None
+    try:
+        target = path.resolve()
+        text = target.read_text(encoding="utf-8")
+        new = transform(text)
+        if new == text:
+            return None
+        tmp = target.with_name(f".{target.name}.tmp")
+        tmp.write_text(new, encoding="utf-8")
+        os.replace(tmp, target)
+    except (OSError, UnicodeError) as e:
+        if tmp is not None:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        return str(e)
+    return None
+
+
 class ConfigManager:
     def __init__(self):
         self.mode = "auto"
@@ -523,7 +570,11 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
     def delete_macro(self, key):
         self.cfg.macros.pop(key, None)
         self.cfg.save()
-        self.notify("Đã xóa từ gõ tắt")
+        err = rewrite_file(MACRO_FILE, lambda t: drop_macro_lines(t, key))
+        if err:
+            self.notify(f"Không thể cập nhật tệp macro: {err}")
+        else:
+            self.notify("Đã xóa từ gõ tắt")
 
     def on_add_macro_clicked(self, _):
         dialog = Adw.MessageDialog(
@@ -567,7 +618,11 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         if word in self.cfg.custom_words:
             self.cfg.custom_words.remove(word)
             self.cfg.save()
-            self.notify(f"Đã xóa từ: {word}")
+            err = rewrite_file(WORDS_FILE, lambda t: drop_word_lines(t, word))
+            if err:
+                self.notify(f"Không thể cập nhật tệp từ: {err}")
+            else:
+                self.notify(f"Đã xóa từ: {word}")
 
     def on_add_word_clicked(self, _):
         dialog = Adw.MessageDialog(
