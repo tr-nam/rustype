@@ -164,7 +164,7 @@
         <div class="download-card highlight-card">
           <div class="os-badge">Ubuntu / Debian</div>
           <h3>Gói cài đặt `.deb`</h3>
-          <p>Chỉ hỗ trợ GNOME Shell trên Wayland. Đã thử trên Ubuntu 26.04 với GNOME và Wayland. Các bản Ubuntu, Debian hay Linux Mint khác chưa được kiểm thử riêng. Sau khi cài cần đăng xuất rồi đăng nhập lại.</p>
+          <p>Chỉ hỗ trợ GNOME Shell trên Wayland. Đã thử trên Ubuntu 26.04 với GNOME và Wayland. Các bản Ubuntu, Debian hay Linux Mint khác chưa được kiểm thử riêng. Sau khi cài, Rustype hoạt động ngay trong phiên GNOME đang chạy, không cần đăng xuất.</p>
           <div class="code-box">
             <code>sudo apt install ./rustype_*.deb</code>
           </div>
@@ -243,7 +243,7 @@
         <details class="faq-item">
           <summary>Rustype trên GNOME hoạt động thế nào, và có những giới hạn gì?</summary>
           <div class="faq-answer">
-            <p>Trên GNOME, Rustype chạy là <strong>rustype-linux</strong>: một tiến trình duy nhất vừa là bus IBus vừa chứa engine gõ, thay cho ibus-daemon và engine cũ. Cài bằng gói .deb, hoặc bằng <code>./install.sh</code> từ mã nguồn (không cần sudo). Cài xong bằng gói thì cần đăng xuất rồi đăng nhập lại.</p>
+            <p>Trên GNOME, Rustype chạy là <strong>rustype-linux</strong>: một tiến trình duy nhất vừa là bus IBus vừa chứa engine gõ, thay cho ibus-daemon và engine cũ. Cài bằng gói .deb, hoặc bằng <code>./install.sh</code> từ mã nguồn (không cần sudo). Cài xong bằng gói thì Rustype dùng được ngay, không cần đăng xuất.</p>
             <p>Trong đo đạc trên một máy, vòng phím qua bus khoảng 0,2 ms so với 0,4–0,5 ms khi dùng ibus-daemon cộng engine cũ, và tiến trình dùng khoảng 3 MB RAM so với khoảng 59 MB. Các số này chưa tính GNOME Shell và ứng dụng, nên lợi ích khi gõ thực tế nhỏ hơn. Mới được thử trên một máy Ubuntu GNOME Wayland.</p>
             <p><strong>Không hỗ trợ:</strong> desktop khác như KDE Plasma, Sway, Hyprland, XFCE; ứng dụng Flatpak; các engine IBus khác; emoji panel của IBus. Nếu cần bộ gõ cho các môi trường này, Rustype hiện chưa phải lựa chọn phù hợp.</p>
           </div>

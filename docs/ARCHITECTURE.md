@@ -146,8 +146,8 @@ Hành vi mong đợi được ghi trong `rustype-core/tests/golden.tsv`. Đây l
 GNOME khởi động IBus qua unit systemd user `org.freedesktop.IBus.session.GNOME.service`. Rustype đưa `rustype-linux --own-session-name` vào chỗ đó bằng một drop-in:
 
 - **Cài từ mã nguồn** (`./install.sh`, không cần sudo): drop-in nằm trong `~/.config/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/override.conf`. Dòng `ExecStart=` trống xóa lệnh cũ, dòng sau trỏ tới `rustype-linux`. Script tự kiểm tra và tự khôi phục ibus nếu lỗi.
-- **Gói cài đặt**: drop-in của hệ thống nằm tại `/usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf`. Cần đăng xuất rồi đăng nhập lại.
-- **Quay về ibus-daemon**: `./uninstall.sh` với bản cài từ mã nguồn. Gói cài đặt thì gỡ gói, rồi đăng xuất và đăng nhập lại.
+- **Gói cài đặt**: drop-in của hệ thống nằm tại `/usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf`. Khi cài, postinst chạy `rustype-linux --activate --restart` cho mọi người dùng đang đăng nhập, nên không cần đăng xuất. Người dùng đăng nhập sau được kích hoạt bởi `/etc/xdg/autostart/dev.namtr.RustypeActivate.desktop`.
+- **Quay về ibus-daemon**: `./uninstall.sh` với bản cài từ mã nguồn. Gói cài đặt thì gỡ gói: prerm bỏ Rustype khỏi nguồn nhập, postrm khởi động lại IBus.
 
 `ibus` vẫn phải được cài, vì GNOME Shell cần libibus. ibus-daemon không chạy khi đang dùng Rustype.
 

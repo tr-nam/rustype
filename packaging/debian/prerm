@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove)
+        # Gỡ Rustype khỏi nguồn nhập của mọi người dùng đang đăng nhập. Chỉ khi gỡ cài đặt, không
+        # khi nâng cấp. Mỗi lệnh có timeout, nhận stdin từ /dev/null, và lỗi không làm hỏng gói.
+        # RUSTYPE_RUNTIME_ROOT chỉ dùng để thử nghiệm.
+        runtime_root="${RUSTYPE_RUNTIME_ROOT:-/run/user}"
+        for bus in "$runtime_root"/*/bus; do
+            [ -e "$bus" ] || continue
+            uid=$(basename "$(dirname "$bus")")
+            case "$uid" in ''|*[!0-9]*) continue ;; esac
+            [ "$uid" -ge 1000 ] 2>/dev/null || continue
+            name=$(getent passwd "$uid" 2>/dev/null | cut -d: -f1) || continue
+            [ -n "$name" ] || continue
+            runuser -u "$name" -- env XDG_RUNTIME_DIR="$runtime_root/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_root/$uid/bus" timeout 20 /usr/libexec/rustype-linux --deactivate </dev/null >/dev/null 2>&1 || true
+        done
+        ;;
+
+    upgrade|deconfigure|failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

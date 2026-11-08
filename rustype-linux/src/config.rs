@@ -107,6 +107,27 @@ pub(crate) fn path() -> Option<PathBuf> {
     Some(base.join("rustype").join("config"))
 }
 
+/// Writes the sample configuration to `p` unless a file is already there. Returns whether it was
+/// written; an existing file is never touched.
+pub(crate) fn create_default(p: &std::path::Path) -> std::io::Result<bool> {
+    use std::io::Write;
+    if let Some(dir) = p.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(p)
+    {
+        Ok(mut f) => {
+            f.write_all(DEFAULT_FILE.as_bytes())?;
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 /// True for a line whose key is exactly `input_method`: `input_method = x` or `input_method=x`.
 fn is_input_method_line(line: &str) -> bool {
     line.trim_start()

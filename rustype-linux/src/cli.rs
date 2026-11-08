@@ -1,7 +1,7 @@
 //! Command line of `rustype-linux`: the daemon by default, and the tools around it.
 
 use crate::dbus::{Connection, METHOD_CALL};
-use crate::{addrfile, config, doctor, server, service, sys};
+use crate::{activate, addrfile, config, doctor, server, service, sys};
 use rustype_core::telex;
 use std::io::{self, BufRead, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const USAGE: &str = "\
 usage: rustype-linux [--address unix:path=PATH] [--replace] [--own-session-name]
-       rustype-linux --write-config | --doctor | --feed | --version";
+       rustype-linux --write-config | --doctor | --feed | --version
+       rustype-linux --activate [--restart] | --deactivate";
 
 #[derive(Debug, Default)]
 struct Opts {
@@ -25,12 +26,17 @@ enum Command {
     WriteConfig,
     Doctor,
     Feed,
+    Activate { restart: bool },
+    Deactivate,
     Version,
     Help,
 }
 
 fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Command, String> {
     let mut opts = Opts::default();
+    let mut activate = false;
+    let mut deactivate = false;
+    let mut restart = false;
     while let Some(a) = args.next() {
         match a.as_str() {
             "--version" => return Ok(Command::Version),
@@ -38,6 +44,9 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Command, String
             "--write-config" => return Ok(Command::WriteConfig),
             "--doctor" => return Ok(Command::Doctor),
             "--feed" => return Ok(Command::Feed),
+            "--activate" => activate = true,
+            "--deactivate" => deactivate = true,
+            "--restart" => restart = true,
             "--replace" => opts.replace = true,
             "--own-session-name" => opts.own_session_name = true,
             "--address" => {
@@ -52,7 +61,13 @@ fn parse_args<I: Iterator<Item = String>>(mut args: I) -> Result<Command, String
             }
         }
     }
-    Ok(Command::Run(opts))
+    match (activate, deactivate, restart) {
+        (true, true, _) => Err("--activate and --deactivate cannot be combined".into()),
+        (false, _, true) => Err("--restart goes with --activate".into()),
+        (true, false, restart) => Ok(Command::Activate { restart }),
+        (false, true, false) => Ok(Command::Deactivate),
+        (false, false, false) => Ok(Command::Run(opts)),
+    }
 }
 
 /// The socket path from `--address unix:path=...` (abstract sockets are not supported yet).
@@ -219,17 +234,13 @@ fn write_config() {
     let Some(p) = config::path() else {
         std::process::exit(1)
     };
-    if p.exists() {
-        println!("{} đã có, giữ nguyên", p.display());
-    } else {
-        if let Some(dir) = p.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        if let Err(e) = std::fs::write(&p, config::DEFAULT_FILE) {
+    match config::create_default(&p) {
+        Ok(true) => println!("đã tạo {}", p.display()),
+        Ok(false) => println!("{} đã có, giữ nguyên", p.display()),
+        Err(e) => {
             eprintln!("rustype: {e}");
             std::process::exit(1);
         }
-        println!("đã tạo {}", p.display());
     }
 }
 
@@ -251,6 +262,9 @@ pub fn main() {
         Ok(Command::WriteConfig) => write_config(),
         Ok(Command::Doctor) => doctor::run(),
         Ok(Command::Feed) => feed(),
+        // Always exits 0: these run from package scripts and autostart, and must never fail them.
+        Ok(Command::Activate { restart }) => activate::activate(restart),
+        Ok(Command::Deactivate) => activate::deactivate(),
         Ok(Command::Run(opts)) => {
             if let Err(e) = run(opts) {
                 eprintln!("rustype-linux: {e}");
@@ -309,5 +323,25 @@ mod tests {
             parse_args(std::iter::empty()),
             Ok(Command::Run(_))
         ));
+    }
+
+    #[test]
+    fn activation_flags_parse() {
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        assert!(matches!(
+            parse_args(s(&["--activate"]).into_iter()),
+            Ok(Command::Activate { restart: false })
+        ));
+        assert!(matches!(
+            parse_args(s(&["--restart", "--activate"]).into_iter()),
+            Ok(Command::Activate { restart: true })
+        ));
+        assert!(matches!(
+            parse_args(s(&["--deactivate"]).into_iter()),
+            Ok(Command::Deactivate)
+        ));
+        assert!(parse_args(s(&["--restart"]).into_iter()).is_err());
+        assert!(parse_args(s(&["--deactivate", "--restart"]).into_iter()).is_err());
+        assert!(parse_args(s(&["--activate", "--deactivate"]).into_iter()).is_err());
     }
 }

@@ -50,6 +50,7 @@ mkdir -p "$STAGING/usr/libexec" \
          "$STAGING/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev" \
          "$STAGING/usr/share/man/man1" \
          "$STAGING/usr/share/doc/rustype" \
+         "$STAGING/etc/xdg/autostart" \
          "$STAGING/DEBIAN"
 
 # 4. Sao chép và phân quyền nhị phân & script
@@ -59,7 +60,7 @@ ln -sf ../libexec/rustype-linux "$STAGING/usr/bin/rustype-linux"
 install -m755 "$ROOT_DIR/tools/rustype-settings" "$STAGING/usr/bin/rustype-settings"
 install -m644 "$ROOT_DIR/tools/dev.namtr.RustypeSettings.desktop" "$STAGING/usr/share/applications/dev.namtr.RustypeSettings.desktop"
 
-# Drop-in cho unit IBus của GNOME: ibus-daemon được thay bằng rustype-linux sau khi đăng nhập lại
+# Drop-in cho unit IBus của GNOME: ibus-daemon được thay bằng rustype-linux
 install -m644 "$ROOT_DIR/packaging/systemd/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf" \
     "$STAGING/usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf"
 
@@ -72,6 +73,10 @@ done
 mkdir -p "$STAGING/usr/share/icons/hicolor/scalable/apps"
 install -m644 "$ROOT_DIR/assets/icons/scalable/rustype.svg" "$STAGING/usr/share/icons/hicolor/scalable/apps/rustype.svg"
 ln -sf rustype.svg "$STAGING/usr/share/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg"
+
+# Autostart: kích hoạt Rustype ở các lần đăng nhập GNOME sau và cho người dùng khác
+install -m644 "$ROOT_DIR/packaging/autostart/dev.namtr.RustypeActivate.desktop" \
+    "$STAGING/etc/xdg/autostart/dev.namtr.RustypeActivate.desktop"
 
 # GNOME Shell extension
 cp -a "$ROOT_DIR/gnome-shell-extension/rustype-focus@namtr.dev/"* "$STAGING/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev/"
@@ -99,6 +104,7 @@ echo "Installed-Size: ${INSTALLED_SIZE}" >> "$STAGING/DEBIAN/control"
 
 install -m755 "$ROOT_DIR/packaging/debian/postinst" "$STAGING/DEBIAN/postinst"
 install -m755 "$ROOT_DIR/packaging/debian/postrm" "$STAGING/DEBIAN/postrm"
+install -m755 "$ROOT_DIR/packaging/debian/prerm" "$STAGING/DEBIAN/prerm"
 
 # Chuẩn hóa quyền thư mục và tập tin theo chuẩn Debian
 find "$STAGING" -type d -exec chmod 755 {} +

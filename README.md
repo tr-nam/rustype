@@ -82,7 +82,7 @@ Chỉ hỗ trợ GNOME Shell trên Wayland. Các desktop và kiểu ứng dụng
 ```bash
 sudo apt install ./rustype_*.deb
 ```
-Sau khi cài, đăng xuất rồi đăng nhập lại.
+Sau khi cài, Rustype hoạt động ngay trong phiên GNOME đang chạy, không cần đăng xuất. Nhấn Super+Space để chuyển bộ gõ.
 
 **Cài từ mã nguồn** (cần Rust qua [rustup](https://rustup.rs)):
 ```bash
@@ -96,7 +96,7 @@ Gói `ibus` vẫn phải được cài, vì GNOME Shell cần thư viện libibu
 ```bash
 ./uninstall.sh
 ```
-Với gói `.deb`, gỡ bằng `sudo apt remove rustype`, rồi đăng xuất và đăng nhập lại.
+Với gói `.deb`, gỡ bằng `sudo apt remove rustype`. Gói tự bỏ Rustype khỏi nguồn nhập và khởi động lại IBus, không cần đăng xuất.
 
 ### 2. Windows
 1. Tải file `rustype.exe` hoặc `rustype-v*-windows-x86_64.zip` từ mục Releases.

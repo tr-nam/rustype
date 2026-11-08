@@ -13,8 +13,28 @@ case "$1" in
             gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
         fi
 
-        # Không khởi động lại IBus từ root: phiên GNOME đang chạy sẽ dùng rustype-linux sau khi đăng nhập lại.
-        echo "Rustype: để bật rustype-linux làm bộ gõ, hãy đăng xuất rồi đăng nhập lại phiên GNOME."
+        # Kích hoạt Rustype cho mọi người dùng đang đăng nhập (uid >= 1000 có bus trong /run/user).
+        # Mỗi lệnh có timeout, nhận stdin từ /dev/null, và lỗi không làm hỏng gói. Không dùng
+        # "ibus restart" ở đây: lệnh đó từng bị treo (xem commit 5713986).
+        # RUSTYPE_RUNTIME_ROOT chỉ dùng để thử nghiệm.
+        runtime_root="${RUSTYPE_RUNTIME_ROOT:-/run/user}"
+        active=0
+        for bus in "$runtime_root"/*/bus; do
+            [ -e "$bus" ] || continue
+            uid=$(basename "$(dirname "$bus")")
+            case "$uid" in ''|*[!0-9]*) continue ;; esac
+            [ "$uid" -ge 1000 ] 2>/dev/null || continue
+            name=$(getent passwd "$uid" 2>/dev/null | cut -d: -f1) || continue
+            [ -n "$name" ] || continue
+            active=1
+            runuser -u "$name" -- env XDG_RUNTIME_DIR="$runtime_root/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_root/$uid/bus" timeout 20 /usr/libexec/rustype-linux --activate --restart </dev/null >/dev/null 2>&1 || true
+        done
+
+        if [ "$active" = 1 ]; then
+            echo "Rustype đã sẵn sàng, nhấn Super+Space để chuyển bộ gõ."
+        else
+            echo "Rustype sẽ được kích hoạt ở lần đăng nhập GNOME tiếp theo."
+        fi
         ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

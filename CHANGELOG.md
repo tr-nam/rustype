@@ -8,6 +8,7 @@
 - `rustype-linux` thay thế engine IBus và addon Fcitx5. Đây là một tiến trình duy nhất, gồm bus IBus và engine, và là đường cài đặt mặc định trên Linux. `./install.sh` không cần sudo và tự khôi phục ibus nếu có lỗi. `./uninstall.sh` quay về ibus-daemon.
 - Linux chỉ hỗ trợ GNOME Shell trên Wayland. Ứng dụng Flatpak, KDE, Sway, Hyprland, engine IBus khác và emoji panel chưa được hỗ trợ.
 - Chế độ `mode = direct` không còn gửi phím BackSpace giả. Ứng dụng không có Surrounding Text dùng preedit.
+- Gói `.deb` dùng được ngay sau khi cài, không cần đăng xuất: postinst chạy `rustype-linux --activate --restart` cho người dùng đang đăng nhập, và autostart kích hoạt cho các lần đăng nhập sau. `rustype-linux --activate` thêm Rustype vào nguồn nhập GNOME một lần, và `--deactivate` bỏ đi. Khi gỡ gói, prerm bỏ Rustype khỏi nguồn nhập và postrm khởi động lại IBus.
 
 ### Sửa lỗi
 - Thanh địa chỉ Chrome: ô URL dùng Surrounding Text không gạch chân, giữ được gợi ý và phím Enter. Khi Chrome bỏ qua lệnh xóa vì đang chọn gợi ý, engine xóa phần đuôi rồi commit lại từ.

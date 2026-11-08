@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Rustype
+Comment=Kích hoạt Rustype cho phiên GNOME
+Exec=/usr/libexec/rustype-linux --activate
+OnlyShowIn=GNOME;
+NoDisplay=true

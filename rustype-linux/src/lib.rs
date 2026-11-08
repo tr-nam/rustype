@@ -4,6 +4,7 @@
 pub mod config;
 pub mod ime;
 
+mod activate;
 mod addrfile;
 mod bus;
 mod cli;

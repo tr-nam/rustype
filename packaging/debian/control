@@ -13,9 +13,9 @@ Description: Lightweight Vietnamese input method for GNOME (IBus)
  .
  Key features:
   * Pure Rust engine with zero external C/GUI dependencies in core.
-  * Extremely low resource footprint (~450 KB binary, ~2.5 MB RAM).
+  * Low resource footprint (about 800 KB binary, about 3 MB RAM).
   * Full Telex and VNI support with modern and traditional orthography.
   * Intelligent application-specific behavior (terminal preedit, direct mode).
   * Native GTK4 Libadwaita settings app with automatic Dark/Light theme.
   * Built-in system diagnostic health check (rustype-linux --doctor).
-  * 100% offline with zero network connectivity and zero keylogging.
+  * The typing engine never uses the network and does not log keystrokes.

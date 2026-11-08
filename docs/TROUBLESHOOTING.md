@@ -35,7 +35,7 @@ Thêm `-f` để xem nhật ký theo thời gian thực khi thử lại. Nhật 
 
 - Nếu `rustype-linux --doctor` báo file đăng ký hoặc nguồn nhập bị thiếu: chạy lại `./install.sh` trong thư mục dự án (bản cài từ mã nguồn), hoặc cài lại gói `.deb`.
 - Nếu có Rustype trong danh sách nhưng không chọn được: vào Cài đặt, mục Bàn phím, thêm nguồn nhập "Rustype (Tiếng Việt)".
-- Vừa cài gói `.deb` mà vẫn không thấy: đăng xuất rồi đăng nhập lại. Gói cài đặt cần một lần đăng nhập mới để drop-in systemd có hiệu lực.
+- Vừa cài gói `.deb` mà vẫn không thấy: chạy `rustype-linux --activate --restart` trong terminal, rồi thử lại. Lần đăng nhập GNOME tiếp theo cũng tự kích hoạt Rustype.
 
 ## Đã chọn Rustype nhưng gõ không ra dấu
 
@@ -95,7 +95,7 @@ Nếu muốn dùng lại bộ gõ IBus mặc định:
 
 Chạy lệnh này trong thư mục dự án khi cài từ mã nguồn. Script xóa drop-in của Rustype và khởi động lại IBus. Cấu hình trong `~/.config/rustype` được giữ lại.
 
-Nếu đã cài gói `.deb`, gỡ gói bằng `sudo apt remove rustype`, rồi đăng xuất và đăng nhập lại.
+Nếu đã cài gói `.deb`, gỡ gói bằng `sudo apt remove rustype`. Gói tự bỏ Rustype khỏi nguồn nhập và khởi động lại IBus, không cần đăng xuất.
 
 Nếu `./uninstall.sh` không chạy được, làm thủ công:
 

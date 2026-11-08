@@ -12,6 +12,7 @@ const DROPIN_DIR: &str = "org.freedesktop.IBus.session.GNOME.service.d";
 const PACKAGED_DROPIN: &str =
     "/usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf";
 const EXTENSION: &str = "rustype-focus@namtr.dev";
+const SYSTEM_EXTENSION_DIR: &str = "/usr/share/gnome-shell/extensions";
 const INPUT_SOURCE: &str = "('ibus', 'rustype')";
 
 #[derive(Clone, Copy)]
@@ -234,11 +235,16 @@ fn input_source_check(r: &mut Report) {
     }
 }
 
+/// Whether the focus extension is installed: from a source install (under HOME) or from the
+/// package (under /usr/share).
+fn extension_installed(user_dir: Option<&Path>, system_dir: &Path) -> bool {
+    user_dir.is_some_and(Path::exists) || system_dir.exists()
+}
+
 fn extension_check(r: &mut Report) {
-    let Some(dir) = home_join(&format!(".local/share/gnome-shell/extensions/{EXTENSION}")) else {
-        return;
-    };
-    if dir.exists() {
+    let user = home_join(&format!(".local/share/gnome-shell/extensions/{EXTENSION}"));
+    let system = Path::new(SYSTEM_EXTENSION_DIR).join(EXTENSION);
+    if extension_installed(user.as_deref(), &system) {
         r.check(
             Level::Ok,
             format!("GNOME Shell extension: đã cài đặt ({EXTENSION})"),
@@ -306,5 +312,24 @@ fn summary(r: &Report) {
         println!(
             "Rustype có thể hoạt động được. Xem các cảnh báo [!] để có trải nghiệm tối ưu nhất."
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extension_is_found_under_home_or_the_package_path() {
+        let base = std::env::temp_dir().join(format!("rustype-doctor-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let user = base.join("user").join(EXTENSION);
+        let system = base.join("system").join(EXTENSION);
+        assert!(!extension_installed(Some(&user), &system));
+        assert!(!extension_installed(None, &system));
+        std::fs::create_dir_all(&system).unwrap();
+        assert!(extension_installed(Some(&user), &system));
+        assert!(extension_installed(None, &system));
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

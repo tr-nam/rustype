@@ -4,6 +4,12 @@ rustype-linux \- Vietnamese input method bus and engine for GNOME Shell on Wayla
 .SH SYNOPSIS
 .B rustype-linux
 [\fIOPTIONS\fR]
+.br
+.B rustype-linux
+.BR \-\-activate " [" \-\-restart ]
+.br
+.B rustype-linux
+.B \-\-deactivate
 .SH DESCRIPTION
 .B rustype-linux
 is the Rustype input method for Linux. It is a single process, written in Rust with only the standard library, that speaks the IBus protocol to GNOME Shell and its libibus clients and runs the Rustype engine in the same process. It replaces both
@@ -27,6 +33,17 @@ Run system diagnostic checks: installation, the bus, component registration, GNO
 .TP
 .B \-\-write\-config
 Create the default configuration file at \fI~/.config/rustype/config\fR if it does not exist.
+.TP
+.B \-\-activate
+Make Rustype usable in the current user's GNOME session. Does nothing when the session has no
+.IR org.freedesktop.IBus.session.GNOME.service
+unit, so it is safe to run for any user. Otherwise it creates the configuration file if it is missing and, on the first run only, adds Rustype to the GNOME input sources (after the first entry, or as the only entry when the list is empty) and enables the focus extension. A stamp file \fI~/.config/rustype/activated\fR records that this was done, so a source the user later removes is not added back. The command never prompts and always exits with status 0.
+.TP
+.B \-\-restart
+With \fB\-\-activate\fR, reload the systemd user manager and restart the IBus unit without waiting, but only when its main process runs a different executable, for example ibus-daemon, or an older rustype-linux that was replaced by an upgrade.
+.TP
+.B \-\-deactivate
+Remove Rustype from the GNOME input sources and delete the stamp file, so that the next \fB\-\-activate\fR adds it again. The configuration file is kept.
 .TP
 .B \-\-feed
 Read keystrokes from standard input and print the resulting text, without running a bus. Useful for quick checks of the Telex and VNI engine, for example:
@@ -68,6 +85,12 @@ Macro file with abbreviation mappings, one pair per line: \fIabbreviation:expans
 .TP
 .I ~/.config/rustype/words
 Custom list of English words that should never receive Vietnamese tone marks.
+.TP
+.I ~/.config/rustype/activated
+Stamp written by \fB\-\-activate\fR. While it exists, activation does not add the input source again.
+.TP
+.I /etc/xdg/autostart/dev.namtr.RustypeActivate.desktop
+Installed by the package. It runs \fB\-\-activate\fR at each GNOME login, so the user and later logins are covered.
 .TP
 .I ~/.config/ibus/bus/
 Address file for the bus, written by the process so that libibus clients can find it.
