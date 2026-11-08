@@ -41,7 +41,7 @@ install: build
 	install -Dm755 tools/rustype-settings $(DESTDIR)$(PREFIX)/bin/rustype-settings
 	install -Dm644 tools/dev.namtr.RustypeSettings.desktop $(DESTDIR)$(PREFIX)/share/applications/dev.namtr.RustypeSettings.desktop
 	mkdir -p $(DESTDIR)$(PREFIX)/share/ibus/component
-	target/release/ibus-engine-rustype --xml > $(DESTDIR)$(PREFIX)/share/ibus/component/rustype.xml
+	target/release/ibus-engine-rustype --xml $(PREFIX)/libexec/ibus-engine-rustype > $(DESTDIR)$(PREFIX)/share/ibus/component/rustype.xml
 	for s in 16 32 48 64 128 256 512; do \
 		install -Dm644 assets/icons/$${s}x$${s}/rustype.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/$${s}x$${s}/apps/rustype.png; \
 		ln -sf rustype.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/$${s}x$${s}/apps/dev.namtr.RustypeSettings.png; \
@@ -60,7 +60,9 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/share/ibus/component/rustype.xml
 	rm -rf $(DESTDIR)$(PREFIX)/share/gnome-shell/extensions/rustype-focus@namtr.dev
 	rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/*/apps/rustype.png
+	rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/*/apps/dev.namtr.RustypeSettings.png
 	rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/rustype.svg
+	rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg
 	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/ibus-engine-rustype.1
 	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/rustype-settings.1
 

@@ -77,6 +77,7 @@ jobs:
           mkdir -p "$STAGING" "dist"
           cp target/release/ibus-engine-rustype "$STAGING/"
           cp -r tools assets gnome-shell-extension install.sh uninstall.sh Makefile LICENSE README.md docs "$STAGING/"
+          cp -r Cargo.toml Cargo.lock rustype-core rustype-ibus rustype-linux rustype-windows "$STAGING/"
           tar -czvf "dist/$TAR_NAME" -C target/tar-staging "rustype-${VERSION}"
           cp target/packages/*.deb dist/
 

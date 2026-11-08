@@ -62,6 +62,17 @@ def get_installed_version() -> str:
     return "0.1.0"
 
 
+def strip_comment(line: str) -> str:
+    """Drops a trailing '#' comment; a '#' inside double quotes is part of the value."""
+    in_quotes = False
+    for i, ch in enumerate(line):
+        if ch == '"':
+            in_quotes = not in_quotes
+        elif ch == "#" and not in_quotes:
+            return line[:i]
+    return line
+
+
 class ConfigManager:
     def __init__(self):
         self.mode = "auto"
@@ -80,7 +91,7 @@ class ConfigManager:
         if CONFIG_FILE.exists():
             section = ""
             for line in CONFIG_FILE.read_text(encoding="utf-8").splitlines():
-                line = line.split("#")[0].strip()
+                line = strip_comment(line).strip()
                 if not line:
                     continue
                 if line.startswith("[") and line.endswith("]"):
@@ -128,7 +139,7 @@ class ConfigManager:
 
         if MACRO_FILE.exists():
             for line in MACRO_FILE.read_text(encoding="utf-8").splitlines():
-                line = line.split("#")[0].strip()
+                line = strip_comment(line).strip()
                 if ":" in line:
                     k, v = line.split(":", 1)
                     if k.strip():
@@ -136,7 +147,7 @@ class ConfigManager:
 
         if WORDS_FILE.exists():
             for line in WORDS_FILE.read_text(encoding="utf-8").splitlines():
-                w = line.split("#")[0].strip()
+                w = strip_comment(line).strip()
                 if w and w not in self.custom_words:
                     self.custom_words.append(w)
 

@@ -65,6 +65,11 @@ EOF
         install -Dm644 "assets/icons/${s}x${s}/rustype.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/rustype.png"
     done
     install -Dm644 "assets/icons/scalable/rustype.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/rustype.svg"
+    # Icon links used by the settings app's desktop entry (same as the deb and rpm packages)
+    for s in 16 32 48 64 128 256 512; do
+        ln -sf rustype.png "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/dev.namtr.RustypeSettings.png"
+    done
+    ln -sf rustype.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/dev.namtr.RustypeSettings.svg"
 
     # Install GNOME Shell extension
     mkdir -p "$pkgdir/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev"

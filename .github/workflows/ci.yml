@@ -45,6 +45,9 @@ jobs:
           target/release/ibus-engine-rustype --xml > /tmp/rustype.xml
           tools/ibus_sandbox_test.sh "$PWD/target/release/ibus-engine-rustype" /tmp/rustype.xml rustype
 
+      - name: rustype-linux sandbox test
+        run: tools/rustype_linux_sandbox.sh "$PWD/target/release/rustype-linux"
+
   package:
     name: Test Packaging (.deb)
     runs-on: ubuntu-latest
