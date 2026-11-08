@@ -1,3 +1,16 @@
+rustype (0.1.1-1) unstable; urgency=medium
+
+  * Replace the IBus engine with rustype-linux, one process for GNOME.
+  * Usable right after installation, without logging out.
+  * Fix typing in the Chrome address bar.
+  * Fix VNI spelling of ươ after h, kh and th (hương, thường, thước).
+  * Accept Vietnamese syllables that were treated as English words
+    (môn, nôn, bể, bổ, mổ, rôm, sên, têm).
+  * Start normally when a stale address file names an unrelated process.
+  * Settings: deleted macros and words no longer come back.
+
+ -- Nam Tran <support@namtr.dev>  Mon, 09 Nov 2026 00:20:12 +0700
+
 rustype (0.1.0-1) unstable; urgency=medium
 
   * Initial release of Rustype for Debian and Ubuntu.

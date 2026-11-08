@@ -4,6 +4,8 @@
 
 ## [Chưa phát hành]
 
+## [0.1.1] - 2026-11-09
+
 ### Thay đổi quan trọng
 - `rustype-linux` thay thế engine IBus và addon Fcitx5. Đây là một tiến trình duy nhất, gồm bus IBus và engine, và là đường cài đặt mặc định trên Linux. `./install.sh` không cần sudo và tự khôi phục ibus nếu có lỗi. `./uninstall.sh` quay về ibus-daemon.
 - Linux chỉ hỗ trợ GNOME Shell trên Wayland. Ứng dụng Flatpak, KDE, Sway, Hyprland, engine IBus khác và emoji panel chưa được hỗ trợ.
@@ -11,11 +13,16 @@
 - Gói `.deb` dùng được ngay sau khi cài, không cần đăng xuất: postinst chạy `rustype-linux --activate --restart` cho người dùng đang đăng nhập, và autostart kích hoạt cho các lần đăng nhập sau. `rustype-linux --activate` thêm Rustype vào nguồn nhập GNOME một lần, và `--deactivate` bỏ đi. Khi gỡ gói, prerm bỏ Rustype khỏi nguồn nhập và postrm khởi động lại IBus.
 
 ### Sửa lỗi
+- VNI gõ đúng các từ có `ươ` sau `h`, `kh`, `th`, như "hương", "thường", "thước", "khương". Telex `huouw` và `khuouw` ra "hươu" và "khươu".
+- Gõ được các âm tiết từng bị coi là từ tiếng Anh: "môn", "nôn", "bể", "bổ", "mổ", "rôm", "sên", "têm". Vì vậy `moon`, `noon`, `beer`, `boor`, `moor`, `room`, `seen`, `teem` giờ ra tiếng Việt; muốn giữ tiếng Anh thì thêm vào danh sách từ riêng.
+- Không còn mất bộ gõ khi đăng nhập sau mất điện hoặc crash: file địa chỉ cũ có PID trùng một tiến trình khác không còn chặn `rustype-linux` khởi động.
+- Ứng dụng Cài đặt: từ gõ tắt và từ riêng đã xóa không còn quay lại.
 - Thanh địa chỉ Chrome: ô URL dùng Surrounding Text không gạch chân, giữ được gợi ý và phím Enter. Khi Chrome bỏ qua lệnh xóa vì đang chọn gợi ý, engine xóa phần đuôi rồi commit lại từ.
 - Backspace mở lại được từ vừa bị đóng băng để sửa tiếp.
 - Gõ `uu` rồi phím móc `w` đặt dấu móc lên u đầu: `uuw` ra "ưu", `Luuw` ra "Lưu".
 
 ### Thêm
+- Test tự sinh âm tiết tiếng Việt và gõ thử bằng cả Telex và VNI (`rustype-core/tests/syllables.rs`).
 - Tài liệu: kiến trúc, phát triển, xử lý sự cố, lộ trình, bảng tương thích ứng dụng (`docs/COMPATIBILITY.md`).
 - File giấy phép MIT cho Rustype.
 - Bộ kết quả chuẩn `rustype-core/tests/golden.tsv` gồm 14.710 chuỗi phím, kiểm tra trong `cargo test`, và công cụ `tools/golden.py` để xem và ghi nhận khác biệt khi đổi luật gõ.
