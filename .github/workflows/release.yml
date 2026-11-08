@@ -74,8 +74,9 @@ jobs:
           TAR_NAME="rustype-${TAG}-linux-x86_64.tar.gz"
           STAGING="target/tar-staging/rustype-${VERSION}"
           rm -rf "target/tar-staging"
-          mkdir -p "$STAGING" "dist"
-          cp target/release/rustype-linux "$STAGING/"
+          mkdir -p "$STAGING/bin" "dist"
+          # In bin/: the rustype-linux source directory is copied to the staging root below.
+          cp target/release/rustype-linux "$STAGING/bin/"
           cp -r tools assets gnome-shell-extension install.sh uninstall.sh Makefile LICENSE README.md docs "$STAGING/"
           cp -r Cargo.toml Cargo.lock rustype-core rustype-linux rustype-windows "$STAGING/"
           tar -czvf "dist/$TAR_NAME" -C target/tar-staging "rustype-${VERSION}"
