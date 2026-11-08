@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rustype - Bộ gõ tiếng Việt siêu nhẹ, hiệu năng cao viết bằng Rust</title>
-  <meta name="description" content="Bộ gõ tiếng Việt siêu nhẹ, hiệu năng cao viết hoàn toàn bằng Pure Rust cho Linux (Wayland & X11), Windows và macOS. Gõ mượt trong terminal, không lặp chữ, bảo mật 100% offline.">
+  <title>Rustype - Bộ gõ tiếng Việt siêu nhẹ, viết bằng Rust</title>
+  <meta name="description" content="Bộ gõ tiếng Việt siêu nhẹ, viết bằng Rust, cho Linux (Wayland & X11), Windows và macOS. Trong terminal trên GNOME Wayland chữ không bị lặp, và engine gõ không kết nối mạng.">
   <link rel="icon" type="image/svg+xml" href="rustype.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -34,11 +34,12 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="container hero-content">
-      <div class="badge">🚀 Phiên bản 0.1.1 • 100% Pure Rust • Bộ nhớ ~2.5 MB RAM</div>
+      <div class="badge">🚀 Phiên bản 0.1.0 • Lõi Rust thuần • Khoảng 2,6 MB RAM</div>
       <h1 class="hero-title">Bộ gõ tiếng Việt siêu nhẹ, dứt khoát trên Wayland</h1>
       <p class="hero-desc">
-        Viết hoàn toàn bằng Rust thuần, tối ưu sâu cho Ubuntu GNOME trên Wayland, Windows và macOS.
-        Giải quyết dứt điểm vấn đề lặp chữ trong Terminal, nháy màn hình, và mất chữ khi nhấp chuột.
+        Lõi gõ viết bằng Rust thuần, không dùng thư viện ngoài, được thử kỹ nhất trên Ubuntu GNOME chạy Wayland.
+        Trong terminal trên GNOME Wayland, chữ không bị lặp, và bấm chuột lúc đang gõ dở không làm mất chữ.
+        Bản Windows và macOS đã có, nhưng ít được kiểm chứng hơn bản Linux.
       </p>
       <div class="hero-actions">
         <a href="#download" class="btn btn-primary">Tải về cho Linux (.deb)</a>
@@ -46,16 +47,16 @@
       </div>
       <div class="hero-stats">
         <div class="stat-item">
-          <span class="stat-val">&lt; 2.5 MB</span>
-          <span class="stat-lbl">Bộ nhớ RAM</span>
+          <span class="stat-val">~ 2,6 MB</span>
+          <span class="stat-lbl">RAM của engine</span>
         </div>
         <div class="stat-item">
-          <span class="stat-val">~ 450 KB</span>
-          <span class="stat-lbl">Dung lượng Binary</span>
+          <span class="stat-val">~ 620 KB</span>
+          <span class="stat-lbl">Dung lượng binary</span>
         </div>
         <div class="stat-item">
-          <span class="stat-val">0.3 µs</span>
-          <span class="stat-lbl">Độ trễ mỗi phím</span>
+          <span class="stat-val">~ 0,4 µs</span>
+          <span class="stat-lbl">Xử lý mỗi phím (trung bình)</span>
         </div>
         <div class="stat-item">
           <span class="stat-val">0%</span>
@@ -88,13 +89,13 @@
           <button id="btn-clear-demo" class="btn-sm">Xóa trắng</button>
         </div>
 
-        <textarea id="demo-textarea" placeholder="Nhấp vào đây và bắt đầu gõ thử tiếng Việt... (Ví dụ Telex: 'Vieetj Nam', 'khoer', 'window' hoặc VNI: 'Viet65 Nam')"></textarea>
+        <textarea id="demo-textarea" placeholder="Nhấp vào đây và bắt đầu gõ thử tiếng Việt... (Ví dụ Telex: 'Vieetj Nam', 'khoer', 'window' hoặc VNI: 'Vie6t5 Nam')"></textarea>
 
         <div class="demo-hints">
           <span>💡 <strong>Gợi ý thử nghiệm:</strong></span>
           <span class="hint-tag" onclick="insertHint('Vieetj Nam ')">Vieetj Nam</span>
           <span class="hint-tag" onclick="insertHint('hoa rooi ')">hoa rooi</span>
-          <span class="hint-tag" onclick="insertHint('ddaa2y ')">ddaa2y</span>
+          <span class="hint-tag" onclick="insertHint('ddaay ')">ddaay</span>
           <span class="hint-tag" onclick="insertHint('software ')">software (tự trả lại tiếng Anh)</span>
         </div>
       </div>
@@ -113,37 +114,37 @@
         <div class="feature-card">
           <div class="feature-icon">💻</div>
           <h3>Terminal không lặp chữ</h3>
-          <p>Tối ưu hóa đặc biệt cho Ptyxis, Alacritty, Ghostty, Foot và Claude Code. Giữ chữ ở dạng preedit và commit dứt khoát khi hết từ, không gửi phím Backspace giả làm hỏng shell history.</p>
+          <p>Đã thử trên GNOME Wayland với Ptyxis, GNOME Terminal, kitty, Alacritty và WezTerm. Giữ chữ ở dạng gạch chân và commit dứt khoát khi hết từ, không gửi phím Backspace giả làm hỏng shell history.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🖱️</div>
           <h3>Bấm chuột không mất chữ</h3>
-          <p>Ký tự đang gõ dở được tự động cam kết (COMMIT) ngay khi bạn nhấp chuột ra ngoài hoặc chuyển cửa sổ làm việc, không bao giờ bị nuốt chữ hay sót ký tự.</p>
+          <p>Ký tự đang gõ dở được tự động cam kết (COMMIT) ngay khi bạn nhấp chuột ra ngoài hoặc chuyển cửa sổ làm việc, nên không làm mất chữ đang gõ.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🎯</div>
           <h3>Tự động nhận diện ứng dụng</h3>
-          <p>Ứng dụng có hỗ trợ Surrounding Text (Chrome, VS Code, LibreOffice) nhận chữ trực tiếp không gạch chân. Chỉ môi trường dòng lệnh (Terminal) mới hiển thị gạch chân.</p>
+          <p>Với ứng dụng có Surrounding Text (Chrome, VS Code, LibreOffice, Firefox), chữ hiện trực tiếp, không gạch chân. Thanh địa chỉ Chrome cũng được hỗ trợ, nhưng có thể thoáng thấy chữ sai một lúc khi đang có gợi ý. Terminal và ứng dụng không hỗ trợ Surrounding Text thì dùng gạch chân, và bạn có thể chỉnh từng ứng dụng trong file cấu hình.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🔄</div>
           <h3>Nhớ trạng thái theo từng app</h3>
-          <p>Tự động ghi nhớ bạn đang bật tiếng Việt ở trình duyệt / chat nhưng vẫn giữ chế độ tiếng Anh khi chuyển sang Terminal hoặc IDE lập trình, tương tự EVKey.</p>
+          <p>Khi bật tùy chọn này, Rustype nhớ bạn đang bật tiếng Việt ở trình duyệt hay chat nhưng vẫn để tiếng Anh khi chuyển sang Terminal hoặc IDE, tương tự EVKey.</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
           <h3>Siêu nhẹ & Tốc độ tức thì</h3>
-          <p>Lõi viết 100% bằng Rust thuần không dùng thư viện ngoài. Chiếm chưa tới 2.5 MB RAM, binary ~450 KB và xử lý mỗi phím gõ chỉ mất khoảng 0.3 micro giây.</p>
+          <p>Lõi viết bằng Rust thuần, không dùng thư viện ngoài. Engine IBus dùng khoảng 2,6 MB RAM, file binary khoảng 620 KB, và xử lý mỗi phím trung bình khoảng 0,4 micro giây (đo bằng cargo bench trên máy phát triển).</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
-          <h3>Bảo mật 100% Ngoại tuyến</h3>
-          <p>Hoàn toàn không có mã mạng, không socket, không thu thập telemetry và tự động bypass hoàn toàn ở các trường nhập mật khẩu.</p>
+          <h3>Bảo mật, không gửi dữ liệu đi</h3>
+          <p>Engine gõ không bao giờ kết nối mạng, không thu thập telemetry và không ghi nhật ký phím. Ứng dụng cài đặt chỉ gọi mạng khi bạn bấm “Kiểm tra cập nhật”. Trên Linux, ở ô mật khẩu, bộ gõ tự bỏ qua.</p>
         </div>
       </div>
     </div>
@@ -154,7 +155,7 @@
     <div class="container">
       <div class="section-header">
         <h2 class="section-title">Tải về & Cài đặt</h2>
-        <p class="section-desc">Hỗ trợ chính thức các hệ điều hành phổ biến: Ubuntu / Debian, Windows và macOS</p>
+        <p class="section-desc">Có bản cho Ubuntu / Debian, Windows và macOS. Bản Linux được kiểm thử nhiều nhất.</p>
       </div>
 
       <div class="grid grid-3">
@@ -162,7 +163,7 @@
         <div class="download-card highlight-card">
           <div class="os-badge">Ubuntu / Debian</div>
           <h3>Gói cài đặt `.deb`</h3>
-          <p>Tối ưu hóa cho Ubuntu 22.04, 24.04+, Debian 12 và Linux Mint chạy Wayland & X11.</p>
+          <p>Đã thử trên Ubuntu 26.04 với GNOME và Wayland. Các bản Ubuntu, Debian hay Linux Mint khác chưa được kiểm thử riêng.</p>
           <div class="code-box">
             <code>sudo apt install ./rustype_*.deb</code>
           </div>
@@ -173,7 +174,7 @@
         <div class="download-card">
           <div class="os-badge">Windows</div>
           <h3>Rustype cho Windows</h3>
-          <p>Cơ chế Low-Level Keyboard Hook siêu nhẹ tương tự EVKey/Unikey. Chạy mượt trong game và mọi phần mềm.</p>
+          <p>Dùng cơ chế Low-Level Keyboard Hook, cách làm tương tự EVKey và Unikey. Bản này chưa được kiểm thử gõ thật sau các thay đổi gần đây, và chưa được ký số (code signing).</p>
           <div class="code-box">
             <code>Chạy trực tiếp rustype.exe</code>
           </div>
@@ -184,7 +185,7 @@
         <div class="download-card">
           <div class="os-badge">macOS</div>
           <h3>Rustype cho macOS</h3>
-          <p>Gói cài đặt InputMethodKit chuẩn cho macOS Ventura, Sonoma và Sequoia (Apple Silicon & Intel).</p>
+          <p>Bộ gõ dùng InputMethodKit. Bản này còn một số hạng mục chưa được kiểm chứng, và chưa được ký và notarize bằng Apple Developer ID.</p>
           <div class="code-box">
             <code>Chép vào ~/Library/Input Methods/</code>
           </div>
@@ -206,7 +207,7 @@
         <details class="faq-item">
           <summary>Rustype hoạt động tốt nhất trên môi trường nào?</summary>
           <div class="faq-answer">
-            <p>Rustype được tối ưu hóa chuẩn mực cho <strong>Ubuntu GNOME chạy Wayland</strong> với framework IBus tích hợp sẵn. Ngoài ra, Rustype chạy mượt mà trên KDE Plasma, Sway, Hyprland (thông qua Fcitx5 addon) cũng như Windows và macOS.</p>
+            <p>Rustype được thử kỹ nhất trên <strong>Ubuntu GNOME chạy Wayland</strong>, dùng IBus. KDE Plasma, Sway và Hyprland chưa được thử, nên chưa thể hứa hoạt động ổn định. Bản Fcitx5 hiện chỉ là khung addon, chưa phải sản phẩm hoàn chỉnh. Windows và macOS đã có bản, nhưng chưa được kiểm thử đầy đủ như Linux.</p>
           </div>
         </details>
 
@@ -230,6 +231,20 @@
             <p>Rustype có sẵn công cụ kiểm tra tự động. Bạn chỉ cần chạy lệnh <code>ibus-engine-rustype --doctor</code> trong terminal hoặc mở ứng dụng Cài đặt Rustype -> tab <strong>Giới thiệu</strong> -> nhấn nút <strong>"Chạy chẩn đoán"</strong>.</p>
           </div>
         </details>
+
+        <details class="faq-item">
+          <summary>Gõ nhầm dấu thì sửa thế nào?</summary>
+          <div class="faq-answer">
+            <p>Nếu gõ đôi làm mất dấu, ví dụ đang có "Bảo" mà gõ thêm <code>r</code> thì thành "Baor", bạn chỉ cần bấm Backspace rồi gõ lại, không phải xóa cả từ.</p>
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>rustype-linux là gì, có nên dùng không?</summary>
+          <div class="faq-answer">
+            <p>Đây là bản thử nghiệm dành cho người phát triển. Nó thay ibus-daemon và engine bằng một tiến trình duy nhất trên GNOME, và trong đo đạc thì nhanh hơn khoảng 2 lần ở chặng IPC (khoảng 0,2 ms so với 0,45 ms mỗi phím). Tuy nhiên, bản này mới được thử trên một máy Ubuntu GNOME, chưa hỗ trợ ứng dụng Flatpak và các desktop khác, và chưa phải cách cài mặc định. Hãy dùng gói .deb thông thường.</p>
+          </div>
+        </details>
       </div>
     </div>
   </section>
@@ -239,9 +254,10 @@
     <div class="container text-center">
       <h2 class="section-title">Cam kết Quyền riêng tư & Bảo mật</h2>
       <p class="privacy-statement">
-        Rustype là dự án 100% mã nguồn mở dưới giấy phép MIT. Chúng tôi cam kết <strong>hoàn toàn ngoại tuyến (100% Offline)</strong>,
-        <strong>không thu thập bất kỳ dữ liệu nào (Zero Telemetry)</strong> và <strong>tuyệt đối không ghi nhật ký phím gõ (Zero Keylogging)</strong>.
-        Bộ gõ tự động bypass hoàn toàn khi con trỏ rơi vào ô nhập mật khẩu.
+        Rustype là phần mềm mã nguồn mở dưới giấy phép MIT. Engine gõ <strong>không bao giờ kết nối mạng</strong>,
+        <strong>không thu thập dữ liệu nào (Zero Telemetry)</strong> và <strong>không ghi nhật ký phím gõ (Zero Keylogging)</strong>.
+        Ứng dụng cài đặt chỉ có một kết nối mạng: khi bạn bấm "Kiểm tra cập nhật", nó gửi yêu cầu HTTPS tới api.github.com.
+        Trên Linux, bộ gõ tự động bỏ qua hoàn toàn khi con trỏ rơi vào ô nhập mật khẩu.
       </p>
       <a href="https://github.com/tr-nam/rustype/blob/main/docs/PRIVACY.md" target="_blank" rel="noopener" class="btn btn-secondary">Đọc toàn văn cam kết bảo mật (PRIVACY.md)</a>
     </div>

@@ -117,6 +117,7 @@
     res = res.replace(/ee/gi, (m) => m[0] === 'E' ? 'Ê' : 'ê');
     res = res.replace(/oo/gi, (m) => m[0] === 'O' ? 'Ô' : 'ô');
     res = res.replace(/ow/gi, (m) => m[0] === 'O' ? 'Ơ' : 'ơ');
+    res = res.replace(/uuw/gi, (m) => m[0] === 'U' ? 'Ưu' : 'ưu'); // Luuw -> Lưu
     res = res.replace(/uw/gi, (m) => m[0] === 'U' ? 'Ư' : 'ư');
     res = res.replace(/dd/gi, (m) => m[0] === 'D' ? 'Đ' : 'đ');
     res = res.replace(/(^|[^a-zA-Z])w/g, '$1ư');
