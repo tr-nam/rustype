@@ -1,0 +1,15 @@
+[package]
+name = "rustype-linux"
+version = "0.1.0"
+edition = "2021"
+description = "IBus-protocol server with the Rustype Vietnamese engine in-process (milestone 1)"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "rustype-linux"
+path = "src/main.rs"
+
+[dependencies]
+rustype-core = { path = "../rustype-core" }
+rustype-ibus = { path = "../rustype-ibus" }

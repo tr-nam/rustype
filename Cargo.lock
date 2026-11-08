@@ -14,6 +14,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustype-linux"
+version = "0.1.0"
+dependencies = [
+ "rustype-core",
+ "rustype-ibus",
+]
+
+[[package]]
 name = "rustype-windows"
 version = "0.1.0"
 dependencies = [
