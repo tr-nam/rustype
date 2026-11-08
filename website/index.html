@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rustype - Bộ gõ tiếng Việt siêu nhẹ, viết bằng Rust</title>
-  <meta name="description" content="Bộ gõ tiếng Việt siêu nhẹ, viết bằng Rust, cho Linux (Wayland & X11), Windows và macOS. Trong terminal trên GNOME Wayland chữ không bị lặp, và engine gõ không kết nối mạng.">
+  <meta name="description" content="Bộ gõ tiếng Việt siêu nhẹ, viết bằng Rust, cho Linux (GNOME trên Wayland), Windows và macOS. Trong terminal trên GNOME Wayland chữ không bị lặp, và engine gõ không có mã mạng.">
   <link rel="icon" type="image/svg+xml" href="rustype.svg">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -34,10 +34,11 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="container hero-content">
-      <div class="badge">🚀 Phiên bản 0.1.0 • Lõi Rust thuần • Khoảng 2,6 MB RAM</div>
-      <h1 class="hero-title">Bộ gõ tiếng Việt siêu nhẹ, dứt khoát trên Wayland</h1>
+      <div class="badge">🚀 Phiên bản 0.1.0 • Lõi Rust thuần • Khoảng 3 MB RAM</div>
+      <h1 class="hero-title">Bộ gõ tiếng Việt siêu nhẹ, dứt khoát trên GNOME Wayland</h1>
       <p class="hero-desc">
         Lõi gõ viết bằng Rust thuần, không dùng thư viện ngoài, được thử kỹ nhất trên Ubuntu GNOME chạy Wayland.
+        Trên Linux, Rustype chạy là một tiến trình duy nhất, thay cho ibus-daemon và engine cũ.
         Trong terminal trên GNOME Wayland, chữ không bị lặp, và bấm chuột lúc đang gõ dở không làm mất chữ.
         Bản Windows và macOS đã có, nhưng ít được kiểm chứng hơn bản Linux.
       </p>
@@ -47,11 +48,11 @@
       </div>
       <div class="hero-stats">
         <div class="stat-item">
-          <span class="stat-val">~ 2,6 MB</span>
-          <span class="stat-lbl">RAM của engine</span>
+          <span class="stat-val">~ 3 MB</span>
+          <span class="stat-lbl">RAM của rustype-linux</span>
         </div>
         <div class="stat-item">
-          <span class="stat-val">~ 620 KB</span>
+          <span class="stat-val">~ 755 KB</span>
           <span class="stat-lbl">Dung lượng binary</span>
         </div>
         <div class="stat-item">
@@ -138,13 +139,13 @@
         <div class="feature-card">
           <div class="feature-icon">⚡</div>
           <h3>Siêu nhẹ & Tốc độ tức thì</h3>
-          <p>Lõi viết bằng Rust thuần, không dùng thư viện ngoài. Engine IBus dùng khoảng 2,6 MB RAM, file binary khoảng 620 KB, và xử lý mỗi phím trung bình khoảng 0,4 micro giây (đo bằng cargo bench trên máy phát triển).</p>
+          <p>Lõi viết bằng Rust thuần, không dùng thư viện ngoài. Tiến trình rustype-linux dùng khoảng 3 MB RAM, file binary khoảng 755 KB. Vòng phím qua bus đo được khoảng 0,2 ms, so với 0,4–0,5 ms của ibus-daemon cộng engine cũ (đo trên một máy, chưa tính GNOME Shell và ứng dụng). Xử lý mỗi phím trong lõi trung bình khoảng 0,4 micro giây (đo bằng cargo bench trên máy phát triển).</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
           <h3>Bảo mật, không gửi dữ liệu đi</h3>
-          <p>Engine gõ không bao giờ kết nối mạng, không thu thập telemetry và không ghi nhật ký phím. Ứng dụng cài đặt chỉ gọi mạng khi bạn bấm “Kiểm tra cập nhật”. Trên Linux, ở ô mật khẩu, bộ gõ tự bỏ qua.</p>
+          <p>Engine gõ không có mã mạng, không thu thập telemetry và không ghi nhật ký phím. Ứng dụng cài đặt chỉ gọi mạng khi bạn bấm “Kiểm tra cập nhật”. Trên Linux, ở ô mật khẩu, bộ gõ tự bỏ qua.</p>
         </div>
       </div>
     </div>
@@ -155,7 +156,7 @@
     <div class="container">
       <div class="section-header">
         <h2 class="section-title">Tải về & Cài đặt</h2>
-        <p class="section-desc">Có bản cho Ubuntu / Debian, Windows và macOS. Bản Linux được kiểm thử nhiều nhất.</p>
+        <p class="section-desc">Có bản cho Ubuntu / Debian, Windows và macOS. Bản Linux chỉ hỗ trợ GNOME trên Wayland, và được kiểm thử nhiều nhất.</p>
       </div>
 
       <div class="grid grid-3">
@@ -163,7 +164,7 @@
         <div class="download-card highlight-card">
           <div class="os-badge">Ubuntu / Debian</div>
           <h3>Gói cài đặt `.deb`</h3>
-          <p>Đã thử trên Ubuntu 26.04 với GNOME và Wayland. Các bản Ubuntu, Debian hay Linux Mint khác chưa được kiểm thử riêng.</p>
+          <p>Chỉ hỗ trợ GNOME Shell trên Wayland. Đã thử trên Ubuntu 26.04 với GNOME và Wayland. Các bản Ubuntu, Debian hay Linux Mint khác chưa được kiểm thử riêng. Sau khi cài cần đăng xuất rồi đăng nhập lại.</p>
           <div class="code-box">
             <code>sudo apt install ./rustype_*.deb</code>
           </div>
@@ -207,7 +208,7 @@
         <details class="faq-item">
           <summary>Rustype hoạt động tốt nhất trên môi trường nào?</summary>
           <div class="faq-answer">
-            <p>Rustype được thử kỹ nhất trên <strong>Ubuntu GNOME chạy Wayland</strong>, dùng IBus. KDE Plasma, Sway và Hyprland chưa được thử, nên chưa thể hứa hoạt động ổn định. Bản Fcitx5 hiện chỉ là khung addon, chưa phải sản phẩm hoàn chỉnh. Windows và macOS đã có bản, nhưng chưa được kiểm thử đầy đủ như Linux.</p>
+            <p>Rustype được thử kỹ nhất trên <strong>Ubuntu GNOME chạy Wayland</strong>. Trên Linux, Rustype chỉ hỗ trợ <strong>GNOME Shell trên Wayland</strong>. KDE Plasma, Sway, Hyprland và các desktop khác không được hỗ trợ và không có kế hoạch hỗ trợ. Windows và macOS đã có bản, nhưng chưa được kiểm thử đầy đủ như Linux.</p>
           </div>
         </details>
 
@@ -228,7 +229,7 @@
         <details class="faq-item">
           <summary>Làm sao để chẩn đoán hệ thống khi gặp trục trặc?</summary>
           <div class="faq-answer">
-            <p>Rustype có sẵn công cụ kiểm tra tự động. Bạn chỉ cần chạy lệnh <code>ibus-engine-rustype --doctor</code> trong terminal hoặc mở ứng dụng Cài đặt Rustype -> tab <strong>Giới thiệu</strong> -> nhấn nút <strong>"Chạy chẩn đoán"</strong>.</p>
+            <p>Rustype có sẵn công cụ kiểm tra tự động. Bạn chỉ cần chạy lệnh <code>rustype-linux --doctor</code> trong terminal hoặc mở ứng dụng Cài đặt Rustype -> tab <strong>Giới thiệu</strong> -> nhấn nút <strong>"Chạy chẩn đoán"</strong>.</p>
           </div>
         </details>
 
@@ -240,9 +241,11 @@
         </details>
 
         <details class="faq-item">
-          <summary>rustype-linux là gì, có nên dùng không?</summary>
+          <summary>Rustype trên GNOME hoạt động thế nào, và có những giới hạn gì?</summary>
           <div class="faq-answer">
-            <p>Đây là bản thử nghiệm dành cho người phát triển. Nó thay ibus-daemon và engine bằng một tiến trình duy nhất trên GNOME, và trong đo đạc thì nhanh hơn khoảng 2 lần ở chặng IPC (khoảng 0,2 ms so với 0,45 ms mỗi phím). Tuy nhiên, bản này mới được thử trên một máy Ubuntu GNOME, chưa hỗ trợ ứng dụng Flatpak và các desktop khác, và chưa phải cách cài mặc định. Hãy dùng gói .deb thông thường.</p>
+            <p>Trên GNOME, Rustype chạy là <strong>rustype-linux</strong>: một tiến trình duy nhất vừa là bus IBus vừa chứa engine gõ, thay cho ibus-daemon và engine cũ. Cài bằng gói .deb, hoặc bằng <code>./install.sh</code> từ mã nguồn (không cần sudo). Cài xong bằng gói thì cần đăng xuất rồi đăng nhập lại.</p>
+            <p>Trong đo đạc trên một máy, vòng phím qua bus khoảng 0,2 ms so với 0,4–0,5 ms khi dùng ibus-daemon cộng engine cũ, và tiến trình dùng khoảng 3 MB RAM so với khoảng 59 MB. Các số này chưa tính GNOME Shell và ứng dụng, nên lợi ích khi gõ thực tế nhỏ hơn. Mới được thử trên một máy Ubuntu GNOME Wayland.</p>
+            <p><strong>Không hỗ trợ:</strong> desktop khác như KDE Plasma, Sway, Hyprland, XFCE; ứng dụng Flatpak; các engine IBus khác; emoji panel của IBus. Nếu cần bộ gõ cho các môi trường này, Rustype hiện chưa phải lựa chọn phù hợp.</p>
           </div>
         </details>
       </div>
