@@ -7,6 +7,7 @@ Rustype là một Cargo workspace được thiết kế theo kiến trúc module
 - **`rustype-windows`**: engine Windows siêu nhẹ sử dụng Low-Level Keyboard Hook (`SetWindowsHookExW` + `SendInput`) và khay hệ thống (System Tray).
 - **`rustype-macos`**: wrapper InputMethodKit (`IMKServer` & `IMKInputController`) liên kết tĩnh với `librustype_core.a`.
 - **`rustype-fcitx5`**: module C++ addon cho bộ gõ Fcitx5.
+- **`rustype-linux`**: thử nghiệm, một tiến trình nói giao thức IBus với libibus và chạy engine trong tiến trình đó. Xem [RUSTYPE-LINUX.md](RUSTYPE-LINUX.md).
 
 ```
                   ┌────────────────────────────────────────┐
@@ -53,6 +54,7 @@ ibus-engine-rustype
 | `rustype-ibus/src/ibus.rs` | Giao thức IBus: Factory, Engine, Properties, đóng gói IBusText | `dbus.rs`, `ime.rs` |
 | `rustype-ibus/src/config.rs` | Đọc file cấu hình khi thời điểm sửa của file thay đổi | `rustype-core` |
 | `rustype-ibus/src/main.rs` | Dòng lệnh, tìm địa chỉ IBus, in file component | tất cả |
+| `rustype-linux/src/` | Bus IBus tự chứa (thử nghiệm): SASL, bus D-Bus, object IBus và panel, file địa chỉ. Chi tiết trong [RUSTYPE-LINUX.md](RUSTYPE-LINUX.md) | `rustype-core`, `rustype-ibus` |
 
 Lõi `telex.rs` không biết gì về IBus. Đây là crate riêng (`rustype-core`) để dùng lại cho Fcitx5, Windows và macOS, xem [ROADMAP.md](ROADMAP.md).
 
@@ -79,11 +81,15 @@ Cách hiện chữ được chọn khi bắt đầu một từ và giữ nguyên
 
 | Cách | Khi nào dùng | Tín hiệu gửi đi | Người dùng thấy |
 |---|---|---|---|
-| Surrounding | Ứng dụng báo có Surrounding Text, tức hầu hết ứng dụng GTK, Qt, trình duyệt | `DeleteSurroundingText` rồi `CommitText` | Không gạch chân |
+| Surrounding | Ứng dụng báo có Surrounding Text, tức hầu hết ứng dụng GTK, Qt, trình duyệt, kể cả ô có mục đích URL | `DeleteSurroundingText` rồi `CommitText`. Ở ô URL, nếu báo cáo cho thấy lệnh xóa bị bỏ qua thì xóa phần đuôi đã nhớ rồi commit lại từ | Không gạch chân |
 | Preedit | Ứng dụng không có Surrounding Text, ví dụ terminal dùng VTE như Ptyxis | `UpdatePreeditText` ở chế độ COMMIT, rồi `CommitText` khi hết từ | Chữ gạch chân tới khi hết từ |
 | Backspace | Chỉ khi cấu hình `mode = direct` và ứng dụng không có Surrounding Text | `ForwardKeyEvent` phím BackSpace rồi `CommitText` | Không gạch chân, có thể lặp chữ |
 
 Với `mode = auto`, mặc định, chỉ hai cách đầu được dùng.
+
+**Vì sao ô URL dùng Surrounding Text.** Preedit làm mất gợi ý đang chọn khi nhấn Enter, và phím chuyển tiếp không hoạt động trong Chrome trên GNOME Wayland. Vì vậy ô có mục đích URL (`purpose` = 5) vẫn dùng Surrounding Text và không gạch chân.
+
+Chrome bỏ qua `DeleteSurroundingText` khi đang chọn gợi ý nội tuyến, nhưng vẫn áp dụng lệnh commit, và commit đó thay thế gợi ý. Chỉ ở ô URL, engine mới yêu cầu Surrounding Text (`RequireSurroundingText`), ghi nhớ phần đuôi mà ô có thể đang chứa, và khi báo cáo cho thấy lệnh xóa đã bị bỏ qua thì xóa phần đuôi đó rồi commit lại từ. Báo cáo của Chrome có thể chậm hơn lúc gõ, và engine chấp nhận điều đó. Chữ sai có thể thoáng hiện trong chốc lát. Các ô khác không dùng cơ chế này.
 
 **Vì sao không dùng phím BackSpace giả.** Trên GNOME Wayland, phím BackSpace giả không tới được terminal VTE. Bộ gõ nào dùng cách này sẽ gõ "kiểm" ra "Kieêmểm".
 
@@ -110,15 +116,16 @@ Quy tắc chính:
 - **Kiểm tra chính tả khi đang gõ:** khi chuỗi không còn có thể là tiếng Việt, ví dụ có "f", "j", "w", "z", âm cuối sai, hoặc có hai cụm nguyên âm, từ được trả về đúng các phím đã gõ.
 - **Kiểm tra khi hết từ:** nếu từ đã bị biến đổi mà không phải âm tiết tiếng Việt hoàn chỉnh, hoặc nằm trong danh sách từ tiếng Anh, thì trả lại các phím gốc. Không làm vậy nếu người dùng đã BackSpace trong từ đó.
 
-Hành vi mong đợi được ghi trong `tests/golden.tsv`, gồm 14.710 chuỗi phím và chữ phải ra trên màn hình, và `cargo test` kiểm tra toàn bộ.
+Hành vi mong đợi được ghi trong `tests/golden.tsv`, gồm nhiều chuỗi phím và chữ phải ra trên màn hình, và `cargo test` kiểm tra toàn bộ.
 
 ## Lớp D-Bus
 
-- **Tìm địa chỉ:** biến `IBUS_ADDRESS`, rồi file trong `IBUS_ADDRESS_FILE`, rồi `~/.config/ibus/bus/<machine-id>-<host>-<display>`, giống cách libibus làm. Trên Wayland, phần display là giá trị `WAYLAND_DISPLAY`.
+- **Tìm địa chỉ:** biến `IBUS_ADDRESS`, rồi file trong `IBUS_ADDRESS_FILE`, rồi file `~/.config/ibus/bus/<machine-id>-unix-<display>` (với màn hình cục bộ, phần host là `unix`), giống cách libibus làm. Trên Wayland, phần display là giá trị `WAYLAND_DISPLAY`.
 - **Kết nối:** socket Unix, xác thực SASL EXTERNAL bằng uid lấy từ `/proc/self`, gọi `Hello`, rồi `RequestName("org.freedesktop.IBus.Rustype")` với cờ không xếp hàng.
 - **Message:** gửi đi theo little-endian, đọc được cả hai kiểu. Không hỗ trợ truyền file descriptor vì IBus không cần.
 - **Object:** `/org/freedesktop/IBus/Factory` có `CreateEngine` và `Destroy`. Mỗi engine nằm ở `/org/freedesktop/IBus/Engine/<n>`.
-- **Thuộc tính:** `FocusId` và `ActiveSurroundingText` đều trả về `false`. `ContentType` được đọc để nhận biết ô mật khẩu.
+- **Thuộc tính:** `FocusId` và `ActiveSurroundingText` đều trả về `false`. `ContentType` được đọc để nhận biết ô mật khẩu và ô URL.
+- **Surrounding Text:** engine chỉ phát `RequireSurroundingText` trong ô có mục đích URL, để libibus gửi `SetSurroundingText`. Cờ yêu cầu này gắn với cả input context, mà GNOME Shell dùng chung một context cho mọi ứng dụng, nên sau lần đầu vào ô URL client cũng gửi báo cáo của các ô khác cho tới khi engine được Enable lại. Engine bỏ ngay các báo cáo đó. Với ô URL, engine so phần đuôi văn bản với phần đã nhớ trong bộ nhớ tạm để phát hiện lệnh xóa bị bỏ qua. Không lưu và không ghi log nội dung này.
 - **IBusText:** gửi dưới dạng variant `(sa{sv}sv)`, bên trong là `IBusAttrList` kiểu `(sa{sv}av)`. Chữ gạch chân có thêm một `IBusAttribute` gạch chân đơn.
 - **Lỗi:** nếu xử lý phím bị panic, engine dựng lại trạng thái, giữ thông tin ứng dụng, và để ứng dụng tự xử lý phím đó. Gõ chữ không bao giờ bị chặn hẳn.
 - **Thoát:** khi ibus-daemon đóng kết nối, ví dụ lúc `ibus restart`, engine thoát êm. ibus-daemon sẽ chạy lại nó khi cần.

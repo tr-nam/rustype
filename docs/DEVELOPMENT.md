@@ -34,9 +34,9 @@ tools/ibus_sandbox_test.sh "$PWD/target/release/ibus-engine-rustype" <(target/re
 
 | Mức | Kiểm tra gì | Kết quả mong đợi |
 |---|---|---|
-| Unit test | Từng module: ghép chữ, FFI, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình, chẩn đoán | `10 passed` (core) + `18 passed` (ibus) = `28 passed` |
-| Bộ kết quả chuẩn | Nằm trong `cargo test`. 14.710 chuỗi phím trong `rustype-core/tests/golden.tsv`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi |
-| IBus giả lập | Một ibus-daemon riêng và các ứng dụng giả: terminal, ứng dụng GUI, ứng dụng X11. Kiểm tra bấm chuột, Enter, BackSpace, đổi cửa sổ | `ALL PASS` |
+| Unit test | Từng module: ghép chữ, FFI, chọn cách hiện chữ, đóng gói D-Bus, đọc cấu hình, chẩn đoán | Mọi crate đều báo `test result: ok`, không có test nào fail |
+| Bộ kết quả chuẩn | Nằm trong `cargo test`. Các chuỗi phím trong `rustype-core/tests/golden.tsv`: câu mẫu, âm tiết với nhiều kiểu gõ, từ tiếng Anh, chuỗi ngẫu nhiên có BackSpace | Không có trường hợp nào đổi |
+| IBus giả lập | Một ibus-daemon riêng và các ứng dụng giả: terminal, ứng dụng GUI, ô thanh địa chỉ (URL), ứng dụng X11. Kiểm tra bấm chuột, Enter, BackSpace, đổi cửa sổ | `ALL PASS` |
 
 Kiểm thử IBus giả lập chạy trong `dbus-run-session` với địa chỉ, cấu hình và bộ nhớ đệm riêng. Nó không đụng tới IBus đang chạy trên máy.
 

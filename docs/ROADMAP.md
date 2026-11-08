@@ -32,7 +32,7 @@ Một bộ gõ hoàn chỉnh cần bốn thứ mà bản 0.1 chưa có:
 Đây là giai đoạn quan trọng nhất. Với một bộ gõ, gõ đúng ở mọi nơi quan trọng hơn có thêm tính năng.
 
 - [x] Thử thật trên từng ứng dụng và ghi kết quả vào một bảng: xem [COMPATIBILITY.md](COMPATIBILITY.md).
-- [x] Xử lý thanh địa chỉ có gợi ý tự động trong Chrome và Electron: bắt `SetSurroundingText`, kiểm tra selection và cursor jump.
+- [x] Thanh địa chỉ có gợi ý tự động trong Chrome và Electron: ô URL dùng Surrounding Text không gạch chân, giữ được gợi ý và phím Enter. Chỉ ở ô URL, engine yêu cầu Surrounding Text, và khi Chrome bỏ qua lệnh xóa thì xóa phần đuôi rồi commit lại từ.
 - [x] Bản cho Fcitx5: C FFI trong `rustype-core` (`rustype.h`, `librustype_core.a`) và template addon C++ `rustype-fcitx5/`.
 - [x] GNOME Shell extension báo tên ứng dụng đang focus cho engine (`gnome-shell-extension/rustype-focus@namtr.dev`).
 - [x] Cách xử lý riêng cho từng ứng dụng: hỗ trợ mục `[app_modes]` trong `~/.config/rustype/config`.
@@ -80,6 +80,14 @@ Vì không dùng thư viện ngoài, Rustype đóng gói cho Debian và PPA dễ
 - [x] Trang cam kết quyền riêng tư: không mạng, không ghi phím (`docs/PRIVACY.md` và trên website).
 - [x] Kiểm tra tên và thương hiệu trước khi làm web: repo cá nhân `tr-nam/rustype`, trang chủ `namtr.dev`, hỗ trợ qua `support@namtr.dev`.
 - [x] Triển khai website trang chủ trên VPS (`https://namtr.dev`).
+
+## Thử nghiệm: rustype-linux (chưa xong)
+
+- [x] Bus IBus tự chứa trong một tiến trình, dùng lại `ime.rs` và `telex.rs`. Đã kiểm chứng trong sandbox với libibus thật.
+- [ ] Chạy thử với GNOME Shell thật, kể cả menu trên thanh trên và tiếp quản dịch vụ IBus trên máy thật.
+- [ ] Factory.CreateEngine, ibus-portal, emoji panel, XIM.
+
+Chi tiết và cách thử: [RUSTYPE-LINUX.md](RUSTYPE-LINUX.md).
 
 ## Ước tính thời gian
 

@@ -12,7 +12,7 @@ Rustype hỗ trợ cơ chế hiện chữ thích ứng linh hoạt theo từng l
 | | kitty | Preedit | Hoạt động tốt. |
 | | Alacritty | Preedit | Hoạt động tốt. |
 | | WezTerm | Preedit | Hoạt động tốt. |
-| **Trình duyệt** | Google Chrome / Chromium | Surrounding Text (không gạch chân) | Hoạt động mượt mà. Đã xử lý bôi đen autocomplete thanh địa chỉ (Omnibox). |
+| **Trình duyệt** | Google Chrome / Chromium | Surrounding Text (không gạch chân), kể cả thanh địa chỉ (URL) | Ô thường và thanh địa chỉ đều hoạt động tự nhiên: gợi ý tự động và phím Enter như gốc. Ở thanh địa chỉ, khi Chrome bỏ qua lệnh xóa vì đang chọn gợi ý, engine xóa phần đuôi và commit lại từ. Chữ sai có thể thoáng hiện trong chốc lát. |
 | | Mozilla Firefox | Surrounding Text (không gạch chân) | Ô tìm kiếm và thanh URL gõ đúng dấu, không nuốt chữ. |
 | **Electron** | Visual Studio Code | Surrounding Text | Soạn thảo code và thanh Command Palette (Ctrl+P / Ctrl+Shift+P) chuẩn xác. |
 | | Obsidian | Surrounding Text | Gõ Markdown mượt mà, không giật con trỏ. |
@@ -27,7 +27,7 @@ Rustype hỗ trợ cơ chế hiện chữ thích ứng linh hoạt theo từng l
 ## Các chế độ hiện chữ (`mode`)
 
 1. **`auto`** (Mặc định):
-   - Ứng dụng hỗ trợ Surrounding Text (Chrome, VS Code, LibreOffice...): nhận chữ trực tiếp, không gạch chân.
+   - Ứng dụng hỗ trợ Surrounding Text (Chrome, VS Code, LibreOffice...): nhận chữ trực tiếp, không gạch chân. Ô có mục đích URL (thanh địa chỉ) cũng dùng Surrounding Text, kèm cơ chế riêng để sửa khi Chrome bỏ qua lệnh xóa lúc có gợi ý tự động. Cơ chế này chỉ bật cho ô URL.
    - Ứng dụng không có Surrounding Text (Terminal Ptyxis, kitty...): hiển thị gạch chân (Preedit ở chế độ COMMIT), nhấn Space/Enter để hoàn tất từ. Không bao giờ gửi phím Backspace giả, không bị lặp chữ.
 2. **`preedit`**: Luôn gạch chân trong mọi ứng dụng. An toàn và ổn định nhất nếu gặp ứng dụng lỗi surrounding text.
 3. **`direct`**: Không bao giờ gạch chân. Terminal trên Wayland có thể bị lặp chữ.
