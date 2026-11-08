@@ -55,9 +55,27 @@ pub fn parse_pid(text: &str) -> Option<i32> {
         .and_then(|v| v.trim().parse().ok())
 }
 
-/// Refuses (Err) when the file names a live process other than `my_pid`, unless `replace`.
-/// A missing file, a file naming us, or a file naming a dead process is fine.
+/// The command name the kernel reports for `pid` (/proc/<pid>/comm), trimmed.
+fn process_comm(pid: i32) -> Option<String> {
+    std::fs::read_to_string(format!("/proc/{pid}/comm"))
+        .ok()
+        .map(|s| s.trim().to_string())
+}
+
+/// Refuses (Err) when the file names a live IBus daemon or rustype-linux other than `my_pid`,
+/// unless `replace`. A missing file, a file naming us, a dead process, or a live process that is
+/// not an IBus daemon (a reused pid) is stale and fine.
 pub fn guard(path: &Path, my_pid: i32, replace: bool) -> io::Result<()> {
+    guard_with(path, my_pid, replace, process_comm)
+}
+
+/// `guard` with the command-name lookup injected, so tests can name any process.
+fn guard_with(
+    path: &Path,
+    my_pid: i32,
+    replace: bool,
+    comm_of: impl Fn(i32) -> Option<String>,
+) -> io::Result<()> {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -67,6 +85,10 @@ pub fn guard(path: &Path, my_pid: i32, replace: bool) -> io::Result<()> {
         return Ok(());
     };
     if pid == my_pid || !sys::pid_alive(pid) {
+        return Ok(());
+    }
+    let is_ibus = comm_of(pid).is_some_and(|c| matches!(c.trim(), "ibus-daemon" | "rustype-linux"));
+    if !is_ibus {
         return Ok(());
     }
     if replace {
@@ -185,16 +207,51 @@ mod tests {
         assert!(guard(&f, std::process::id() as i32, false).is_ok());
     }
 
+    /// A live `sleep` child whose pid the test file names; killed on drop.
+    struct Sleeper(std::process::Child);
+
+    impl Sleeper {
+        fn start() -> Sleeper {
+            Sleeper(Command::new("sleep").arg("30").spawn().unwrap())
+        }
+        fn pid(&self) -> i32 {
+            self.0.id() as i32
+        }
+    }
+
+    impl Drop for Sleeper {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
     #[test]
-    fn live_foreign_process_is_refused_unless_replace() {
-        let dir = scratch("live");
-        let mut child = Command::new("sleep").arg("30").spawn().unwrap();
-        let pid = child.id() as i32;
+    fn live_unrelated_process_is_allowed() {
+        // The bug: a reused pid that is not an IBus daemon must not block startup.
+        let dir = scratch("unrelated");
+        let child = Sleeper::start();
+        let f = dir.join("addr");
+        write(&f, "unix:path=/s,guid=00", child.pid()).unwrap();
+        let me = std::process::id() as i32;
+        assert!(
+            guard(&f, me, false).is_ok(),
+            "real comm is sleep, not an IBus daemon"
+        );
+        assert!(guard_with(&f, me, false, |_| Some("bash".to_string())).is_ok());
+    }
+
+    #[test]
+    fn live_ibus_daemon_is_refused_unless_replace() {
+        let dir = scratch("ibus-daemon");
+        let child = Sleeper::start();
+        let pid = child.pid();
         let f = dir.join("addr");
         write(&f, "unix:path=/s,guid=00", pid).unwrap();
         let me = std::process::id() as i32;
+        let comm = |_: i32| Some("ibus-daemon\n".to_string());
 
-        let err = guard(&f, me, false).expect_err("must refuse a live foreign daemon");
+        let err = guard_with(&f, me, false, comm).expect_err("must refuse a live ibus-daemon");
         assert_eq!(err.kind(), io::ErrorKind::AddrInUse);
         assert!(err.to_string().contains(&pid.to_string()));
         assert!(err.to_string().contains("--replace"));
@@ -203,12 +260,35 @@ mod tests {
             .unwrap()
             .contains(&format!("IBUS_DAEMON_PID={pid}")));
 
-        assert!(guard(&f, me, true).is_ok(), "--replace takes over");
+        assert!(
+            guard_with(&f, me, true, comm).is_ok(),
+            "--replace takes over"
+        );
         // remove_if_ours must not delete a file that names someone else.
         remove_if_ours(&f, me);
         assert!(f.exists());
+    }
 
-        child.kill().unwrap();
-        child.wait().unwrap();
+    #[test]
+    fn live_rustype_linux_is_refused() {
+        let dir = scratch("rustype");
+        let child = Sleeper::start();
+        let f = dir.join("addr");
+        write(&f, "unix:path=/s,guid=00", child.pid()).unwrap();
+        let me = std::process::id() as i32;
+        let err = guard_with(&f, me, false, |_| Some("rustype-linux".to_string()))
+            .expect_err("must refuse a live rustype-linux");
+        assert_eq!(err.kind(), io::ErrorKind::AddrInUse);
+        assert!(guard_with(&f, me, true, |_| Some("rustype-linux".to_string())).is_ok());
+    }
+
+    #[test]
+    fn unreadable_comm_is_treated_as_stale() {
+        let dir = scratch("nocomm");
+        let child = Sleeper::start();
+        let f = dir.join("addr");
+        write(&f, "unix:path=/s,guid=00", child.pid()).unwrap();
+        let me = std::process::id() as i32;
+        assert!(guard_with(&f, me, false, |_| None).is_ok());
     }
 }
