@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build standard Debian/Ubuntu .deb package for Rustype
+# Build standard Debian/Ubuntu .deb package for Rustype (rustype-linux, IBus on GNOME)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,10 +30,10 @@ echo " Version:      ${VERSION}-${REVISION}"
 echo " Architecture: ${ARCH}"
 echo "===================================================="
 
-# 1. Build release binaries
+# 1. Build release binary
 echo "==> [1/6] Biên dịch mã nguồn release với Cargo..."
 CARGO="${CARGO:-cargo}"
-"$CARGO" build --release --locked
+"$CARGO" build --release --locked -p rustype-linux
 
 # 2. Chuẩn bị thư mục staging
 STAGING="$ROOT_DIR/target/deb-staging"
@@ -45,7 +45,7 @@ mkdir -p "$STAGING" "$OUTPUT_DIR"
 echo "==> [2/6] Tạo cấu trúc thư mục FHS..."
 mkdir -p "$STAGING/usr/libexec" \
          "$STAGING/usr/bin" \
-         "$STAGING/usr/share/ibus/component" \
+         "$STAGING/usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d" \
          "$STAGING/usr/share/applications" \
          "$STAGING/usr/share/gnome-shell/extensions/rustype-focus@namtr.dev" \
          "$STAGING/usr/share/man/man1" \
@@ -54,40 +54,14 @@ mkdir -p "$STAGING/usr/libexec" \
 
 # 4. Sao chép và phân quyền nhị phân & script
 echo "==> [3/6] Cài đặt file thực thi và tài nguyên..."
-install -m755 "$ROOT_DIR/target/release/ibus-engine-rustype" "$STAGING/usr/libexec/ibus-engine-rustype"
-ln -sf ../libexec/ibus-engine-rustype "$STAGING/usr/bin/ibus-engine-rustype"
+install -m755 "$ROOT_DIR/target/release/rustype-linux" "$STAGING/usr/libexec/rustype-linux"
+ln -sf ../libexec/rustype-linux "$STAGING/usr/bin/rustype-linux"
 install -m755 "$ROOT_DIR/tools/rustype-settings" "$STAGING/usr/bin/rustype-settings"
 install -m644 "$ROOT_DIR/tools/dev.namtr.RustypeSettings.desktop" "$STAGING/usr/share/applications/dev.namtr.RustypeSettings.desktop"
 
-# IBus Component XML trỏ vào /usr/libexec
-cat <<EOF > "$STAGING/usr/share/ibus/component/rustype.xml"
-<?xml version="1.0" encoding="utf-8"?>
-<component>
-    <name>org.freedesktop.IBus.Rustype</name>
-    <description>Rustype - bộ gõ tiếng Việt Telex &amp; VNI siêu nhẹ</description>
-    <exec>/usr/libexec/ibus-engine-rustype --ibus</exec>
-    <version>${VERSION}</version>
-    <author>Nam Trần</author>
-    <license>MIT</license>
-    <homepage>https://namtr.dev</homepage>
-    <textdomain>rustype</textdomain>
-    <engines>
-        <engine>
-            <name>rustype</name>
-            <language>vi</language>
-            <license>MIT</license>
-            <author>Nam Trần</author>
-            <icon>rustype</icon>
-            <layout>us</layout>
-            <longname>Rustype</longname>
-            <description>Bộ gõ siêu nhẹ bằng Rust cho Linux</description>
-            <rank>99</rank>
-            <symbol>R</symbol>
-        </engine>
-    </engines>
-</component>
-EOF
-chmod 644 "$STAGING/usr/share/ibus/component/rustype.xml"
+# Drop-in cho unit IBus của GNOME: ibus-daemon được thay bằng rustype-linux sau khi đăng nhập lại
+install -m644 "$ROOT_DIR/packaging/systemd/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf" \
+    "$STAGING/usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf"
 
 # Cài đặt biểu tượng icon theme
 for s in 16 32 48 64 128 256 512; do
@@ -104,7 +78,7 @@ cp -a "$ROOT_DIR/gnome-shell-extension/rustype-focus@namtr.dev/"* "$STAGING/usr/
 
 # Man pages nén gzip
 echo "==> [4/6] Nén Man pages và tài liệu..."
-gzip -9n -c "$ROOT_DIR/docs/man/ibus-engine-rustype.1" > "$STAGING/usr/share/man/man1/ibus-engine-rustype.1.gz"
+gzip -9n -c "$ROOT_DIR/docs/man/rustype-linux.1" > "$STAGING/usr/share/man/man1/rustype-linux.1.gz"
 gzip -9n -c "$ROOT_DIR/docs/man/rustype-settings.1" > "$STAGING/usr/share/man/man1/rustype-settings.1.gz"
 chmod 644 "$STAGING/usr/share/man/man1/"*.gz
 

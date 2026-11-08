@@ -28,22 +28,18 @@ jobs:
         run: cargo test --release
 
   ibus:
+    name: rustype-linux sandbox (IBus, GNOME)
     runs-on: ubuntu-latest
     needs: check
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install IBus
-        run: sudo apt-get update && sudo apt-get install -y ibus dbus-x11 python3-gi gir1.2-ibus-1.0
+      - name: Install IBus, D-Bus and gdbus
+        run: sudo apt-get update && sudo apt-get install -y ibus dbus dbus-x11 libglib2.0-bin python3-gi gir1.2-ibus-1.0
 
       - name: Build
-        run: cargo build --release
-
-      - name: IBus sandbox test
-        run: |
-          target/release/ibus-engine-rustype --xml > /tmp/rustype.xml
-          tools/ibus_sandbox_test.sh "$PWD/target/release/ibus-engine-rustype" /tmp/rustype.xml rustype
+        run: cargo build --release --locked -p rustype-linux
 
       - name: rustype-linux sandbox test
         run: tools/rustype_linux_sandbox.sh "$PWD/target/release/rustype-linux"
@@ -67,7 +63,12 @@ jobs:
       - name: Verify package structure
         run: |
           dpkg-deb -I target/packages/*.deb
-          dpkg-deb -c target/packages/*.deb
+          dpkg-deb -c target/packages/*.deb > contents.txt
+          grep -q ' \./usr/libexec/rustype-linux$' contents.txt
+          grep -q ' \./usr/lib/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/rustype.conf$' contents.txt
+          if grep -q 'ibus-engine-rustype\|rustype\.xml' contents.txt; then
+            echo "FAIL: the package still ships the old IBus component"; exit 1
+          fi
 
   windows:
     name: Windows Build & Test

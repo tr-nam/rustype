@@ -12,6 +12,9 @@ case "$1" in
         if which gtk-update-icon-cache >/dev/null 2>&1; then
             gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
         fi
+
+        # Không khởi động lại IBus từ root: phiên GNOME đang chạy sẽ dùng rustype-linux sau khi đăng nhập lại.
+        echo "Rustype: để bật rustype-linux làm bộ gõ, hãy đăng xuất rồi đăng nhập lại phiên GNOME."
         ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

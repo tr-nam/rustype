@@ -1,10 +1,10 @@
 rustype (0.1.0-1) unstable; urgency=medium
 
   * Initial release of Rustype for Debian and Ubuntu.
-  * Ultra-lightweight pure Rust engine for IBus (~2.5 MB RAM).
+  * Ultra-lightweight pure Rust input method server for GNOME (~2.5 MB RAM).
   * Comprehensive Telex and VNI input methods with 14,710 golden test cases.
   * Native GTK4 + Libadwaita settings application (rustype-settings).
-  * Built-in system diagnostics tool (ibus-engine-rustype --doctor).
+  * Built-in system diagnostics tool (rustype-linux --doctor).
   * GNOME HIG squircle icon set across standard FreeDesktop resolutions.
   * GNOME Shell focus tracking extension.
 

@@ -26,29 +26,30 @@ MACRO_FILE = CONFIG_DIR / "macro"
 WORDS_FILE = CONFIG_DIR / "words"
 
 
-def get_installed_version() -> str:
-    """Detects version from installed ibus-engine-rustype or falls back to default."""
+ENGINE_NAME = "rustype-linux"
+
+
+def find_engine():
+    """Returns the path of rustype-linux: PATH first, then the known install locations."""
+    exe = shutil.which(ENGINE_NAME)
+    if exe:
+        return exe
     candidates = [
-        pathlib.Path("/usr/libexec/ibus-engine-rustype"),
-        pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
-        pathlib.Path.home() / ".local" / "lib" / "rustype" / "ibus-engine-rustype",
-        pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
-        pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
-        pathlib.Path(__file__).resolve().parent.parent
-        / "target"
-        / "release"
-        / "ibus-engine-rustype",
-        pathlib.Path(__file__).resolve().parent
-        / "target"
-        / "release"
-        / "ibus-engine-rustype",
+        pathlib.Path("/usr/libexec/rustype-linux"),
+        pathlib.Path.home() / ".local" / "lib" / "rustype" / "rustype-linux",
+        pathlib.Path("/usr/local/libexec/rustype-linux"),
+        pathlib.Path(__file__).resolve().parent.parent / "target" / "release" / ENGINE_NAME,
+        pathlib.Path(__file__).resolve().parent / "target" / "release" / ENGINE_NAME,
     ]
-    exe = shutil.which("ibus-engine-rustype")
-    if not exe:
-        for c in candidates:
-            if c.exists():
-                exe = str(c)
-                break
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return None
+
+
+def get_installed_version() -> str:
+    """Detects the version from the installed rustype-linux or falls back to default."""
+    exe = find_engine()
     if exe:
         try:
             res = subprocess.run(
@@ -419,7 +420,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         # Nhóm Chẩn đoán hệ thống (Thiết kế lại hoàn toàn)
         grp_diag = Adw.PreferencesGroup(
             title="Chẩn đoán hệ thống",
-            description="Kiểm tra trạng thái IBus daemon, daemon engine, tệp XML component và extension GNOME Shell.",
+            description="Kiểm tra rustype-linux, drop-in systemd của IBus trên GNOME và extension GNOME Shell.",
         )
         page_about.add(grp_diag)
 
@@ -475,7 +476,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             bottom_margin=10,
         )
         self.tv_doctor.get_buffer().set_text(
-            'Nhấn "Chạy chẩn đoán" để kiểm tra toàn bộ dịch vụ IBus, cấu hình và tiện ích mở rộng.'
+            'Nhấn "Chạy chẩn đoán" để kiểm tra rustype-linux, cấu hình và tiện ích mở rộng.'
         )
 
         scrolled = Gtk.ScrolledWindow(
@@ -675,33 +676,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         def worker():
             out = ""
             try:
-                candidates = [
-                    pathlib.Path("/usr/libexec/ibus-engine-rustype"),
-                    pathlib.Path("/usr/lib/ibus/ibus-engine-rustype"),
-                    pathlib.Path.home()
-                    / ".local"
-                    / "lib"
-                    / "rustype"
-                    / "ibus-engine-rustype",
-                    pathlib.Path.home() / ".local" / "bin" / "ibus-engine-rustype",
-                    pathlib.Path("/usr/local/lib/rustype/ibus-engine-rustype"),
-                    pathlib.Path(__file__).resolve().parent.parent
-                    / "target"
-                    / "release"
-                    / "ibus-engine-rustype",
-                    pathlib.Path(__file__).resolve().parent
-                    / "target"
-                    / "release"
-                    / "ibus-engine-rustype",
-                ]
-                exe = shutil.which("ibus-engine-rustype")
-                if not exe:
-                    for c in candidates:
-                        if c.exists():
-                            exe = str(c)
-                            break
-                if not exe:
-                    exe = "ibus-engine-rustype"
+                exe = find_engine() or ENGINE_NAME
                 res = subprocess.run(
                     [str(exe), "--doctor"], capture_output=True, text=True, timeout=8
                 )
