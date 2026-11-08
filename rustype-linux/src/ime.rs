@@ -1,13 +1,13 @@
 //! IBus-facing behaviour of one engine instance: picks how to show text in each app,
 //! and turns key events into IBus actions.
 //!
-//! Three ways to put a word on screen:
+//! Two ways to put a word on screen:
 //! - Surrounding: the app reports Surrounding Text (most GUI apps). Edits are
 //!   DeleteSurroundingText + CommitText, with no underline.
 //! - Preedit: the app has no Surrounding Text (terminals such as Ptyxis/VTE). The word
 //!   is shown underlined and committed at the word boundary. It is sent in COMMIT mode,
 //!   so GNOME/Mutter commits it instead of dropping it on a mouse click or focus change.
-//! - Backspace: fake BackSpace key events. Only used when the config forces `direct`.
+//!   `direct` without Surrounding Text also uses this way.
 
 use crate::config::{Config, Mode};
 use rustype_core::telex::Telex;
@@ -23,9 +23,9 @@ const MOD4_MASK: u32 = 1 << 6; // Super on most layouts
 const SUPER_MASK: u32 = 1 << 26;
 const HYPER_MASK: u32 = 1 << 27;
 const META_MASK: u32 = 1 << 28;
-pub const RELEASE_MASK: u32 = 1 << 30;
+pub(crate) const RELEASE_MASK: u32 = 1 << 30;
 
-pub const KEY_BACKSPACE: u32 = 0xff08;
+pub(crate) const KEY_BACKSPACE: u32 = 0xff08;
 
 /// Something to send to IBus, in order, before the ProcessKeyEvent reply.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,11 +37,6 @@ pub enum Out {
         offset: i32,
         nchars: u32,
     },
-    ForwardKey {
-        keyval: u32,
-        keycode: u32,
-        state: u32,
-    },
     /// Ask the client to report Surrounding Text (IBus RequireSurroundingText).
     RequireSurrounding,
 }
@@ -50,7 +45,6 @@ pub enum Out {
 enum Show {
     Surrounding,
     Preedit,
-    Backspace,
 }
 
 pub struct Ime {
@@ -242,17 +236,16 @@ impl Ime {
     }
 
     /// The app focused the field again: Surrounding Text is requested again.
-    pub fn focus_in(&mut self) {
+    pub(crate) fn focus_in(&mut self) {
         self.surrounding_requested = false;
         self.model.clear();
     }
 
-    #[allow(dead_code)]
-    pub fn is_enabled(&self) -> bool {
+    pub(crate) fn is_enabled(&self) -> bool {
         self.enabled
     }
 
-    pub fn set_enabled(&mut self, enabled: bool, out: &mut Vec<Out>) {
+    pub(crate) fn set_enabled(&mut self, enabled: bool, out: &mut Vec<Out>) {
         if self.enabled && !enabled {
             self.flush_preedit(out);
             self.telex.reset();
@@ -260,12 +253,12 @@ impl Ime {
         self.enabled = enabled;
     }
 
-    pub fn set_app_id(&mut self, app_id: Option<String>, cfg: &Config) {
+    pub(crate) fn set_app_id(&mut self, app_id: Option<String>, cfg: &Config) {
         self.app_id = app_id;
         self.apply_config(cfg);
     }
 
-    pub fn apply_config(&mut self, cfg: &Config) {
+    pub(crate) fn apply_config(&mut self, cfg: &Config) {
         if self.telex.is_empty() && !self.preedit_visible {
             self.pending_cfg = None;
             self.telex.cfg = cfg.telex.clone();
@@ -277,7 +270,7 @@ impl Ime {
     }
 
     /// Fresh state after an internal error, keeping what the app told us.
-    pub fn recover(&mut self, cfg: &Config) {
+    pub(crate) fn recover(&mut self, cfg: &Config) {
         let (caps, purpose, app_id, enabled) =
             (self.caps, self.purpose, self.app_id.clone(), self.enabled);
         *self = Ime::new(cfg);
@@ -368,10 +361,8 @@ impl Ime {
             let surrounding = self.caps & CAP_SURROUNDING_TEXT != 0;
             self.show = match self.mode {
                 Mode::Preedit => Show::Preedit,
-                Mode::Auto if surrounding => Show::Surrounding,
-                Mode::Auto => Show::Preedit,
-                Mode::Direct if surrounding => Show::Surrounding,
-                Mode::Direct => Show::Backspace,
+                Mode::Auto | Mode::Direct if surrounding => Show::Surrounding,
+                Mode::Auto | Mode::Direct => Show::Preedit,
             };
         }
         self.show
@@ -379,26 +370,10 @@ impl Ime {
 
     fn replace(&mut self, backspaces: usize, text: String, out: &mut Vec<Out>) {
         if backspaces > 0 {
-            match self.show {
-                Show::Backspace => {
-                    for _ in 0..backspaces {
-                        out.push(Out::ForwardKey {
-                            keyval: KEY_BACKSPACE,
-                            keycode: 14,
-                            state: 0,
-                        });
-                        out.push(Out::ForwardKey {
-                            keyval: KEY_BACKSPACE,
-                            keycode: 14,
-                            state: RELEASE_MASK,
-                        });
-                    }
-                }
-                _ => out.push(Out::DeleteSurrounding {
-                    offset: -(backspaces as i32),
-                    nchars: backspaces as u32,
-                }),
-            }
+            out.push(Out::DeleteSurrounding {
+                offset: -(backspaces as i32),
+                nchars: backspaces as u32,
+            });
         }
         if !text.is_empty() {
             out.push(Out::Commit(text.clone()));
@@ -436,7 +411,7 @@ impl Ime {
 
     /// Reset / focus out. The client already committed a COMMIT-mode preedit itself,
     /// so only the engine state is dropped (committing it here would type it twice).
-    pub fn reset(&mut self, out: &mut Vec<Out>) {
+    pub(crate) fn reset(&mut self, out: &mut Vec<Out>) {
         self.hide_preedit(out);
         self.telex.reset();
         self.has_selection = false;
@@ -596,7 +571,7 @@ mod tests {
         assert_eq!(out.last(), Some(&Out::Commit("kiểm ".into())));
         assert!(!out
             .iter()
-            .any(|o| matches!(o, Out::DeleteSurrounding { .. } | Out::ForwardKey { .. })));
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
     }
 
     #[test]
@@ -922,7 +897,7 @@ mod tests {
 
     #[test]
     fn url_field_never_shows_preedit() {
-        // Omnibox::apply panics on any Preedit or ForwardKey.
+        // Omnibox::apply panics on any Preedit.
         let mut ime = url_field();
         let mut f = Omnibox::new(OMNI);
         f.type_text(&mut ime, "Traanf Rus ");

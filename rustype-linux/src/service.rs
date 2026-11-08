@@ -1,16 +1,16 @@
 //! The org.freedesktop.IBus service, in-process: the IBus object, input contexts, the panel
-//! client and rustype's own interface. Key handling is rustype_ibus::ime, unchanged.
+//! client and rustype's own interface. Key handling is crate::ime, unchanged.
 
 use crate::bus::{Bus, IBUS_NAME, PANEL_IFACE, PANEL_NAME, PANEL_PATH};
-use crate::wire::{body_bool, body_str};
-use rustype_core::telex::InputMethod;
-use rustype_ibus::config::{update_input_method, Watcher};
-use rustype_ibus::dbus::{Message, Reader, Writer};
-use rustype_ibus::ibus::{
+use crate::config::{update_input_method, Watcher};
+use crate::dbus::{Message, Reader, Writer};
+use crate::ime::{Ime, Out};
+use crate::props::{
     app_state_mut, spawn_and_reap, write_prop, write_prop_list, write_text, PROP_STATE_CHECKED,
     PROP_STATE_UNCHECKED, PROP_TYPE_RADIO, PROP_TYPE_TOGGLE, RUSTYPE_IFACE,
 };
-use rustype_ibus::ime::{Ime, Out};
+use crate::wire::{body_bool, body_str};
+use rustype_core::telex::InputMethod;
 use std::collections::{BTreeMap, HashMap};
 use std::io;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -956,17 +956,6 @@ impl IBusService {
                         "iu",
                         &w.buf,
                     )
-                }
-                Out::ForwardKey {
-                    keyval,
-                    keycode,
-                    state,
-                } => {
-                    let mut w = Writer::new();
-                    w.u32(keyval);
-                    w.u32(keycode);
-                    w.u32(state);
-                    bus.ibus_signal(&owner, path, IC_IFACE, "ForwardKeyEvent", "uuu", &w.buf)
                 }
                 Out::RequireSurrounding => {
                     bus.ibus_signal(&owner, path, IC_IFACE, "RequireSurroundingText", "", &[])

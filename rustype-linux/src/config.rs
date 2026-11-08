@@ -6,21 +6,21 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
+pub(crate) enum Mode {
     /// No underline where the app supports Surrounding Text, underline (preedit) elsewhere.
     Auto,
     /// Always underline (preedit). Safest everywhere.
     Preedit,
-    /// Never underline: Surrounding Text, or fake BackSpace keys when the app lacks it.
+    /// No underline where the app supports Surrounding Text; elsewhere it behaves like Preedit.
     Direct,
 }
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub mode: Mode,
-    pub telex: telex::Config,
-    pub app_modes: HashMap<String, Mode>,
-    pub remember_state_per_app: bool,
+    pub(crate) mode: Mode,
+    pub(crate) telex: telex::Config,
+    pub(crate) app_modes: HashMap<String, Mode>,
+    pub(crate) remember_state_per_app: bool,
 }
 
 impl Default for Config {
@@ -36,7 +36,7 @@ impl Default for Config {
 
 impl Config {
     /// Gets the display mode for a specific application, or the global default.
-    pub fn mode_for_app(&self, app_id: Option<&str>) -> Mode {
+    pub(crate) fn mode_for_app(&self, app_id: Option<&str>) -> Mode {
         if let Some(id) = app_id {
             if let Some(m) = self.app_modes.get(id) {
                 return *m;
@@ -60,13 +60,13 @@ impl Config {
     }
 }
 
-pub const DEFAULT_FILE: &str = "\
+pub(crate) const DEFAULT_FILE: &str = "\
 # Rustype: bộ gõ tiếng Việt Telex.
 # Sửa xong thì bấm sang ô gõ khác là có hiệu lực, không cần khởi động lại.
 
 # auto    : không gạch chân ở ứng dụng thường, gạch chân trong terminal (khuyên dùng)
 # preedit : luôn gạch chân
-# direct  : không bao giờ gạch chân (terminal trên Wayland có thể bị lặp chữ)
+# direct  : giống auto, giữ lại để không hỏng cấu hình cũ
 mode = auto
 
 # false: hòa, khỏe, thúy   true: hoà, khoẻ, thuý
@@ -99,7 +99,7 @@ remember_state_per_app = true
 # hn = \"Hà Nội\"
 ";
 
-pub fn path() -> Option<PathBuf> {
+pub(crate) fn path() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
@@ -115,7 +115,7 @@ fn is_input_method_line(line: &str) -> bool {
 }
 
 /// Updates `input_method = telex` or `vni` in `~/.config/rustype/config`.
-pub fn update_input_method(method: rustype_core::telex::InputMethod) {
+pub(crate) fn update_input_method(method: rustype_core::telex::InputMethod) {
     if let Some(p) = path() {
         update_input_method_at(&p, method);
     }
@@ -183,7 +183,7 @@ fn parse_mode(v: &str) -> Mode {
     }
 }
 
-pub fn parse(text: &str) -> Config {
+pub(crate) fn parse(text: &str) -> Config {
     let mut cfg = Config::default();
     let mut section = "";
     for line in text.lines() {
@@ -254,7 +254,7 @@ pub fn parse(text: &str) -> Config {
     cfg
 }
 
-pub fn load_extra_files(cfg: &mut Config) {
+pub(crate) fn load_extra_files(cfg: &mut Config) {
     if let Some(dir) = path().and_then(|p| p.parent().map(|p| p.to_path_buf())) {
         load_extra_files_from(cfg, &dir);
     }
@@ -285,12 +285,12 @@ fn load_extra_files_from(cfg: &mut Config, dir: &std::path::Path) {
 }
 
 /// Holds the current config and re-reads it when the config, `macro` or `words` mtime changes.
-pub struct Watcher {
+pub(crate) struct Watcher {
     /// Files whose mtimes are checked: config, then macro and words beside it.
     watched: Vec<PathBuf>,
     dir: Option<PathBuf>,
     stamps: Option<Vec<Option<SystemTime>>>,
-    pub current: Config,
+    pub(crate) current: Config,
 }
 
 impl Default for Watcher {
@@ -300,7 +300,7 @@ impl Default for Watcher {
 }
 
 impl Watcher {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::at(path())
     }
 
@@ -323,7 +323,7 @@ impl Watcher {
     }
 
     /// Returns true when the config changed.
-    pub fn refresh(&mut self) -> bool {
+    pub(crate) fn refresh(&mut self) -> bool {
         if self.watched.is_empty() {
             return false;
         }

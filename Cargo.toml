@@ -1,5 +1,5 @@
 [workspace]
-members = ["rustype-core", "rustype-ibus", "rustype-linux", "rustype-windows"]
+members = ["rustype-core", "rustype-linux", "rustype-windows"]
 resolver = "2"
 
 [profile.release]

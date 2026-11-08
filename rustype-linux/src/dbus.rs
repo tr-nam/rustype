@@ -586,38 +586,6 @@ impl Connection {
         read_message(&mut self.reader)
     }
 
-    /// Appends an encoded signal to `batch`.
-    pub fn signal(
-        &mut self,
-        batch: &mut Vec<u8>,
-        path: &str,
-        iface: &str,
-        member: &str,
-        sig: &str,
-        body: &[u8],
-    ) {
-        let serial = self.next_serial();
-        let fields = [
-            Field::Path(path),
-            Field::Interface(iface),
-            Field::Member(member),
-        ];
-        batch.extend(encode(SIGNAL, 0, serial, &fields, sig, body));
-    }
-
-    /// Appends the reply for `call` to `batch` (nothing when no reply is expected).
-    pub fn reply(&mut self, batch: &mut Vec<u8>, call: &Message, sig: &str, body: &[u8]) {
-        if !call.wants_reply() {
-            return;
-        }
-        let serial = self.next_serial();
-        let mut fields = vec![Field::ReplySerial(call.serial)];
-        if let Some(s) = &call.sender {
-            fields.push(Field::Destination(s));
-        }
-        batch.extend(encode(METHOD_RETURN, 0, serial, &fields, sig, body));
-    }
-
     pub fn error(&mut self, batch: &mut Vec<u8>, call: &Message, name: &str, text: &str) {
         if !call.wants_reply() {
             return;

@@ -1,5 +1,5 @@
-"""Fake apps talking to a private ibus-daemon: checks what text actually lands in each app.
-Run through tools/ibus_sandbox_test.sh, never against the real session."""
+"""Fake apps talking to a private rustype-linux bus: checks what text actually lands in each app.
+Run through tools/rustype_linux_sandbox.sh, never against the real session."""
 import os, sys, time, gi
 gi.require_version("IBus", "1.0")
 from gi.repository import IBus, GLib
@@ -23,7 +23,7 @@ def pump(t=0.05):
 
 class App:
     """A text field. surrounding: reports Surrounding Text. client_commit: commits a COMMIT-mode
-    preedit itself on reset/focus-out, like GNOME Shell; otherwise ibus-daemon does it (X11 apps)."""
+    preedit itself on reset/focus-out, like GNOME Shell; otherwise the IBus bus does it (X11 apps)."""
     def __init__(self, name, surrounding, client_commit, table=None):
         self.name, self.text, self.preedit, self.mode, self.modes = name, "", "", 0, set()
         self.client_commit, self.latency = client_commit, []
@@ -207,6 +207,6 @@ lat += x11.latency
 x11.ic.destroy()
 
 lat.sort()
-print(f"key round trip (client -> ibus-daemon -> engine -> client): median {lat[len(lat)//2]*1e6:.0f} us, p95 {lat[int(len(lat)*0.95)]*1e6:.0f} us, n={len(lat)}")
+print(f"key round trip (client -> rustype-linux -> client): median {lat[len(lat)//2]*1e6:.0f} us, p95 {lat[int(len(lat)*0.95)]*1e6:.0f} us, n={len(lat)}")
 print("ALL PASS" if all(results) else "SOME FAILED")
 sys.exit(0 if all(results) else 1)

@@ -7,18 +7,10 @@ name = "rustype-core"
 version = "0.1.0"
 
 [[package]]
-name = "rustype-ibus"
-version = "0.1.0"
-dependencies = [
- "rustype-core",
-]
-
-[[package]]
 name = "rustype-linux"
 version = "0.1.0"
 dependencies = [
  "rustype-core",
- "rustype-ibus",
 ]
 
 [[package]]

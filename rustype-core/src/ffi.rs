@@ -1,5 +1,5 @@
-//! C FFI for rustype-core: allows Fcitx5, Windows TSF, and macOS InputMethodKit
-//! to embed the Vietnamese Telex engine directly via C ABI.
+//! C FFI for rustype-core: allows C-ABI input method frameworks, such as macOS InputMethodKit
+//! and Windows TSF, to embed the Vietnamese Telex engine directly via C ABI.
 
 use crate::telex::{Config, Telex};
 use std::ffi::{c_char, CStr};

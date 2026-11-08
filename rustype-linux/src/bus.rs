@@ -2,11 +2,11 @@
 //! Everything the IBus clients need from dbus-daemon, in one thread, with per-connection
 //! output queues that are never written from more than the poll loop.
 
-use crate::sasl::Sasl;
-use crate::wire::{body_bool, body_str, body_u32, encode, Frame, Hdr, MAX_FRAME};
-use rustype_ibus::dbus::{
+use crate::dbus::{
     Message, Reader, Writer, ERROR, FLAG_NO_REPLY_EXPECTED, METHOD_CALL, METHOD_RETURN, SIGNAL,
 };
+use crate::sasl::Sasl;
+use crate::wire::{body_bool, body_str, body_u32, encode, Frame, Hdr, MAX_FRAME};
 use std::collections::{BTreeMap, VecDeque};
 use std::io;
 use std::os::unix::net::UnixStream;

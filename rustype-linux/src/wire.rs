@@ -1,8 +1,8 @@
-//! D-Bus framing and header encoding for the bus and the IBus service. rustype_ibus::dbus
+//! D-Bus framing and header encoding for the bus and the IBus service. crate::dbus
 //! reads from a blocking stream and drops the destination field, so the server needs its own
 //! parser: incremental framing from the fixed header, and re-encoding with sender/destination.
 
-use rustype_ibus::dbus::{Message, Reader, Writer};
+use crate::dbus::{Message, Reader, Writer};
 use std::io;
 
 /// Largest message (header + body) accepted from, or queued for, one connection.

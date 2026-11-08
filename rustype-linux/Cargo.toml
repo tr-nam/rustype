@@ -2,9 +2,13 @@
 name = "rustype-linux"
 version = "0.1.0"
 edition = "2021"
-description = "IBus-protocol server with the Rustype Vietnamese engine in-process (milestone 1)"
+description = "Rustype's IBus-protocol bus for GNOME, with the Vietnamese engine in-process"
 license = "MIT"
 publish = false
+
+[lib]
+name = "rustype_linux"
+path = "src/lib.rs"
 
 [[bin]]
 name = "rustype-linux"
@@ -12,4 +16,3 @@ path = "src/main.rs"
 
 [dependencies]
 rustype-core = { path = "../rustype-core" }
-rustype-ibus = { path = "../rustype-ibus" }

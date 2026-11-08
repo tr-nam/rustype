@@ -4,12 +4,12 @@
   python3 -I tools/golden.py update        # accept the current outputs
   python3 -I tools/golden.py update --new  # build a fresh set of inputs, then record outputs
 
-Run `cargo build --release` first: outputs come from target/release/ibus-engine-rustype --feed.
+Run `cargo build --release` first: outputs come from target/release/rustype-linux --feed.
 """
 import pathlib, random, re, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BIN = ROOT / "target" / "release" / "ibus-engine-rustype"
+BIN = ROOT / "target" / "release" / "rustype-linux"
 GOLDEN = ROOT / "rustype-core" / "tests" / "golden.tsv"
 HEADER = """\
 # Kết quả chuẩn của lõi Telex, được `cargo test` kiểm tra.

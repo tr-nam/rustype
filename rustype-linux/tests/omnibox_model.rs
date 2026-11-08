@@ -6,8 +6,8 @@
 //! suggestion is selected, a commit replaces the suggestion, and a native key does the same.
 //! The oracle is a plain field with no suggestions and reports after every change.
 
-use rustype_ibus::config::Config;
-use rustype_ibus::ime::{Ime, Out, CAP_SURROUNDING_TEXT};
+use rustype_linux::config::Config;
+use rustype_linux::ime::{Ime, Out, CAP_SURROUNDING_TEXT};
 use std::collections::{HashSet, VecDeque};
 
 const PURPOSE_URL: u32 = 5;

@@ -2,11 +2,11 @@
 //! bus or the IBus service, and per-connection output queues that never block the loop.
 
 use crate::bus::{is_bus_call, Bus, Owner, Peer, PANEL_IFACE, PANEL_NAME, PANEL_PATH};
+use crate::dbus::{ERROR, METHOD_CALL, METHOD_RETURN, SIGNAL};
 use crate::sasl::{Event, Sasl};
 use crate::service::IBusService;
 use crate::sys::{self, PollFd, POLLERR, POLLHUP, POLLIN, POLLOUT};
 use crate::wire::{self, Frame};
-use rustype_ibus::dbus::{ERROR, METHOD_CALL, METHOD_RETURN, SIGNAL};
 use std::io::{self, Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixListener;

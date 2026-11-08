@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Private dbus + private rustype-linux. The real IBus session and ~/.config/ibus are never touched.
-# Runs the unmodified ibus_client.py (same assertions as ibus_sandbox_test.sh), then the panel
+# Runs the unmodified ibus_client.py, then the panel
 # test (a real libibus PanelService owning org.freedesktop.IBus.Panel), then checks the server's
 # own cleanup. usage: tools/rustype_linux_sandbox.sh path/to/rustype-linux
 set -u
