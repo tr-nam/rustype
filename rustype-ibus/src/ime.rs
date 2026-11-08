@@ -15,6 +15,7 @@ use rustype_core::telex::Telex;
 pub const CAP_SURROUNDING_TEXT: u32 = 1 << 5;
 const PURPOSE_PASSWORD: u32 = 8;
 const PURPOSE_PIN: u32 = 9;
+const PURPOSE_URL: u32 = 5;
 
 const CONTROL_MASK: u32 = 1 << 2;
 const MOD1_MASK: u32 = 1 << 3; // Alt
@@ -41,6 +42,8 @@ pub enum Out {
         keycode: u32,
         state: u32,
     },
+    /// Ask the client to report Surrounding Text (IBus RequireSurroundingText).
+    RequireSurrounding,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,10 +61,161 @@ pub struct Ime {
     show: Show,
     preedit_visible: bool,
     app_id: Option<String>,
-    cursor_pos: Option<u32>,
-    anchor_pos: Option<u32>,
     has_selection: bool,
     enabled: bool,
+    /// Config that arrived while a word was composing; applied once the word ends.
+    pending_cfg: Option<Config>,
+    /// Surrounding Text was requested in this focus (URL fields ask once).
+    surrounding_requested: bool,
+    /// What the URL field's tail may hold, see `FieldModel`.
+    model: FieldModel,
+}
+
+/// What a URL field's tail may really hold. Chrome's Surrounding Text reports lag behind the keys,
+/// and a delete is dropped when a suggestion is selected, so the engine keeps every text the tail
+/// may be: `want` (the word as typed) first, then the variants where a delete was dropped.
+/// Nothing is tracked while `candidates` is empty.
+#[derive(Default)]
+struct FieldModel {
+    want: String,
+    candidates: Vec<String>,
+    /// The boundary char that ended the previous word, see `settle`.
+    carried: Option<char>,
+}
+
+// Lagging reports keep many variants alive while suggestions drop deletes. At 16 candidates the
+// model was cleared mid-word and the stale text stayed in the field (tests/omnibox_model.rs).
+const MODEL_MAX_CANDIDATES: usize = 256;
+const MODEL_MAX_CHARS: usize = 256;
+
+/// The text after the second-last separator `p`: the current word and its boundary. Variants can
+/// carry more words than the window (a dropped delete merges them), so one removal per boundary
+/// is not enough. None when the variant has no separator at all.
+fn last_word(c: &str, p: char) -> Option<String> {
+    let at: Vec<usize> = c.match_indices(p).map(|(i, _)| i).collect();
+    match at.len() {
+        0 => None,
+        1 => Some(c.to_string()),
+        n => Some(c[at[n - 2] + p.len_utf8()..].to_string()),
+    }
+}
+
+impl FieldModel {
+    fn is_empty(&self) -> bool {
+        self.candidates.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.want.clear();
+        self.candidates.clear();
+        self.carried = None;
+    }
+
+    /// A word boundary with the word typed. Only the last two words stay tracked: at the next
+    /// boundary the first word is forgotten, so a late report can still repair the word before
+    /// the current one, but the variants never pile up across a whole sentence.
+    fn settle(&mut self, boundary: char) {
+        if self.candidates.len() <= 1 {
+            self.clear();
+            return;
+        }
+        if let Some(p) = self.carried {
+            let mut next = Vec::new();
+            for c in &self.candidates {
+                match last_word(c, p) {
+                    Some(w) => next.push(w),
+                    None => {
+                        self.clear();
+                        return;
+                    }
+                }
+            }
+            self.store(next);
+        }
+        self.carried = if self.is_empty() {
+            None
+        } else {
+            Some(boundary)
+        };
+    }
+
+    /// Keeps the candidates without duplicates, `want` first. Clears the model when a limit is
+    /// exceeded or when no tail is left to track.
+    fn store(&mut self, list: Vec<String>) {
+        let mut kept: Vec<String> = Vec::new();
+        for c in list {
+            if c.chars().count() > MODEL_MAX_CHARS {
+                self.clear();
+                return;
+            }
+            if !kept.contains(&c) {
+                kept.push(c);
+            }
+        }
+        let tracked = kept.first().is_some_and(|w| !w.is_empty());
+        if kept.len() > MODEL_MAX_CANDIDATES || !tracked {
+            self.clear();
+            return;
+        }
+        self.want = kept[0].clone();
+        self.candidates = kept;
+    }
+
+    /// A char was typed without the engine handling it: the tail gains it.
+    fn native(&mut self, ch: char) {
+        let base: Vec<String> = if self.is_empty() {
+            vec![String::new()]
+        } else {
+            self.candidates.clone()
+        };
+        let next: Vec<String> = base
+            .into_iter()
+            .map(|mut c| {
+                c.push(ch);
+                c
+            })
+            .collect();
+        self.store(next);
+    }
+
+    /// The engine replaces the last `n` chars of the tail with `commit`. Chrome may have applied
+    /// that, or dropped the delete and kept the stale tail under the commit.
+    fn edit(&mut self, n: usize, commit: &str) {
+        let base: Vec<String> = if self.is_empty() {
+            if n > 0 {
+                return; // the tail is unknown, so an edit into it cannot be modelled
+            }
+            vec![String::new()]
+        } else {
+            self.candidates.clone()
+        };
+        let mut next: Vec<String> = Vec::new();
+        for c in &base {
+            let len = c.chars().count();
+            if len < n {
+                self.clear();
+                return;
+            }
+            let keep: String = c.chars().take(len - n).collect();
+            next.push(format!("{keep}{commit}")); // applied
+            next.push(format!("{c}{commit}")); // delete dropped
+        }
+        self.store(next);
+    }
+
+    /// Native Backspace: every variant loses its last char.
+    fn native_backspace(&mut self) {
+        let next: Vec<String> = self
+            .candidates
+            .iter()
+            .map(|c| {
+                let mut c = c.clone();
+                c.pop();
+                c
+            })
+            .collect();
+        self.store(next);
+    }
 }
 
 fn is_modifier_key(keyval: u32) -> bool {
@@ -79,11 +233,18 @@ impl Ime {
             show: Show::Preedit,
             preedit_visible: false,
             app_id: None,
-            cursor_pos: None,
-            anchor_pos: None,
             has_selection: false,
             enabled: true,
+            pending_cfg: None,
+            surrounding_requested: false,
+            model: FieldModel::default(),
         }
+    }
+
+    /// The app focused the field again: Surrounding Text is requested again.
+    pub fn focus_in(&mut self) {
+        self.surrounding_requested = false;
+        self.model.clear();
     }
 
     #[allow(dead_code)]
@@ -106,18 +267,25 @@ impl Ime {
 
     pub fn apply_config(&mut self, cfg: &Config) {
         if self.telex.is_empty() && !self.preedit_visible {
+            self.pending_cfg = None;
             self.telex.cfg = cfg.telex.clone();
             self.mode = cfg.mode_for_app(self.app_id.as_deref());
+        } else {
+            // Mid-word: applied by pick_show once the word has ended.
+            self.pending_cfg = Some(cfg.clone());
         }
     }
 
     /// Fresh state after an internal error, keeping what the app told us.
     pub fn recover(&mut self, cfg: &Config) {
-        let (caps, purpose, app_id) = (self.caps, self.purpose, self.app_id.clone());
+        let (caps, purpose, app_id, enabled) =
+            (self.caps, self.purpose, self.app_id.clone(), self.enabled);
         *self = Ime::new(cfg);
         self.caps = caps;
         self.purpose = purpose;
         self.app_id = app_id;
+        self.enabled = enabled;
+        self.mode = cfg.mode_for_app(self.app_id.as_deref());
     }
 
     pub fn set_capabilities(&mut self, caps: u32) {
@@ -125,42 +293,78 @@ impl Ime {
     }
 
     pub fn set_content_type(&mut self, purpose: u32, _hints: u32) {
+        if self.purpose != purpose {
+            self.model.clear();
+        }
         self.purpose = purpose;
     }
 
     pub fn set_surrounding_text(
         &mut self,
-        _text: &str,
+        text: &str,
         cursor_pos: u32,
         anchor_pos: u32,
         out: &mut Vec<Out>,
     ) {
+        // Only URL fields use Surrounding Text: the other fields never asked for it.
+        if self.purpose != PURPOSE_URL {
+            return;
+        }
         let has_sel = cursor_pos != anchor_pos;
         self.has_selection = has_sel;
-        if has_sel {
-            // When there is an active selection (such as Omnibox URL autocomplete),
-            // reset any composing word so it does not interfere with newly typed keys.
-            if !self.telex.is_empty() || self.preedit_visible {
-                self.reset(out);
-            }
-        } else if let Some(last_pos) = self.cursor_pos {
-            // If the cursor jumped outside of the current word:
-            let word_len = self.telex.displayed().chars().count() as u32;
-            let expected_min = last_pos.saturating_sub(word_len);
-            let expected_max = last_pos.saturating_add(1);
-            if (cursor_pos < expected_min || cursor_pos > expected_max)
-                && (!self.telex.is_empty() || self.preedit_visible)
-            {
-                self.reset(out);
-            }
+        if self.model.is_empty() {
+            return;
         }
-        self.cursor_pos = Some(cursor_pos);
-        self.anchor_pos = Some(anchor_pos);
+        // The report is the text up to the selection start: take the longest tail it ends with.
+        let start = cursor_pos.min(anchor_pos) as usize;
+        let before: String = text.chars().take(start).collect();
+        let matched = self
+            .model
+            .candidates
+            .iter()
+            .filter(|c| !c.is_empty() && before.ends_with(c.as_str()))
+            .max_by_key(|c| c.chars().count())
+            .cloned();
+        let Some(best) = matched else {
+            // An older report than the keys already processed: nothing to check.
+            return;
+        };
+        if best == self.model.want {
+            // The word as typed is in the field, but an older report can match it too: keep the
+            // other variants until a later report or a word boundary settles them.
+            return;
+        }
+        if has_sel {
+            // Chrome still shows a suggestion: wait for a report without it.
+            return;
+        }
+        // A dropped delete left the stale tail: replace the whole tail with the word as typed.
+        // The repair can be dropped too, so it is recorded as an edit of the stale tail.
+        let len = best.chars().count();
+        let want = self.model.want.clone();
+        out.push(Out::DeleteSurrounding {
+            offset: -(len as i32),
+            nchars: len as u32,
+        });
+        out.push(Out::Commit(want.clone()));
+        let mut stale = FieldModel::default();
+        stale.store(vec![best]);
+        stale.edit(len, &want);
+        self.model = stale;
     }
 
-    /// The display method is chosen when a word starts and kept until it ends.
-    fn pick_show(&mut self) -> Show {
+    /// The display method is chosen when a word starts and kept until it ends. URL fields
+    /// ask once per focus for Surrounding Text, which the repair in set_surrounding_text needs.
+    fn pick_show(&mut self, out: &mut Vec<Out>) -> Show {
         if self.telex.is_empty() && !self.preedit_visible {
+            if let Some(cfg) = self.pending_cfg.take() {
+                self.telex.cfg = cfg.telex.clone();
+                self.mode = cfg.mode_for_app(self.app_id.as_deref());
+            }
+            if self.purpose == PURPOSE_URL && !self.surrounding_requested {
+                self.surrounding_requested = true;
+                out.push(Out::RequireSurrounding);
+            }
             let surrounding = self.caps & CAP_SURROUNDING_TEXT != 0;
             self.show = match self.mode {
                 Mode::Preedit => Show::Preedit,
@@ -199,9 +403,6 @@ impl Ime {
         if !text.is_empty() {
             out.push(Out::Commit(text.clone()));
         }
-        if let Some(c) = self.cursor_pos.as_mut() {
-            *c = c.saturating_sub(backspaces as u32) + text.chars().count() as u32;
-        }
     }
 
     fn show_preedit(&mut self, out: &mut Vec<Out>) {
@@ -239,6 +440,7 @@ impl Ime {
         self.hide_preedit(out);
         self.telex.reset();
         self.has_selection = false;
+        self.model.clear();
     }
 
     pub fn process_key(
@@ -256,27 +458,37 @@ impl Ime {
         {
             self.flush_preedit(out);
             self.telex.reset();
+            self.model.clear();
             return false;
         }
 
-        let show = self.pick_show();
+        let show = self.pick_show(out);
         if keyval == KEY_BACKSPACE {
             return self.backspace(show, out);
         }
         if (0x20..=0x7e).contains(&keyval) {
             let ch = char::from_u32(keyval).unwrap();
-            self.has_selection = false;
             return match show {
                 Show::Preedit => self.printable_preedit(ch, out),
                 _ => {
+                    let url_tail = self.purpose == PURPOSE_URL && show == Show::Surrounding;
                     let r = self.telex.key(ch);
                     if !r.handled {
-                        if let Some(c) = self.cursor_pos.as_mut() {
-                            *c += 1;
+                        if url_tail {
+                            self.model.native(ch);
+                            self.settle_url_model(ch);
                         }
                         return false;
                     }
+                    // An auto-restore commit can end in the boundary char too.
+                    let boundary = r.commit.chars().last().filter(|b| !b.is_alphabetic());
+                    if url_tail {
+                        self.model.edit(r.backspaces, &r.commit);
+                    }
                     self.replace(r.backspaces, r.commit, out);
+                    if let (true, Some(b)) = (url_tail, boundary) {
+                        self.settle_url_model(b);
+                    }
                     true
                 }
             };
@@ -284,14 +496,27 @@ impl Ime {
         // Enter, Tab, Escape, arrows, F-keys, keypad...: end the word and let the app have the key.
         self.flush_preedit(out);
         self.telex.reset();
+        self.model.clear();
         false
     }
 
     fn backspace(&mut self, show: Show, out: &mut Vec<Out>) -> bool {
+        if self.purpose == PURPOSE_URL && self.has_selection {
+            // Omnibox: native Backspace removes the selected suggestion; the typed text stays.
+            self.has_selection = false;
+            return false;
+        }
         if show != Show::Preedit {
+            let url_tail = self.purpose == PURPOSE_URL && show == Show::Surrounding;
             let r = self.telex.backspace();
             if !r.handled {
+                if url_tail {
+                    self.model.native_backspace();
+                }
                 return false;
+            }
+            if url_tail {
+                self.model.edit(r.backspaces, &r.commit);
             }
             self.replace(r.backspaces, r.commit, out);
             return true;
@@ -310,10 +535,18 @@ impl Ime {
         true
     }
 
+    /// Settles the tracked tail at a word boundary, once the telex word is empty.
+    fn settle_url_model(&mut self, boundary: char) {
+        if self.telex.is_empty() {
+            self.model.settle(boundary);
+        }
+    }
+
     fn printable_preedit(&mut self, ch: char, out: &mut Vec<Out>) -> bool {
         let before = self.telex.displayed();
         let r = self.telex.key(ch);
-        if ch.is_alphabetic() {
+        // A VNI digit that was consumed as a mark keeps the word open.
+        if ch.is_alphabetic() || (r.handled && !self.telex.is_empty()) {
             self.show_preedit(out);
             return true;
         }
@@ -424,41 +657,409 @@ mod tests {
         assert!(out.is_empty());
     }
 
-    #[test]
-    fn selection_autocomplete_resets_composition() {
+    /// A URL field (Omnibox): Surrounding Text is reported, but purpose is URL.
+    fn url_field() -> Ime {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
-        let mut out = Vec::new();
-        // Type 'g'
-        ime.process_key('g' as u32, 0, 0, &mut out);
-        // Browser omnibox autocompletes "google.com" and selects "oogle.com" (cursor 10, anchor 1)
-        ime.set_surrounding_text("google.com", 10, 1, &mut out);
-        out.clear();
-        // User types 'i' -> should not be combined with 'g'
-        ime.process_key('i' as u32, 0, 0, &mut out);
-        // It passes or commits 'i' without deleting old surrounding text
-        assert!(!out
-            .iter()
-            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+        ime.set_content_type(PURPOSE_URL, 0);
+        ime
+    }
+
+    /// A URL field with no Surrounding Text: composes in preedit.
+    fn preedit_field() -> Ime {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9);
+        ime.set_content_type(PURPOSE_URL, 0);
+        ime
+    }
+
+    /// Omnibox as far as it matters: the text before the caret and an inline suggestion selected
+    /// after it. Chrome drops a delete while a selection exists, a commit replaces the selection,
+    /// and a report gives cursor = caret, anchor = end of the suggestion.
+    struct Omnibox {
+        text: String,
+        sugg: String,
+        requested: bool,
+        table: &'static [(&'static str, &'static str)],
+        /// Report after every key (true) or only when the test asks for it.
+        report_each_key: bool,
+        /// The next delete is dropped, as if a selection had reappeared.
+        drop_next_delete: bool,
+    }
+
+    impl Omnibox {
+        fn new(table: &'static [(&'static str, &'static str)]) -> Self {
+            Omnibox {
+                text: String::new(),
+                sugg: String::new(),
+                requested: false,
+                table,
+                report_each_key: true,
+                drop_next_delete: false,
+            }
+        }
+
+        fn suggest(&mut self) {
+            self.sugg = self
+                .table
+                .iter()
+                .find(|(k, _)| Some(*k) == self.text.rsplit(' ').next())
+                .map(|(_, v)| v.to_string())
+                .unwrap_or_default();
+        }
+
+        fn apply(&mut self, outs: &[Out]) {
+            for o in outs {
+                match o {
+                    Out::Commit(t) => {
+                        self.sugg.clear();
+                        self.text.push_str(t);
+                    }
+                    Out::DeleteSurrounding { nchars, .. } => {
+                        if self.drop_next_delete {
+                            self.drop_next_delete = false;
+                        } else if self.sugg.is_empty() {
+                            // With a selection Chrome drops the delete.
+                            for _ in 0..*nchars {
+                                self.text.pop();
+                            }
+                        }
+                    }
+                    Out::RequireSurrounding => self.requested = true,
+                    other => panic!("unexpected {other:?}"),
+                }
+            }
+        }
+
+        fn key(&mut self, ime: &mut Ime, ch: char) {
+            let mut out = Vec::new();
+            if !ime.process_key(ch as u32, 0, 0, &mut out) {
+                self.sugg.clear(); // typed text replaces the selection
+                self.text.push(ch);
+            }
+            self.apply(&out);
+            self.suggest();
+            if self.report_each_key {
+                self.report(ime);
+            }
+        }
+
+        /// One Surrounding Text report of the current state. Returns what the engine did with it.
+        fn report(&mut self, ime: &mut Ime) -> Vec<Out> {
+            if !self.requested {
+                return Vec::new();
+            }
+            let caret = self.text.chars().count() as u32;
+            let anchor = caret + self.sugg.chars().count() as u32;
+            let full = format!("{}{}", self.text, self.sugg);
+            let mut outs = Vec::new();
+            ime.set_surrounding_text(&full, caret, anchor, &mut outs);
+            self.apply(&outs);
+            self.suggest();
+            outs
+        }
+
+        fn type_text(&mut self, ime: &mut Ime, s: &str) {
+            for ch in s.chars() {
+                self.key(ime, ch);
+            }
+        }
+
+        /// All keys first, then one late report, then one more. Returns what the first did.
+        fn type_delayed(&mut self, ime: &mut Ime, s: &str) -> Vec<Out> {
+            self.report_each_key = false;
+            for ch in s.chars() {
+                self.key(ime, ch);
+            }
+            let first = self.report(ime);
+            self.report(ime);
+            first
+        }
+    }
+
+    const OMNI: &[(&str, &str)] = &[
+        ("Ru", "st-lang.org"),
+        ("Tra", "nslate.google.com"),
+        ("cu", "ong.com"),
+        ("ngu", "oi.vn"),
+    ];
+
+    #[test]
+    fn url_field_rus_with_late_report_becomes_ru() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_delayed(&mut ime, "Rus");
+        assert_eq!(f.text, "Rú");
     }
 
     #[test]
-    fn cursor_jump_resets_composition() {
+    fn url_field_traanf_with_late_report_becomes_tran() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_delayed(&mut ime, "Traanf");
+        assert_eq!(f.text, "Trần");
+    }
+
+    #[test]
+    fn url_field_trailing_space_with_late_report_keeps_space() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_delayed(&mut ime, "Traanf ");
+        assert_eq!(f.text, "Trần ");
+    }
+
+    #[test]
+    fn url_field_cuwar_with_late_report_becomes_cua() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_delayed(&mut ime, "cuwar");
+        assert_eq!(f.text, "cửa");
+    }
+
+    #[test]
+    fn url_field_nguwowif_with_late_report_becomes_nguoi() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_delayed(&mut ime, "nguwowif");
+        assert_eq!(f.text, "người");
+    }
+
+    #[test]
+    fn url_field_report_after_every_key_converges() {
+        for (input, want) in [
+            ("Rus", "Rú"),
+            ("Traanf", "Trần"),
+            ("cuwar", "cửa"),
+            ("nguwowif", "người"),
+        ] {
+            let mut ime = url_field();
+            let mut f = Omnibox::new(OMNI);
+            f.type_text(&mut ime, input);
+            assert_eq!(f.text, want, "typing {input}");
+        }
+    }
+
+    #[test]
+    fn url_field_no_suggestions_is_not_repaired() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(&[]);
+        let first = f.type_delayed(&mut ime, "Traanf");
+        assert_eq!(f.text, "Trần");
+        assert!(first.is_empty());
+        let mut ime = url_field();
+        let mut f = Omnibox::new(&[]);
+        let first = f.type_delayed(&mut ime, "xus");
+        assert_eq!(f.text, "xú");
+        assert!(first.is_empty());
+    }
+
+    #[test]
+    fn url_field_old_report_matches_nothing() {
+        let mut ime = url_field();
+        keys(&mut ime, "Rus");
+        let before = ime.model.candidates.clone();
+        let mut out = Vec::new();
+        ime.set_surrounding_text("Zzz", 3, 3, &mut out);
+        assert!(out.is_empty());
+        assert_eq!(ime.model.candidates, before);
+    }
+
+    #[test]
+    fn url_field_dropped_repair_is_repaired_again() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.report_each_key = false;
+        for ch in "Rus".chars() {
+            f.key(&mut ime, ch);
+        }
+        assert_eq!(f.text, "Ruú");
+        f.drop_next_delete = true;
+        f.report(&mut ime); // the repair is dropped
+        f.report(&mut ime); // and repeated
+        assert_eq!(f.text, "Rú");
+    }
+
+    #[test]
+    fn url_field_model_stays_bounded() {
+        let mut ime = url_field();
+        let mut out = Vec::new();
+        for ch in "nguwowif".repeat(8).chars() {
+            ime.process_key(ch as u32, 0, 0, &mut out);
+            assert!(ime.model.candidates.len() <= MODEL_MAX_CANDIDATES);
+            assert!(ime
+                .model
+                .candidates
+                .iter()
+                .all(|c| c.chars().count() <= MODEL_MAX_CHARS));
+        }
+    }
+
+    #[test]
+    fn url_field_keeps_only_two_words_tracked() {
+        // No reports at all: the variants can only grow with the edits, so the boundaries must
+        // bound them. Twelve words with marks, and the model stays small after each one.
+        let mut ime = url_field();
+        let mut out = Vec::new();
+        for _ in 0..12 {
+            for ch in "nguwowif ".chars() {
+                ime.process_key(ch as u32, 0, 0, &mut out);
+            }
+            assert!(
+                ime.model.candidates.len() <= 64,
+                "{}",
+                ime.model.candidates.len()
+            );
+        }
+    }
+
+    #[test]
+    fn url_field_two_word_burst_with_one_late_report_repairs_both() {
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_delayed(&mut ime, "Rus Traanf");
+        assert_eq!(f.text, "Rú Trần");
+    }
+
+    #[test]
+    fn url_field_never_shows_preedit() {
+        // Omnibox::apply panics on any Preedit or ForwardKey.
+        let mut ime = url_field();
+        let mut f = Omnibox::new(OMNI);
+        f.type_text(&mut ime, "Traanf Rus ");
+        assert_eq!(f.text, "Trần Rú ");
+    }
+
+    #[test]
+    fn url_field_enter_is_native() {
+        let mut ime = url_field();
+        keys(&mut ime, "Rus");
+        let mut out = Vec::new();
+        assert!(!ime.process_key(KEY_RETURN, 0, 0, &mut out));
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn url_field_backspace_on_selection_is_native() {
+        let mut ime = url_field();
+        keys(&mut ime, "Ru");
+        let mut out = Vec::new();
+        ime.set_surrounding_text("Rust-lang.org", 2, 13, &mut out);
+        assert!(out.is_empty());
+        let mut out = Vec::new();
+        assert!(!ime.process_key(KEY_BACKSPACE, 0, 0, &mut out));
+        assert!(out.is_empty());
+        assert_eq!(ime.telex.displayed(), "Ru");
+        assert!(!ime.has_selection);
+    }
+
+    #[test]
+    fn url_field_requires_surrounding_once_per_focus() {
+        let count = |out: &[Out]| {
+            out.iter()
+                .filter(|o| **o == Out::RequireSurrounding)
+                .count()
+        };
+        let mut ime = url_field();
+        let mut out = Vec::new();
+        for ch in "Rus".chars() {
+            ime.process_key(ch as u32, 0, 0, &mut out);
+        }
+        assert_eq!(count(&out), 1);
+        keys(&mut ime, "\n"); // word ends
+        ime.focus_in();
+        let mut out = Vec::new();
+        ime.process_key('a' as u32, 0, 0, &mut out);
+        assert_eq!(count(&out), 1);
+        let mut out = Vec::new();
+        ime.process_key('b' as u32, 0, 0, &mut out);
+        assert_eq!(count(&out), 0);
+    }
+
+    #[test]
+    fn non_url_fields_ignore_surrounding_text() {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
         let mut out = Vec::new();
-        // Type "kiee"
-        for ch in "kiee".chars() {
-            ime.process_key(ch as u32, 0, 0, &mut out);
-        }
-        // Cursor jumps far away to 20
-        ime.set_surrounding_text("some random other text", 20, 20, &mut out);
+        ime.set_surrounding_text("Rú", 2, 0, &mut out);
+        assert!(out.is_empty());
+        assert!(!ime.has_selection);
+    }
+
+    #[test]
+    fn non_url_boundary_hides_before_commit() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9);
+        keys(&mut ime, "Rus");
+        let out = keys(&mut ime, " ");
+        assert_eq!(out, vec![Out::HidePreedit, Out::Commit("Rú ".into())]);
+    }
+
+    #[test]
+    fn selection_autocomplete_keeps_composition() {
+        let mut ime = preedit_field();
+        let mut out = Vec::new();
+        // Caret at 1, then type 'g'.
+        ime.set_surrounding_text("g", 1, 1, &mut out);
+        ime.process_key('g' as u32, 0, 0, &mut out);
+        // Omnibox selects the suggestion "oogle.com" that starts at the caret (cursor 10, anchor 1).
+        ime.set_surrounding_text("google.com", 10, 1, &mut out);
         out.clear();
-        // Next key 'm' shouldn't compose with previous "kiê"
-        ime.process_key('m' as u32, 0, 0, &mut out);
-        assert!(!out
-            .iter()
-            .any(|o| matches!(o, Out::Commit(ref s) if s == "kiêm")));
+        // The selection start is still the word's end, so 'o' extends "g" instead of resetting.
+        ime.process_key('o' as u32, 0, 0, &mut out);
+        assert_eq!(out, vec![Out::Preedit("go".into())]);
+    }
+
+    #[test]
+    fn autocomplete_selection_at_caret_keeps_word() {
+        for (cursor, anchor) in [(3, 9), (9, 3)] {
+            let mut ime = preedit_field();
+            let mut out = Vec::new();
+            ime.set_surrounding_text("Tra", 3, 3, &mut out);
+            keys(&mut ime, "Tra");
+            out.clear();
+            ime.set_surrounding_text("Translate", cursor, anchor, &mut out);
+            assert!(out.is_empty(), "selection reset the word: {out:?}");
+            let out = keys(&mut ime, "anf");
+            assert_eq!(out.last(), Some(&Out::Preedit("Trần".into())));
+        }
+    }
+
+    #[test]
+    fn vni_digits_in_preedit_keep_word() {
+        let mut cfg = Config::default();
+        cfg.telex.input_method = rustype_core::telex::InputMethod::Vni;
+        let mut ime = Ime::new(&cfg);
+        ime.set_capabilities(0x9);
+        let out = keys(&mut ime, "ba1n ");
+        assert_eq!(out.last(), Some(&Out::Commit("bán ".into())));
+    }
+
+    #[test]
+    fn config_change_mid_word_applies_after_word() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9);
+        let out = keys(&mut ime, "ba");
+        assert_eq!(out.last(), Some(&Out::Preedit("ba".into())));
+        let mut vni = Config::default();
+        vni.telex.input_method = rustype_core::telex::InputMethod::Vni;
+        ime.apply_config(&vni);
+        let out = keys(&mut ime, " ");
+        assert_eq!(out, vec![Out::HidePreedit, Out::Commit("ba ".into())]);
+        let out = keys(&mut ime, "ba1n ");
+        assert_eq!(out.last(), Some(&Out::Commit("bán ".into())));
+    }
+
+    #[test]
+    fn recover_keeps_enabled_and_app_mode() {
+        let mut cfg = Config::default();
+        cfg.app_modes.insert("kitty".into(), Mode::Preedit);
+        let mut ime = Ime::new(&cfg);
+        ime.set_app_id(Some("kitty".into()), &cfg);
+        let mut out = Vec::new();
+        ime.set_enabled(false, &mut out);
+        ime.recover(&cfg);
+        assert!(!ime.is_enabled());
+        assert_eq!(ime.mode, Mode::Preedit);
     }
 
     #[test]

@@ -107,30 +107,64 @@ pub fn path() -> Option<PathBuf> {
     Some(base.join("rustype").join("config"))
 }
 
+/// True for a line whose key is exactly `input_method`: `input_method = x` or `input_method=x`.
+fn is_input_method_line(line: &str) -> bool {
+    line.trim_start()
+        .strip_prefix("input_method")
+        .is_some_and(|rest| rest.trim_start_matches([' ', '\t']).starts_with('='))
+}
+
 /// Updates `input_method = telex` or `vni` in `~/.config/rustype/config`.
 pub fn update_input_method(method: rustype_core::telex::InputMethod) {
-    let Some(p) = path() else { return };
+    if let Some(p) = path() {
+        update_input_method_at(&p, method);
+    }
+}
+
+fn update_input_method_at(p: &std::path::Path, method: rustype_core::telex::InputMethod) {
     let method_str = match method {
         rustype_core::telex::InputMethod::Telex => "telex",
         rustype_core::telex::InputMethod::Vni => "vni",
     };
-    if let Ok(content) = std::fs::read_to_string(&p) {
-        let mut lines = Vec::new();
-        let mut replaced = false;
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("input_method") && trimmed.contains('=') {
-                lines.push(format!("input_method = {method_str}"));
-                replaced = true;
-            } else {
-                lines.push(line.to_string());
-            }
-        }
-        if !replaced {
+    // Follow a symlinked config so the link survives the rename below.
+    let p = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let Ok(content) = std::fs::read_to_string(&p) else {
+        return;
+    };
+    let mut lines = Vec::new();
+    let mut replaced = false;
+    for line in content.lines() {
+        if is_input_method_line(line) {
             lines.push(format!("input_method = {method_str}"));
+            replaced = true;
+        } else {
+            lines.push(line.to_string());
         }
-        let _ = std::fs::write(&p, lines.join("\n") + "\n");
     }
+    if !replaced {
+        lines.push(format!("input_method = {method_str}"));
+    }
+    // Write a sibling temp file, then rename over the config: readers never see a half-written file.
+    let Some(name) = p.file_name() else { return };
+    let tmp = p.with_file_name(format!(".{}.tmp", name.to_string_lossy()));
+    let body = lines.join("\n") + "\n";
+    if std::fs::write(&tmp, body).is_ok() && std::fs::rename(&tmp, &p).is_ok() {
+        return;
+    }
+    let _ = std::fs::remove_file(&tmp);
+}
+
+/// Cuts a line at the first `#` that is outside double quotes.
+fn strip_comment(line: &str) -> &str {
+    let mut in_quotes = false;
+    for (idx, c) in line.char_indices() {
+        match c {
+            '"' => in_quotes = !in_quotes,
+            '#' if !in_quotes => return &line[..idx],
+            _ => {}
+        }
+    }
+    line
 }
 
 fn parse_bool(v: &str) -> Option<bool> {
@@ -153,7 +187,7 @@ pub fn parse(text: &str) -> Config {
     let mut cfg = Config::default();
     let mut section = "";
     for line in text.lines() {
-        let line = line.split('#').next().unwrap_or("").trim();
+        let line = strip_comment(line).trim();
         if line.is_empty() {
             continue;
         }
@@ -166,7 +200,8 @@ pub fn parse(text: &str) -> Config {
         };
         let (k, v) = (k.trim().trim_matches('"'), v.trim().trim_matches('"'));
         if section == "app_modes" {
-            cfg.app_modes.insert(k.to_string(), parse_mode(v));
+            // Lookups in mode_for_app are lowercase, so store the key that way.
+            cfg.app_modes.insert(k.to_lowercase(), parse_mode(v));
             continue;
         }
         if section == "macros" {
@@ -211,7 +246,7 @@ pub fn parse(text: &str) -> Config {
             }
             other if other.starts_with("app_mode.") => {
                 let app = other.strip_prefix("app_mode.").unwrap().trim_matches('"');
-                cfg.app_modes.insert(app.to_string(), parse_mode(v));
+                cfg.app_modes.insert(app.to_lowercase(), parse_mode(v));
             }
             _ => {}
         }
@@ -221,42 +256,66 @@ pub fn parse(text: &str) -> Config {
 
 pub fn load_extra_files(cfg: &mut Config) {
     if let Some(dir) = path().and_then(|p| p.parent().map(|p| p.to_path_buf())) {
-        let macro_file = dir.join("macro");
-        if let Ok(content) = std::fs::read_to_string(macro_file) {
-            for line in content.lines() {
-                let line = line.split('#').next().unwrap_or("").trim();
-                if let Some((k, v)) = line.split_once(':') {
-                    let (k, v) = (k.trim(), v.trim());
-                    if !k.is_empty() && !v.is_empty() {
-                        cfg.telex.macros.insert(k.to_string(), v.to_string());
-                    }
+        load_extra_files_from(cfg, &dir);
+    }
+}
+
+fn load_extra_files_from(cfg: &mut Config, dir: &std::path::Path) {
+    let macro_file = dir.join("macro");
+    if let Ok(content) = std::fs::read_to_string(macro_file) {
+        for line in content.lines() {
+            let line = strip_comment(line).trim();
+            if let Some((k, v)) = line.split_once(':') {
+                let (k, v) = (k.trim(), v.trim());
+                if !k.is_empty() && !v.is_empty() {
+                    cfg.telex.macros.insert(k.to_string(), v.to_string());
                 }
             }
         }
-        let words_file = dir.join("words");
-        if let Ok(content) = std::fs::read_to_string(words_file) {
-            for line in content.lines() {
-                let word = line.split('#').next().unwrap_or("").trim();
-                if !word.is_empty() {
-                    cfg.telex.custom_words.push(word.to_string());
-                }
+    }
+    let words_file = dir.join("words");
+    if let Ok(content) = std::fs::read_to_string(words_file) {
+        for line in content.lines() {
+            let word = strip_comment(line).trim();
+            if !word.is_empty() {
+                cfg.telex.custom_words.push(word.to_string());
             }
         }
     }
 }
 
-/// Holds the current config and re-reads the file only when its mtime changes.
+/// Holds the current config and re-reads it when the config, `macro` or `words` mtime changes.
 pub struct Watcher {
-    path: Option<PathBuf>,
-    mtime: Option<SystemTime>,
+    /// Files whose mtimes are checked: config, then macro and words beside it.
+    watched: Vec<PathBuf>,
+    dir: Option<PathBuf>,
+    stamps: Option<Vec<Option<SystemTime>>>,
     pub current: Config,
+}
+
+impl Default for Watcher {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Watcher {
     pub fn new() -> Self {
+        Self::at(path())
+    }
+
+    fn at(config_path: Option<PathBuf>) -> Self {
+        let dir = config_path
+            .as_ref()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+        let watched = match (&config_path, &dir) {
+            (Some(p), Some(d)) => vec![p.clone(), d.join("macro"), d.join("words")],
+            _ => Vec::new(),
+        };
         let mut w = Watcher {
-            path: path(),
-            mtime: None,
+            watched,
+            dir,
+            stamps: None,
             current: Config::default(),
         };
         w.refresh();
@@ -265,17 +324,25 @@ impl Watcher {
 
     /// Returns true when the config changed.
     pub fn refresh(&mut self) -> bool {
-        let Some(p) = &self.path else { return false };
-        let mtime = std::fs::metadata(p).and_then(|m| m.modified()).ok();
-        if mtime == self.mtime {
+        if self.watched.is_empty() {
             return false;
         }
-        self.mtime = mtime;
-        let mut cfg = match std::fs::read_to_string(p) {
+        let now: Vec<Option<SystemTime>> = self
+            .watched
+            .iter()
+            .map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+            .collect();
+        if self.stamps.as_ref() == Some(&now) {
+            return false;
+        }
+        self.stamps = Some(now);
+        let mut cfg = match std::fs::read_to_string(&self.watched[0]) {
             Ok(text) => parse(&text),
             Err(_) => Config::default(),
         };
-        load_extra_files(&mut cfg);
+        if let Some(dir) = &self.dir {
+            load_extra_files_from(&mut cfg, dir);
+        }
         self.current = cfg;
         true
     }
@@ -324,6 +391,108 @@ org.gnome.Ptyxis = preedit
         );
         assert_eq!(c.mode_for_app(Some("unknown")), Mode::Auto);
         assert_eq!(c.mode_for_app(None), Mode::Auto);
+    }
+
+    /// Empty directory for a test's files, inside the cargo target dir (not /tmp).
+    fn test_dir(name: &str) -> PathBuf {
+        let exe = std::env::current_exe().unwrap();
+        let dir = exe.parent().unwrap().join("rustype-test-tmp").join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn app_mode_keys_match_regardless_of_case() {
+        let c = parse("app_mode.Kitty = direct\n[app_modes]\n\"Google-Chrome\" = preedit\n");
+        assert_eq!(c.mode_for_app(Some("google-chrome")), Mode::Preedit);
+        assert_eq!(c.mode_for_app(Some("Google-Chrome")), Mode::Preedit);
+        assert_eq!(c.mode_for_app(Some("google-chrome.desktop")), Mode::Preedit);
+        assert_eq!(c.mode_for_app(Some("kitty")), Mode::Direct);
+    }
+
+    #[test]
+    fn hash_inside_quotes_is_not_a_comment() {
+        let c = parse("[macros]\nvn = \"Việt #1\" # trailing comment\n");
+        assert_eq!(
+            c.telex.macros.get("vn").map(|s| s.as_str()),
+            Some("Việt #1")
+        );
+        let c = parse("mode = preedit # chú thích\n");
+        assert_eq!(c.mode, Mode::Preedit);
+    }
+
+    #[test]
+    fn watcher_picks_up_macro_and_words_edits() {
+        let dir = test_dir("watcher");
+        let cfg = dir.join("config");
+        std::fs::write(&cfg, "mode = auto\n").unwrap();
+        let mut w = Watcher::at(Some(cfg.clone()));
+        assert!(w.current.telex.macros.is_empty());
+        assert!(!w.refresh());
+
+        // Creating the macro file is a change.
+        let macro_file = dir.join("macro");
+        std::fs::write(&macro_file, "vn: Việt Nam\n").unwrap();
+        assert!(w.refresh());
+        assert_eq!(
+            w.current.telex.macros.get("vn").map(|s| s.as_str()),
+            Some("Việt Nam")
+        );
+
+        // Editing it in place (mtime moved forward) is a change too.
+        std::fs::write(&macro_file, "vn: Việt Nam Mới\n").unwrap();
+        let later = SystemTime::now() + std::time::Duration::from_secs(60);
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&macro_file)
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+        assert!(w.refresh());
+        assert_eq!(
+            w.current.telex.macros.get("vn").map(|s| s.as_str()),
+            Some("Việt Nam Mới")
+        );
+        assert!(!w.refresh());
+
+        // The words file works the same way.
+        std::fs::write(dir.join("words"), "github\n").unwrap();
+        assert!(w.refresh());
+        assert!(w.current.telex.custom_words.iter().any(|x| x == "github"));
+    }
+
+    #[test]
+    fn input_method_line_matches_key_exactly() {
+        assert!(is_input_method_line("input_method = telex"));
+        assert!(is_input_method_line("  input_method=vni"));
+        assert!(is_input_method_line("input_method\t= vni"));
+        assert!(!is_input_method_line("input_method_extra = x"));
+        assert!(!is_input_method_line("# input_method = telex"));
+    }
+
+    #[test]
+    fn update_input_method_rewrites_only_the_key() {
+        let dir = test_dir("input-method");
+        let cfg = dir.join("config");
+        std::fs::write(
+            &cfg,
+            "input_method_extra = keep\nmode = auto\ninput_method = telex\nvn = \"x\"\n",
+        )
+        .unwrap();
+        update_input_method_at(&cfg, rustype_core::telex::InputMethod::Vni);
+        let text = std::fs::read_to_string(&cfg).unwrap();
+        assert_eq!(
+            text,
+            "input_method_extra = keep\nmode = auto\ninput_method = vni\nvn = \"x\"\n"
+        );
+        assert!(!dir.join(".config.tmp").exists());
+
+        // Without the key, it is appended.
+        std::fs::write(&cfg, "mode = auto\n").unwrap();
+        update_input_method_at(&cfg, rustype_core::telex::InputMethod::Telex);
+        let text = std::fs::read_to_string(&cfg).unwrap();
+        assert_eq!(text, "mode = auto\ninput_method = telex\n");
     }
 
     #[test]

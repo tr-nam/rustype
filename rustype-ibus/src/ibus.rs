@@ -21,7 +21,7 @@ const ATTR_UNDERLINE: u32 = 1;
 const ATTR_UNDERLINE_SINGLE: u32 = 1;
 
 /// Writes an IBusText as a variant: v -> (sa{sv}sv) with an IBusAttrList (sa{sv}av) inside.
-fn write_text(w: &mut Writer, text: &str, underline: bool) {
+pub fn write_text(w: &mut Writer, text: &str, underline: bool) {
     w.signature("(sa{sv}sv)");
     w.struct_start();
     w.string("IBusText");
@@ -64,7 +64,7 @@ fn bool_variant(w: &mut Writer, v: bool) {
     w.boolean(v);
 }
 
-fn write_prop(
+pub fn write_prop(
     w: &mut Writer,
     key: &str,
     ptype: u32,
@@ -98,7 +98,7 @@ fn write_prop(
     write_text(w, symbol, false);
 }
 
-fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::InputMethod) {
+pub fn write_prop_list(w: &mut Writer, enabled: bool, method: rustype_core::telex::InputMethod) {
     w.signature("(sa{sv}av)");
     w.struct_start();
     w.string("IBusPropList");
@@ -192,6 +192,33 @@ fn emit_update_prop(
     conn.signal(batch, path, ENGINE_IFACE, "UpdateProperty", "v", &pw.buf);
 }
 
+/// Upper bound on remembered per-app states; app ids come from clients, so the map must not grow forever.
+const MAX_APP_STATES: usize = 256;
+
+/// The remembered on/off state for `id`, inserting `true` for a new app. When the map is full,
+/// an arbitrary existing entry is dropped first.
+pub fn app_state_mut<'a>(states: &'a mut HashMap<String, bool>, id: &str) -> &'a mut bool {
+    if !states.contains_key(id) && states.len() >= MAX_APP_STATES {
+        if let Some(old) = states.keys().next().cloned() {
+            states.remove(&old);
+        }
+    }
+    states.entry(id.to_string()).or_insert(true)
+}
+
+/// Runs a program without waiting for it; a thread reaps it so it never becomes a zombie.
+pub fn spawn_and_reap(exe: &str) -> bool {
+    match std::process::Command::new(exe).spawn() {
+        Ok(mut child) => {
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 pub struct Service {
     conn: Connection,
     engines: HashMap<String, Ime>,
@@ -223,7 +250,7 @@ pub fn run(address: &str) -> io::Result<()> {
     };
     let mut batch = Vec::with_capacity(512);
     loop {
-        let msg = svc.conn.next()?;
+        let msg = svc.conn.next_message()?;
         if msg.mtype != METHOD_CALL {
             continue;
         }
@@ -252,6 +279,7 @@ impl Service {
                         keycode,
                         state,
                     } => format!("ForwardKey({keyval:#x}, {keycode}, {state:#x})"),
+                    Out::RequireSurrounding => "RequireSurrounding".into(),
                 };
                 eprintln!("rustype: {path} -> {label}");
             }
@@ -292,6 +320,7 @@ impl Service {
                     w.u32(state);
                     ("ForwardKeyEvent", "uuu")
                 }
+                Out::RequireSurrounding => ("RequireSurroundingText", ""),
             };
             self.conn
                 .signal(batch, path, ENGINE_IFACE, member, sig, &w.buf);
@@ -312,17 +341,24 @@ impl Service {
             self.current_app_id = app_id.clone();
             let enabled = if self.config.current.remember_state_per_app {
                 if let Some(id) = &app_id {
-                    *self.app_states.entry(id.clone()).or_insert(true)
+                    *app_state_mut(&mut self.app_states, id)
                 } else {
                     true
                 }
             } else {
                 true
             };
-            for ime in self.engines.values_mut() {
+            let mut all_outs = Vec::new();
+            for (path, ime) in self.engines.iter_mut() {
                 let mut outs = Vec::new();
                 ime.set_app_id(app_id.clone(), &self.config.current);
                 ime.set_enabled(enabled, &mut outs);
+                if !outs.is_empty() {
+                    all_outs.push((path.clone(), outs));
+                }
+            }
+            for (path, outs) in all_outs {
+                self.emit(batch, &path, outs);
             }
             self.conn.reply(batch, msg, "", &[]);
             return true;
@@ -330,7 +366,7 @@ impl Service {
         if iface == RUSTYPE_IFACE && member == "ToggleState" {
             let mut new_state = true;
             if let Some(app_id) = &self.current_app_id {
-                let cur = self.app_states.entry(app_id.clone()).or_insert(true);
+                let cur = app_state_mut(&mut self.app_states, app_id);
                 *cur = !*cur;
                 new_state = *cur;
             }
@@ -356,6 +392,7 @@ impl Service {
             } else {
                 true
             };
+            // GetState only reads: an unknown app is reported as enabled and not stored.
             let mut w = Writer::new();
             w.boolean(state);
             self.conn.reply(batch, msg, "b", &w.buf);
@@ -470,7 +507,7 @@ impl Service {
                 let app_id = self.current_app_id.clone();
                 let enabled = if cfg.remember_state_per_app {
                     if let Some(id) = &app_id {
-                        *self.app_states.entry(id.clone()).or_insert(true)
+                        *app_state_mut(&mut self.app_states, id)
                     } else {
                         true
                     }
@@ -499,7 +536,7 @@ impl Service {
                 let app_id = self.current_app_id.clone();
                 let enabled = if cfg.remember_state_per_app {
                     if let Some(id) = &app_id {
-                        *self.app_states.entry(id.clone()).or_insert(true)
+                        *app_state_mut(&mut self.app_states, id)
                     } else {
                         true
                     }
@@ -507,6 +544,7 @@ impl Service {
                     true
                 };
                 let ime = self.engines.get_mut(path).unwrap();
+                ime.focus_in();
                 ime.reset(&mut outs);
                 ime.set_app_id(app_id, &cfg);
                 ime.set_enabled(enabled, &mut outs);
@@ -554,6 +592,12 @@ impl Service {
                 if let Ok(text) = r.read_ibus_text() {
                     let cursor = r.u32().unwrap_or(0);
                     let anchor = r.u32().unwrap_or(0);
+                    if self.debug {
+                        eprintln!(
+                            "rustype: SetSurroundingText chars={} cursor={cursor} anchor={anchor}",
+                            text.chars().count()
+                        );
+                    }
                     let ime = self.engines.get_mut(path).unwrap();
                     ime.set_surrounding_text(&text, cursor, anchor, &mut outs);
                 }
@@ -574,7 +618,7 @@ impl Service {
                             !cur_enabled
                         };
                         if let Some(app_id) = &self.current_app_id {
-                            self.app_states.insert(app_id.clone(), new_state);
+                            *app_state_mut(&mut self.app_states, app_id) = new_state;
                         }
                         ime.set_enabled(new_state, &mut outs);
 
@@ -674,15 +718,13 @@ impl Service {
                         ];
                         let mut spawned = false;
                         for exe in &candidates {
-                            if std::path::Path::new(exe).exists()
-                                && std::process::Command::new(exe).spawn().is_ok()
-                            {
+                            if std::path::Path::new(exe).exists() && spawn_and_reap(exe) {
                                 spawned = true;
                                 break;
                             }
                         }
                         if !spawned {
-                            let _ = std::process::Command::new("rustype-settings").spawn();
+                            spawn_and_reap("rustype-settings");
                         }
                     }
                     _ => {}
@@ -830,6 +872,21 @@ mod tests {
         let msg = crate::dbus::read_message(&mut &blob[..]).unwrap();
         assert_eq!(msg.member.as_deref(), Some("UpdateProperty"));
         assert_eq!(msg.signature, "v");
+    }
+
+    #[test]
+    fn app_states_stay_bounded() {
+        let mut states = HashMap::new();
+        for i in 0..(MAX_APP_STATES * 3) {
+            let id = format!("app-{i}");
+            *app_state_mut(&mut states, &id) = false;
+            assert!(states.len() <= MAX_APP_STATES);
+        }
+        assert_eq!(states.len(), MAX_APP_STATES);
+        // A known app keeps its stored value and is not evicted by its own lookup.
+        let last = format!("app-{}", MAX_APP_STATES * 3 - 1);
+        assert!(!*app_state_mut(&mut states, &last));
+        assert_eq!(states.len(), MAX_APP_STATES);
     }
 
     #[test]

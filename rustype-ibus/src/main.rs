@@ -1,44 +1,69 @@
 //! Rustype: a tiny Vietnamese Telex input method engine for IBus.
 
-mod config;
-mod dbus;
-mod ibus;
-mod ime;
-
 use rustype_core::telex;
+use rustype_ibus::{config, ibus};
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 const USAGE: &str = "\
 ibus-engine-rustype: bộ gõ tiếng Việt Telex cho IBus
 
   --ibus            chạy engine (IBus gọi lệnh này)
-  --xml             in file component cho /usr/share/ibus/component
+  --xml [exec]      in file component cho /usr/share/ibus/component
+                    (exec: lệnh ghi vào <exec>, mặc định là chính file này)
   --write-config    tạo ~/.config/rustype/config nếu chưa có
   --doctor          kiểm tra chẩn đoán hệ thống và phát hiện lỗi
   --feed            đọc từng dòng phím Telex từ stdin, in chữ ra (để kiểm thử)
   --version";
 
+/// Whether a process with this pid exists.
+fn pid_alive(pid: u32) -> bool {
+    Path::new("/proc").join(pid.to_string()).exists()
+}
+
+/// The address in one IBus bus file, but only when the daemon that wrote it is still running.
+/// A leftover file from a dead daemon, or from another bus manager, yields None.
+fn live_bus_address(file: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(file).ok()?;
+    let field = |key: &str| {
+        text.lines()
+            .find_map(|l| l.strip_prefix(key))
+            .map(|v| v.trim())
+    };
+    let addr = field("IBUS_ADDRESS=").filter(|a| !a.is_empty())?;
+    let pid: u32 = field("IBUS_DAEMON_PID=")?.parse().ok()?;
+    pid_alive(pid).then(|| addr.to_string())
+}
+
+/// The address from the most recently modified file in `bus_dir` whose daemon is alive.
+fn newest_live_bus_address(bus_dir: &Path) -> Option<String> {
+    let mut best: Option<(SystemTime, String)> = None;
+    for entry in std::fs::read_dir(bus_dir).ok()?.flatten() {
+        let Some(addr) = live_bus_address(&entry.path()) else {
+            continue;
+        };
+        let mtime = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        if best.as_ref().is_none_or(|(t, _)| mtime > *t) {
+            best = Some((mtime, addr));
+        }
+    }
+    best.map(|(_, addr)| addr)
+}
+
 /// Where the IBus daemon of this session listens, the same way libibus finds it.
+/// Addresses read from bus files are accepted only when their daemon is alive.
 fn ibus_address() -> Option<String> {
     if let Ok(a) = std::env::var("IBUS_ADDRESS") {
         if !a.is_empty() {
             return Some(a);
         }
     }
-    let parse_file = |p: &std::path::Path| -> Option<String> {
-        let text = std::fs::read_to_string(p).ok()?;
-        text.lines().find_map(|l| {
-            let val = l.strip_prefix("IBUS_ADDRESS=")?.trim();
-            if val.is_empty() {
-                None
-            } else {
-                Some(val.to_string())
-            }
-        })
-    };
     if let Some(f) = std::env::var_os("IBUS_ADDRESS_FILE") {
-        if let Some(addr) = parse_file(&PathBuf::from(f)) {
+        if let Some(addr) = live_bus_address(&PathBuf::from(f)) {
             return Some(addr);
         }
     }
@@ -65,24 +90,35 @@ fn ibus_address() -> Option<String> {
         }
     };
     let candidate = bus_dir.join(format!("{machine_id}-{host}-{display}"));
-    if let Some(addr) = parse_file(&candidate) {
+    if let Some(addr) = live_bus_address(&candidate) {
         return Some(addr);
     }
-    // Fallback: search any file in bus_dir
-    if let Ok(entries) = std::fs::read_dir(&bus_dir) {
-        for entry in entries.flatten() {
-            if let Some(addr) = parse_file(&entry.path()) {
-                return Some(addr);
-            }
-        }
-    }
-    None
+    newest_live_bus_address(&bus_dir)
 }
 
-fn component_xml() -> String {
-    let exe = std::env::current_exe()
+/// Escapes text for use inside XML element content or attribute values.
+fn xml_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn default_exe() -> String {
+    std::env::current_exe()
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "ibus-engine-rustype".into());
+        .unwrap_or_else(|_| "ibus-engine-rustype".into())
+}
+
+fn component_xml(exe: &str) -> String {
     format!(
         r#"<?xml version="1.0" encoding="utf-8"?>
 <component>
@@ -111,6 +147,7 @@ fn component_xml() -> String {
 </component>
 "#,
         name = ibus::COMPONENT_NAME,
+        exe = xml_escape(exe),
         engine = ibus::ENGINE_NAME,
         ver = env!("CARGO_PKG_VERSION"),
     )
@@ -134,7 +171,10 @@ fn main() {
                 }
             }
         }
-        "--xml" => print!("{}", component_xml()),
+        "--xml" => {
+            let exe = std::env::args().nth(2).unwrap_or_else(default_exe);
+            print!("{}", component_xml(&exe));
+        }
         "--write-config" => {
             let Some(p) = config::path() else {
                 std::process::exit(1)
@@ -288,5 +328,121 @@ fn doctor() {
         println!(
             "Rustype có thể hoạt động được. Xem các cảnh báo [!] để có trải nghiệm tối ưu nhất."
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Empty directory for a test's files, inside the cargo target dir (not /tmp).
+    fn test_dir(name: &str) -> PathBuf {
+        let exe = std::env::current_exe().unwrap();
+        let dir = exe.parent().unwrap().join("rustype-test-tmp").join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Writes a bus file with the given address and daemon pid, and sets its mtime.
+    fn write_bus_file(dir: &Path, name: &str, addr: &str, pid: Option<u32>, mtime: SystemTime) {
+        let file = dir.join(name);
+        let mut text = format!("IBUS_ADDRESS={addr}\n");
+        if let Some(pid) = pid {
+            text.push_str(&format!("IBUS_DAEMON_PID={pid}\n"));
+        }
+        std::fs::write(&file, text).unwrap();
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&file)
+            .unwrap()
+            .set_modified(mtime)
+            .unwrap();
+    }
+
+    const DEAD_PID: u32 = 999_999_999;
+
+    #[test]
+    fn bus_file_selection_skips_dead_and_pidless_files() {
+        let dir = test_dir("bus-select");
+        let now = SystemTime::now();
+        let me = std::process::id();
+        // Newest file belongs to a dead daemon (like a stale fcitx5 leftover); must be skipped.
+        write_bus_file(&dir, "stale", "unix:path=/stale", Some(DEAD_PID), now);
+        // Newest live-looking file without a pid cannot be verified; must be skipped.
+        write_bus_file(
+            &dir,
+            "nopid",
+            "unix:path=/nopid",
+            None,
+            now + std::time::Duration::from_secs(5),
+        );
+        write_bus_file(
+            &dir,
+            "old-live",
+            "unix:path=/old",
+            Some(me),
+            now - std::time::Duration::from_secs(600),
+        );
+        write_bus_file(
+            &dir,
+            "new-live",
+            "unix:path=/new",
+            Some(me),
+            now - std::time::Duration::from_secs(60),
+        );
+        assert_eq!(
+            newest_live_bus_address(&dir).as_deref(),
+            Some("unix:path=/new")
+        );
+    }
+
+    #[test]
+    fn bus_file_selection_returns_none_without_live_daemon() {
+        let dir = test_dir("bus-none");
+        write_bus_file(
+            &dir,
+            "stale",
+            "unix:path=/stale",
+            Some(DEAD_PID),
+            SystemTime::now(),
+        );
+        assert_eq!(newest_live_bus_address(&dir), None);
+        assert_eq!(live_bus_address(&dir.join("missing")), None);
+        assert_eq!(newest_live_bus_address(&dir.join("no-such-dir")), None);
+    }
+
+    #[test]
+    fn live_bus_address_checks_the_pid() {
+        let dir = test_dir("bus-one");
+        write_bus_file(
+            &dir,
+            "me",
+            "unix:abstract=me",
+            Some(std::process::id()),
+            SystemTime::now(),
+        );
+        write_bus_file(
+            &dir,
+            "dead",
+            "unix:abstract=dead",
+            Some(DEAD_PID),
+            SystemTime::now(),
+        );
+        assert_eq!(
+            live_bus_address(&dir.join("me")).as_deref(),
+            Some("unix:abstract=me")
+        );
+        assert_eq!(live_bus_address(&dir.join("dead")), None);
+    }
+
+    #[test]
+    fn xml_escape_handles_markup_characters() {
+        assert_eq!(
+            xml_escape("/opt/a&b/<x>\"'"),
+            "/opt/a&amp;b/&lt;x&gt;&quot;&apos;"
+        );
+        let xml = component_xml("/opt/a&b/rustype");
+        assert!(xml.contains("<exec>/opt/a&amp;b/rustype --ibus</exec>"));
     }
 }

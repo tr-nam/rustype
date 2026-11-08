@@ -11,6 +11,8 @@ pub const SIGNAL: u8 = 4;
 pub const FLAG_NO_REPLY_EXPECTED: u8 = 0x1;
 
 const MAX_MESSAGE: usize = 64 << 20;
+/// Deepest container/variant nesting `Reader::skip` follows before giving up.
+const MAX_NESTING: usize = 32;
 
 fn bad(msg: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg.to_string())
@@ -231,6 +233,12 @@ impl<'a> Reader<'a> {
     }
     /// Skips one value whose type starts at `sig[*i]`.
     pub fn skip(&mut self, sig: &[u8], i: &mut usize) -> io::Result<()> {
+        self.skip_nested(sig, i, 0)
+    }
+    fn skip_nested(&mut self, sig: &[u8], i: &mut usize, depth: usize) -> io::Result<()> {
+        if depth > MAX_NESTING {
+            return Err(bad("values nested too deeply"));
+        }
         let t = *sig.get(*i).ok_or_else(|| bad("signature ended early"))?;
         match t {
             b'y' => {
@@ -262,7 +270,7 @@ impl<'a> Reader<'a> {
             b'v' => {
                 let inner = self.signature()?;
                 let mut j = 0;
-                self.skip(inner.as_bytes(), &mut j)?;
+                self.skip_nested(inner.as_bytes(), &mut j, depth + 1)?;
                 *i += 1;
             }
             b'a' => {
@@ -280,7 +288,7 @@ impl<'a> Reader<'a> {
                 let close = if t == b'(' { b')' } else { b'}' };
                 *i += 1;
                 while *sig.get(*i).ok_or_else(|| bad("unclosed container"))? != close {
-                    self.skip(sig, i)?;
+                    self.skip_nested(sig, i, depth + 1)?;
                 }
                 *i += 1;
             }
@@ -295,15 +303,19 @@ impl<'a> Reader<'a> {
             return self.string();
         }
         if sig.starts_with("(sa{sv}s") {
+            let rest_sig = sig
+                .get(8..)
+                .and_then(|r| r.strip_suffix(')'))
+                .ok_or_else(|| bad("bad IBusText signature"))?;
             self.align(8);
             let _typename = self.string()?;
             let mut i = 0;
             self.skip(b"a{sv}", &mut i)?;
             let text = self.string()?;
-            let rest_sig = &sig.as_bytes()[8..sig.len().saturating_sub(1)];
+            let rest = rest_sig.as_bytes();
             let mut j = 0;
-            while j < rest_sig.len() {
-                self.skip(rest_sig, &mut j)?;
+            while j < rest.len() {
+                self.skip(rest, &mut j)?;
             }
             return Ok(text);
         }
@@ -511,7 +523,7 @@ impl Connection {
         self.serial
     }
 
-    /// Sends a method call and waits for its reply; other messages are queued for `next`.
+    /// Sends a method call and waits for its reply; other messages are queued for `next_message`.
     pub fn call(
         &mut self,
         dest: &str,
@@ -566,7 +578,8 @@ impl Connection {
         reply.body_reader().u32()
     }
 
-    pub fn next(&mut self) -> io::Result<Message> {
+    /// Returns the next queued message, or reads one from the socket.
+    pub fn next_message(&mut self) -> io::Result<Message> {
         if let Some(m) = self.queued.pop_front() {
             return Ok(m);
         }
@@ -684,6 +697,49 @@ mod tests {
         r.skip(b"(sa{sv}sv)", &mut i).unwrap();
         assert_eq!(r.pos, end);
         assert_eq!(r.u32().unwrap(), 99);
+    }
+
+    #[test]
+    fn skip_rejects_deep_variant_nesting() {
+        // 10,000 variants, each holding the next, ending in a byte. Must error, not overflow the stack.
+        let mut w = Writer::new();
+        for _ in 0..10_000 {
+            w.signature("v");
+        }
+        w.signature("y");
+        w.byte(1);
+        let mut r = Reader::new(&w.buf, false);
+        let mut i = 0;
+        assert!(r.skip(b"v", &mut i).is_err());
+    }
+
+    #[test]
+    fn skip_accepts_moderate_variant_nesting() {
+        let mut w = Writer::new();
+        for _ in 0..5 {
+            w.signature("v");
+        }
+        w.signature("y");
+        w.byte(7);
+        let mut r = Reader::new(&w.buf, false);
+        let mut i = 0;
+        r.skip(b"v", &mut i).unwrap();
+        assert_eq!(r.pos, w.buf.len());
+    }
+
+    #[test]
+    fn read_ibus_text_rejects_truncated_struct_signature() {
+        // "(sa{sv}s" lacks the closing ')': must be a bad-data error, not a slice panic.
+        let mut w = Writer::new();
+        w.signature("(sa{sv}s");
+        w.struct_start();
+        w.string("IBusText");
+        let a = w.array_start(8);
+        w.array_end(a);
+        w.string("x");
+        let mut r = Reader::new(&w.buf, false);
+        let err = r.read_ibus_text().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]

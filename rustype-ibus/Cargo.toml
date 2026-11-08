@@ -9,6 +9,10 @@ publish = false
 [dependencies]
 rustype-core = { path = "../rustype-core" }
 
+[lib]
+name = "rustype_ibus"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ibus-engine-rustype"
 path = "src/main.rs"

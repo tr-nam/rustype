@@ -24,11 +24,16 @@ def pump(t=0.05):
 class App:
     """A text field. surrounding: reports Surrounding Text. client_commit: commits a COMMIT-mode
     preedit itself on reset/focus-out, like GNOME Shell; otherwise ibus-daemon does it (X11 apps)."""
-    def __init__(self, name, surrounding, client_commit):
+    def __init__(self, name, surrounding, client_commit, table=None):
         self.name, self.text, self.preedit, self.mode, self.modes = name, "", "", 0, set()
         self.client_commit, self.latency = client_commit, []
+        self.shown, self.deletes, self.fwd = [], 0, []
+        # Omnibox model (table set): the inline suggestion selected after the caret.
+        self.table, self.sugg, self.required = table, "", 0
         ic = self.ic = bus.create_input_context(name)
         ic.connect("commit-text", lambda c, t: self._commit(t.get_text()))
+        ic.connect("forward-key-event", lambda c, kv, kc, st: self._forward(kv, st))
+        ic.connect("require-surrounding-text", lambda c: self._require())
         ic.connect("update-preedit-text-with-mode", lambda c, t, p, vis, m: self._preedit(t.get_text(), vis, m))
         ic.connect("update-preedit-text", lambda c, t, p, vis: self._preedit(t.get_text(), vis, None))
         ic.connect("hide-preedit-text", lambda c: self._preedit("", False, None))
@@ -49,16 +54,39 @@ class App:
         n = len(self.text)
         self.ic.set_surrounding_text(IBus.Text.new_from_string(self.text), n, n)
     def _commit(self, s):
+        self.sugg = ""  # a commit replaces the selected suggestion
         self.text += s
+    def _require(self):
+        self.required += 1
+    def _omni_suggest(self):
+        """Chrome: a suggestion is selected after the caret as the text changes."""
+        if self.table is not None:
+            self.sugg = self.table.get(self.text, "")
+    def _omni_report(self):
+        """Surrounding Text is reported only when the engine asked for it
+        (ic.needs_surrounding_text), and Chrome's report can lag behind the keys."""
+        if self.table is None:
+            return
+        if self.ic.needs_surrounding_text():
+            n = len(self.text)
+            self.ic.set_surrounding_text(IBus.Text.new_from_string(self.text + self.sugg), n, n + len(self.sugg))
     def _preedit(self, s, visible, mode):
         self.preedit = s if visible else ""
+        if visible and s:
+            self.shown.append(s)
         if visible and mode is not None:
             self.mode = mode
             self.modes.add("COMMIT" if mode == 1 else "CLEAR")
     def _delete(self, n):
+        self.deletes += 1
+        if self.sugg:
+            return  # Chrome drops a delete while a suggestion is selected
         self.text = self.text[: len(self.text) - n]
+    def _forward(self, kv, st):
+        self.fwd.append((kv, st))
 
-    def type(self, keys):
+    def type(self, keys, lag=False):
+        """lag: all keys first, then one report, as if Chrome's reports arrive late."""
         for ch in keys:
             kv = {"\b": IBus.KEY_BackSpace, "\n": IBus.KEY_Return}.get(ch, ord(ch))
             t0 = time.perf_counter()
@@ -72,7 +100,14 @@ class App:
                 elif ch == "\n":
                     self.text += "⏎"
                 else:
+                    self.sugg = ""  # typed text replaces the selected suggestion
                     self.text += ch
+            self._omni_suggest()
+            if not lag:
+                self._omni_report()
+        if lag:
+            self._omni_report()
+            pump(0.3)
         pump(0.1)
 
     def click(self):
@@ -127,6 +162,42 @@ results.append(check("gui backspace re-places tone", gui.text[-4:], "hòa "))
 lat += gui.latency
 gui.ic.destroy()
 
+# Address bar (purpose URL): native keys, Surrounding Text sent only when asked for, a delete that
+# Chrome drops under a suggestion is repaired. Purpose 0 again restores surrounding.
+OMNI = {"Ru": "st-lang.org", "Tra": "nslate.google.com"}
+url = App("omnibox", surrounding=True, client_commit=False, table=OMNI)
+url.ic.set_content_type(5, 0)
+pump(0.3)
+url.type("Rus ")
+results.append(check("url purpose: Rus gives Rú", url.text, "Rú "))
+results.append(check("url purpose: no preedit", url.shown, []))
+results.append(check("url purpose: no forward-key", url.fwd, []))
+results.append(check("url purpose: RequireSurroundingText sent in URL fields", url.required > 0, True))
+url.table = None
+url.sugg = ""
+url.ic.set_content_type(0, 0)
+pump(0.3)
+url._sync()
+shown_before = len(url.shown)
+url.type("Rus ")
+results.append(check("purpose 0 again: no preedit", len(url.shown), shown_before))
+results.append(check("purpose 0 again: surrounding delete used", url.deletes > 0, True))
+results.append(check("purpose 0 again: word replaced in place", url.text, "Rú Rú "))
+lat += url.latency
+url.ic.destroy()
+
+# A second address bar, created after the first one is gone (destroying a focused context
+# would leave the other without focus in the service).
+url2 = App("omnibox2", surrounding=True, client_commit=False, table=OMNI)
+url2.ic.set_content_type(5, 0)
+pump(0.3)
+url2.type("Traanf ", lag=True)
+results.append(check("url purpose: Traanf gives Trần", url2.text, "Trần "))
+results.append(check("url purpose 2: no preedit", url2.shown, []))
+results.append(check("url purpose 2: no forward-key", url2.fwd, []))
+lat += url2.latency
+url2.ic.destroy()
+
 x11 = App("x11", surrounding=False, client_commit=False)
 x11.type("nguowif ")
 x11.type("dduwowcj")
@@ -138,3 +209,4 @@ x11.ic.destroy()
 lat.sort()
 print(f"key round trip (client -> ibus-daemon -> engine -> client): median {lat[len(lat)//2]*1e6:.0f} us, p95 {lat[int(len(lat)*0.95)]*1e6:.0f} us, n={len(lat)}")
 print("ALL PASS" if all(results) else "SOME FAILED")
+sys.exit(0 if all(results) else 1)
