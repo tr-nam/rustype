@@ -32,7 +32,8 @@ Một bộ gõ hoàn chỉnh cần bốn thứ:
 - [x] Đưa code lên git và GitHub.
 - [x] Tách lõi Telex thành crate riêng, không phụ thuộc nền tảng. Các nền tảng khác dùng lại qua C FFI.
 - [x] CI chạy kiểm tra định dạng, clippy, unit test, bộ kết quả chuẩn và sandbox cho mỗi lần push.
-- [x] Fuzz phần đọc D-Bus và lõi Telex. Bộ gõ nhận mọi phím, kể cả mật khẩu, nên không được sập.
+- [x] Fuzz lõi Telex (`fuzz_telex`). Bộ gõ nhận mọi phím, kể cả mật khẩu, nên không được sập.
+- [ ] Fuzz phần đọc D-Bus của `rustype-linux`.
 - [x] Chế độ gỡ lỗi chỉ in mã phím, không in chữ người dùng gõ.
 
 ## Giai đoạn 1: Gõ đúng ở mọi nơi trên GNOME Wayland
@@ -54,16 +55,17 @@ Ngoài phạm vi, không có kế hoạch: KDE Plasma, Sway và Hyprland (kể c
 - [x] Kiểu gõ VNI (`input_method = vni`) với luật gõ số và escape chuẩn Unikey.
 - [x] Gõ tắt (macro) theo định dạng chuẩn Unikey (`~/.config/rustype/macro` hoặc section `[macros]`).
 - [x] Danh sách từ tiếng Anh người dùng tự thêm (`custom_words` trong config hoặc file `~/.config/rustype/words`).
-- [ ] Phím tắt bật tắt tiếng Việt ngay trong bộ gõ, ví dụ Ctrl+Shift, không phải đổi nguồn nhập.
+- [x] Phím tắt bật tắt tiếng Việt ngay trong bộ gõ, ví dụ Ctrl+Shift, không phải đổi nguồn nhập (`toggle_shortcut`).
 - [ ] Kiểu gõ VIQR.
-- [ ] Tùy chọn gõ tự do, Quick Telex, bật tắt kiểm tra chính tả.
+- [x] Gõ tự do: dấu thanh `f`, `j`, `x` gõ trước nguyên âm vẫn có hiệu lực, như `thfi` ra `thì` (`free_tone_order`).
+- [ ] Quick Telex, bật tắt kiểm tra chính tả.
 - [ ] Bảng mã cũ như TCVN3, VNI-Windows và công cụ chuyển mã clipboard. Ưu tiên thấp, chỉ làm khi có người cần.
 
 ## Giai đoạn 3: Giao diện
 
 - [x] Menu trong biểu tượng bộ gõ trên thanh GNOME: bật/tắt tiếng Việt (switch toggle), đổi kiểu gõ (Telex/VNI) và mở Cài đặt trực tiếp từ menu thuộc tính.
 - [x] App cài đặt bằng GTK4 và Libadwaita (`tools/rustype-settings`), độc lập giúp engine siêu nhẹ.
-- [x] Lệnh chẩn đoán: `rustype-linux --doctor` kiểm tra bus, file đăng ký, nguồn nhập, extension và cấu hình.
+- [x] Lệnh chẩn đoán: `rustype-linux --doctor` kiểm tra phiên GNOME, drop-in, unit systemd, file địa chỉ, nguồn nhập, extension và cấu hình.
 - [x] Giao diện hỗ trợ song ngữ Tiếng Việt và Tiếng Anh.
 
 ## Giai đoạn 4: Đóng gói và phát hành

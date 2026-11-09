@@ -4,6 +4,16 @@
 
 ## [Chưa phát hành]
 
+### Sửa lỗi
+- Windows không còn bỏ qua phím do phần mềm khác chèn vào. Chỉ đầu ra của chính Rustype bị bỏ qua (đã biên dịch, chưa chạy thử trên Windows).
+- `rustype-linux` tự chạy lại khi lỗi (`Restart=on-failure`).
+- Sáu từ tiếng Anh giữ nguyên, không thêm dấu: is, of, or, was, her, here.
+- Ô URL: gõ Backspace rất nhanh ngay sau một dấu có thể xóa nhầm chữ đúng. Đã sửa.
+
+### Thêm
+- Phím tắt bật tắt tiếng Việt Ctrl+Shift ngay trong bộ gõ trên GNOME (`toggle_shortcut = ctrl_shift`, đặt `off` để tắt).
+- Gõ tự do: dấu thanh `f`, `j`, `x` gõ trước nguyên âm vẫn có hiệu lực, như `thfi` ra `thì` (`free_tone_order = true`).
+
 ## [0.1.1] - 2026-11-09
 
 ### Thay đổi quan trọng

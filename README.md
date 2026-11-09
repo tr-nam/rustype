@@ -3,20 +3,20 @@
 </p>
 
 <p align="center">
-  <strong>Bộ gõ tiếng Việt siêu nhẹ viết hoàn toàn bằng Rust cho Linux (GNOME trên Wayland), Windows và macOS.</strong>
+  <strong>Bộ gõ tiếng Việt siêu nhẹ, lõi viết bằng Rust, cho Linux (GNOME trên Wayland), Windows và macOS.</strong>
 </p>
 
 <p align="center">
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/language-Rust-orange.svg?style=flat-square&logo=rust" alt="Rust"></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg?style=flat-square" alt="Platform">
-  <a href="https://github.com/tr-nam/rustype/actions/workflows/release.yml"><img src="https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat-square" alt="Build Status"></a>
+  <a href="https://github.com/tr-nam/rustype/actions/workflows/ci.yml"><img src="https://github.com/tr-nam/rustype/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/tr-nam/rustype/releases"><img src="https://img.shields.io/badge/release-v0.1.1-blue.svg?style=flat-square" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License"></a>
 </p>
 
 ---
 
-Rustype là bộ gõ tiếng Việt hỗ trợ kiểu gõ Telex & VNI, được xây dựng bằng Rust thuần, dùng thư viện chuẩn của Rust.
+Rustype là bộ gõ tiếng Việt hỗ trợ kiểu gõ Telex & VNI. Lõi gõ và tiến trình trên Linux viết bằng Rust, chỉ dùng thư viện chuẩn. Ứng dụng Cài đặt viết bằng Python với GTK4, lớp vỏ macOS bằng Objective-C, và extension GNOME bằng JavaScript.
 
 Trên từng nền tảng:
 - **Linux (GNOME Shell trên Wayland)**: chạy như một tiến trình duy nhất, `rustype-linux`, thay cho `ibus-daemon` và engine IBus cũ. Giải quyết lỗi lặp chữ trong terminal (*Ptyxis, GNOME Terminal, kitty, Alacritty, WezTerm*), không nháy màn hình, bấm chuột không mất chữ. Chỉ hỗ trợ GNOME; xem [COMPATIBILITY.md](docs/COMPATIBILITY.md).
@@ -65,14 +65,25 @@ Con số vòng phím không gồm Mutter, GNOME Shell và ứng dụng, nên l�
 - 🎛️ **Giao diện GTK4 Libadwaita & khay hệ thống:**
   - Bật/tắt tiếng Việt và đổi kiểu gõ từ menu trên thanh GNOME (Linux) hoặc khay hệ thống (Windows).
   - Ứng dụng Cài đặt viết bằng GTK4 + Libadwaita, tự thích ứng chế độ Sáng/Tối theo GNOME HIG.
-- 🩺 **Chẩn đoán tự động:** `rustype-linux --doctor` kiểm tra cài đặt, bus, file đăng ký và cấu hình, rồi đưa ra gợi ý khắc phục.
-- 🔒 **Quyền riêng tư:** engine không có mã mạng và không ghi nhật ký phím gõ. Ô mật khẩu luôn được bỏ qua. Ứng dụng Cài đặt chỉ có một yêu cầu mạng, khi bạn bấm "Kiểm tra cập nhật" (xem [PRIVACY.md](docs/PRIVACY.md)).
+- 🩺 **Chẩn đoán tự động:** `rustype-linux --doctor` kiểm tra phiên GNOME, drop-in, unit systemd, file địa chỉ, nguồn nhập, extension và cấu hình, rồi đưa ra gợi ý khắc phục.
+- 🔒 **Quyền riêng tư:** engine không có mã mạng và không ghi nhật ký phím gõ. Trên Linux, ô mật khẩu và ô PIN luôn được bỏ qua. Ứng dụng Cài đặt chỉ có một yêu cầu mạng, khi bạn bấm "Kiểm tra cập nhật" (xem [PRIVACY.md](docs/PRIVACY.md)).
 
 ---
 
 ## 📦 Tải về & Cài đặt
 
 Tải về phiên bản mới nhất tại **[GitHub Releases](https://github.com/tr-nam/rustype/releases)**.
+
+### Trước khi cài trên Linux
+
+Rustype thay ibus-daemon bằng một tiến trình riêng, `rustype-linux`. Vì vậy khi dùng Rustype, bạn **không** dùng được:
+
+- Các bộ gõ IBus khác, ví dụ bộ gõ tiếng Nhật hoặc tiếng Trung. Chỉ có Rustype và bàn phím US chạy được.
+- Emoji panel của IBus.
+- Ứng dụng Flatpak dựa vào IBus portal. Chưa được kiểm chứng.
+- Mọi desktop khác GNOME Shell, và GNOME trên X11.
+
+Muốn quay về ibus-daemon và bộ gõ cũ, dùng lệnh gỡ cài đặt trong phần 1 bên dưới.
 
 ### 1. Linux (GNOME trên Wayland)
 
@@ -103,6 +114,9 @@ Với gói `.deb`, gỡ bằng `sudo apt remove rustype`. Gói tự bỏ Rustype
 2. Giải nén và chạy trực tiếp `rustype.exe` (không cần cài đặt).
 3. Biểu tượng Rustype sẽ xuất hiện ở khay hệ thống (System Tray). Nhấp chuột để bật/tắt tiếng Việt (`V`/`E`) hoặc đổi kiểu gõ.
 
+> [!NOTE]
+> Bản Windows chưa được ký số. Nếu SmartScreen cảnh báo, chọn **More info**, rồi **Run anyway**.
+
 ### 3. macOS
 1. Tải file `rustype-v*-macos.zip` từ mục Releases.
 2. Giải nén được `Rustype.app`.
@@ -111,6 +125,12 @@ Với gói `.deb`, gỡ bằng `sudo apt remove rustype`. Gói tự bỏ Rustype
    cp -R Rustype.app ~/Library/Input\ Methods/
    ```
 4. Đăng xuất hoặc khởi động lại máy, sau đó vào **System Settings $\rightarrow$ Keyboard $\rightarrow$ Input Sources** và thêm **Rustype**.
+
+> [!NOTE]
+> Bản macOS chưa được ký và notarize. Nếu Gatekeeper chặn, nhấp chuột phải vào `Rustype.app` rồi chọn **Open**. Hoặc gỡ thuộc tính quarantine:
+> ```bash
+> xattr -dr com.apple.quarantine "$HOME/Library/Input Methods/Rustype.app"
+> ```
 
 ---
 
@@ -132,7 +152,12 @@ auto_restore_english = true # tự trả lại từ tiếng Anh khi kết thúc 
 enable_macro = true         # bật tính năng gõ tắt
 remember_state_per_app = true # nhớ trạng thái bật/tắt theo từng app (như EVKey)
 custom_words = this, test   # danh sách từ tiếng Anh không thêm dấu
+free_tone_order = true      # gõ dấu thanh f, j, x trước nguyên âm: thfi -> thì
+toggle_shortcut = ctrl_shift # ctrl_shift | off: nhấn và thả Ctrl+Shift để bật/tắt tiếng Việt
 ```
+
+- `free_tone_order`: trong Telex, các phím dấu thanh `f`, `j`, `x` gõ trước nguyên âm vẫn được áp dụng. Ví dụ `thfi` ra `thì`. Phím `s` và `r` không nằm trong danh sách này, vì chúng thường xuất hiện trong tiếng Anh.
+- `toggle_shortcut`: trên GNOME, nhấn và thả Ctrl và Shift cùng lúc, không nhấn phím nào khác, để bật hoặc tắt tiếng Việt. Đặt `off` để tắt phím tắt này.
 
 - `auto`: không gạch chân ở ứng dụng có Surrounding Text (trình duyệt, ứng dụng văn phòng), gạch chân trong terminal để tránh lặp chữ.
 - `preedit`: luôn gạch chân ở mọi ứng dụng.
