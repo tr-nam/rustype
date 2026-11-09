@@ -121,6 +121,49 @@ def rewrite_file(path: pathlib.Path, transform):
     return None
 
 
+BOOL_OPTIONS = (
+    "modern_orthography",
+    "auto_restore_english",
+    "remember_state_per_app",
+    "enable_macro",
+    "free_tone_order",
+    "simple_telex",
+    "quick_telex",
+    "auto_capitalize",
+)
+
+
+def read_text_or_none(path: pathlib.Path):
+    """The text of path, or None when it cannot be read as UTF-8 text."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def unquote(text: str) -> str:
+    """Strips one pair of surrounding double quotes. Any other text is returned unchanged."""
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        return text[1:-1]
+    return text
+
+
+def parse_bool(text: str):
+    """True or False for the spellings config.rs accepts, None for anything else."""
+    v = text.lower()
+    if v in ("true", "yes", "on", "1"):
+        return True
+    if v in ("false", "no", "off", "0"):
+        return False
+    return None
+
+
+def normalize_mode(text: str) -> str:
+    """The global display mode the engine uses: preedit or direct, anything else is auto."""
+    v = text.lower()
+    return v if v in ("preedit", "direct") else "auto"
+
+
 TOP_KEYS = (
     "mode",
     "input_method",
@@ -143,7 +186,7 @@ def config_key_value(line: str):
     if not body or (body.startswith("[") and body.endswith("]")) or "=" not in body:
         return None
     k, v = body.split("=", 1)
-    return k.strip().strip('"'), v.strip().strip('"')
+    return unquote(k.strip()), unquote(v.strip())
 
 
 def section_name(line: str):
@@ -206,6 +249,8 @@ def render_config(existing: str, top: dict, app_modes: dict, macros: dict) -> st
     out, seen = [], set()
     for line in head:
         kv = config_key_value(line)
+        if kv is not None and kv[0].startswith("app_mode."):
+            continue  # the value lives in [app_modes] now
         if kv is not None and kv[0] in top:
             k, v = kv
             if k in seen:
@@ -225,6 +270,8 @@ def render_config(existing: str, top: dict, app_modes: dict, macros: dict) -> st
         if name in managed and name not in done:
             done.add(name)
             body = merge_entries(body, managed[name], quote_value=(name == "macros"))
+        elif name not in managed:
+            body = [l for l in body if not (config_key_value(l) or ("",))[0].startswith("app_mode.")]
         blocks.append((header, body))
     for name in ("app_modes", "macros"):
         if name not in done:
@@ -280,9 +327,10 @@ class ConfigManager:
 
     def load(self):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        if CONFIG_FILE.exists():
+        text = read_text_or_none(CONFIG_FILE) if CONFIG_FILE.exists() else None
+        if text is not None:
             section = ""
-            for line in CONFIG_FILE.read_text(encoding="utf-8").splitlines():
+            for line in text.splitlines():
                 line = strip_comment(line).strip()
                 if not line:
                     continue
@@ -291,64 +339,40 @@ class ConfigManager:
                     continue
                 if "=" in line:
                     k, v = line.split("=", 1)
-                    k, v = k.strip().strip('"'), v.strip().strip('"')
+                    k, v = unquote(k.strip()), unquote(v.strip())
                     if section == "app_modes":
                         self.app_modes[k] = v
                     elif section == "macros":
                         self.macros[k] = v
-                    else:
-                        if k == "mode":
-                            self.mode = v
-                        elif k == "input_method":
-                            self.input_method = v
-                        elif k == "modern_orthography":
-                            self.modern_orthography = v.lower() in (
-                                "true",
-                                "1",
-                                "yes",
-                                "on",
-                            )
-                        elif k == "auto_restore_english":
-                            self.auto_restore_english = v.lower() in (
-                                "true",
-                                "1",
-                                "yes",
-                                "on",
-                            )
-                        elif k == "remember_state_per_app":
-                            self.remember_state_per_app = v.lower() in (
-                                "true",
-                                "1",
-                                "yes",
-                                "on",
-                            )
-                        elif k == "enable_macro":
-                            self.enable_macro = v.lower() in ("true", "1", "yes", "on")
-                        elif k == "custom_words":
-                            self.custom_words = [
-                                w.strip().strip('"') for w in v.split(",") if w.strip()
-                            ]
-                        elif k == "free_tone_order":
-                            self.free_tone_order = v.lower() in ("true", "1", "yes", "on")
-                        elif k == "toggle_shortcut":
-                            self.toggle_shortcut = v.lower()
-                        elif k == "simple_telex":
-                            self.simple_telex = v.lower() in ("true", "1", "yes", "on")
-                        elif k == "quick_telex":
-                            self.quick_telex = v.lower() in ("true", "1", "yes", "on")
-                        elif k == "auto_capitalize":
-                            self.auto_capitalize = v.lower() in ("true", "1", "yes", "on")
+                    elif k.startswith("app_mode."):
+                        # The engine reads this form too and lowercases the app name (config.rs:333-336).
+                        app = k[len("app_mode."):].strip('"')
+                        self.app_modes[app.lower()] = v
+                    elif k == "mode":
+                        self.mode = normalize_mode(v)
+                    elif k == "input_method":
+                        self.input_method = "vni" if v.lower() == "vni" else "telex"
+                    elif k == "toggle_shortcut":
+                        self.toggle_shortcut = v.lower()
+                    elif k == "custom_words":
+                        self.custom_words = [
+                            w.strip().strip('"') for w in v.split(",") if w.strip()
+                        ]
+                    elif k in BOOL_OPTIONS:
+                        flag = parse_bool(v)
+                        if flag is not None:  # any other value keeps the default, as config.rs does
+                            setattr(self, k, flag)
 
         if MACRO_FILE.exists():
-            for line in MACRO_FILE.read_text(encoding="utf-8").splitlines():
+            for line in (read_text_or_none(MACRO_FILE) or "").splitlines():
                 line = strip_comment(line).strip()
                 if ":" in line:
                     k, v = line.split(":", 1)
-                    if k.strip():
+                    if k.strip() and v.strip():  # config.rs skips an empty key or value
                         self.macros[k.strip()] = v.strip()
 
         if WORDS_FILE.exists():
-            for line in WORDS_FILE.read_text(encoding="utf-8").splitlines():
+            for line in (read_text_or_none(WORDS_FILE) or "").splitlines():
                 w = strip_comment(line).strip()
                 if w and w not in self.custom_words:
                     self.custom_words.append(w)
@@ -356,6 +380,16 @@ class ConfigManager:
     def save(self):
         """Writes the config. Keys and sections this app does not manage are kept as they are."""
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        existing = ""
+        dest = CONFIG_FILE
+        if CONFIG_FILE.exists():
+            dest = CONFIG_FILE.resolve()
+            text = read_text_or_none(dest)
+            if text is None:
+                # Not UTF-8: move the bytes aside rather than overwrite them, then write fresh.
+                os.replace(dest, dest.with_name(dest.name + ".invalid"))
+            else:
+                existing = text
         top = {
             "mode": self.mode,
             "input_method": self.input_method,
@@ -363,17 +397,15 @@ class ConfigManager:
             "auto_restore_english": _bool_text(self.auto_restore_english),
             "remember_state_per_app": _bool_text(self.remember_state_per_app),
             "enable_macro": _bool_text(self.enable_macro),
-            "custom_words": ", ".join(self.custom_words),
+            # A word with a comma cannot be stored in this list; it stays in the words file.
+            "custom_words": ", ".join(w for w in self.custom_words if "," not in w),
             "free_tone_order": _bool_text(self.free_tone_order),
             "toggle_shortcut": self.toggle_shortcut,
             "simple_telex": _bool_text(self.simple_telex),
             "quick_telex": _bool_text(self.quick_telex),
             "auto_capitalize": _bool_text(self.auto_capitalize),
         }
-        existing = CONFIG_FILE.read_text(encoding="utf-8") if CONFIG_FILE.exists() else ""
-        write_config_text(
-            CONFIG_FILE, render_config(existing, top, self.app_modes, self.macros)
-        )
+        write_config_text(dest, render_config(existing, top, self.app_modes, self.macros))
 
 
 class RustypeSettingsApp(Adw.Application):
@@ -561,6 +593,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         )
         btn_add_macro.connect("clicked", self.on_add_macro_clicked)
         self.grp_macro_list.set_header_suffix(btn_add_macro)
+        self.macro_rows = []
         self.refresh_macros()
 
         # ---------------- Trang 3: Từ điển tiếng Anh ----------------
@@ -578,6 +611,7 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         btn_add_word = Gtk.Button(label="Thêm từ", icon_name="list-add-symbolic")
         btn_add_word.connect("clicked", self.on_add_word_clicked)
         self.grp_words.set_header_suffix(btn_add_word)
+        self.word_rows = []
         self.refresh_words()
 
         # ---------------- Trang: Ứng dụng luôn tắt ----------------
@@ -832,9 +866,14 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             if any(c in app for c in '"#=[] \t'):
                 self.notify("Mã ứng dụng không hợp lệ")
                 return
-            current = self.cfg.app_modes.get(app)
-            if current is not None and current.lower() != "off":
-                self.notify(f"{app} đã có chế độ {current}, sửa trong tệp cấu hình")
+            # The engine lowercases app ids, so a key that differs only in case is the same app.
+            existing = next((k for k in self.cfg.app_modes if k.lower() == app), None)
+            if existing is not None:
+                current = self.cfg.app_modes[existing]
+                if current.lower() != "off":
+                    self.notify(f"{app} đã có chế độ {current}, sửa trong tệp cấu hình")
+                else:
+                    self.notify("Ứng dụng này đã có trong danh sách")
                 return
             self.cfg.app_modes[app] = "off"
             self.cfg.save()
@@ -845,7 +884,9 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         dialog.present()
 
     def refresh_macros(self):
-        # Clear existing rows in macro group
+        for row in self.macro_rows:
+            self.grp_macro_list.remove(row)
+        self.macro_rows = []
         for k, v in sorted(self.cfg.macros.items()):
             row = Adw.ActionRow(title=k, subtitle=v, use_markup=False)
             btn_del = Gtk.Button(
@@ -854,11 +895,13 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             btn_del.connect("clicked", lambda _, key=k: self.delete_macro(key))
             row.add_suffix(btn_del)
             self.grp_macro_list.add(row)
+            self.macro_rows.append(row)
 
     def delete_macro(self, key):
         self.cfg.macros.pop(key, None)
         self.cfg.save()
         err = rewrite_file(MACRO_FILE, lambda t: drop_macro_lines(t, key))
+        self.refresh_macros()
         if err:
             self.notify(f"Không thể cập nhật tệp macro: {err}")
         else:
@@ -885,14 +928,27 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             if resp == "add":
                 k, v = e_key.get_text().strip(), e_val.get_text().strip()
                 if k and v:
+                    if '"' in v and "#" in v:
+                        # The comment stripper cannot read a value that holds both characters.
+                        self.notify('Nội dung không được chứa cả dấu " và dấu #')
+                        return
                     self.cfg.macros[k] = v
                     self.cfg.save()
-                    self.notify(f"Đã thêm: {k} ➔ {v}")
+                    # A line with the same key in the macro file would win on load, so remove it.
+                    err = rewrite_file(MACRO_FILE, lambda t: drop_macro_lines(t, k))
+                    self.refresh_macros()
+                    if err:
+                        self.notify(f"Không thể cập nhật tệp macro: {err}")
+                    else:
+                        self.notify(f"Đã thêm: {k} ➔ {v}")
 
         dialog.connect("response", on_resp)
         dialog.present()
 
     def refresh_words(self):
+        for row in self.word_rows:
+            self.grp_words.remove(row)
+        self.word_rows = []
         for w in self.cfg.custom_words:
             row = Adw.ActionRow(title=w, use_markup=False)
             btn_del = Gtk.Button(
@@ -901,12 +957,14 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
             btn_del.connect("clicked", lambda _, word=w: self.delete_word(word))
             row.add_suffix(btn_del)
             self.grp_words.add(row)
+            self.word_rows.append(row)
 
     def delete_word(self, word):
         if word in self.cfg.custom_words:
             self.cfg.custom_words.remove(word)
             self.cfg.save()
             err = rewrite_file(WORDS_FILE, lambda t: drop_word_lines(t, word))
+            self.refresh_words()
             if err:
                 self.notify(f"Không thể cập nhật tệp từ: {err}")
             else:
@@ -927,9 +985,14 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         def on_resp(d, resp):
             if resp == "add":
                 w = entry.get_text().strip().lower()
+                if "," in w:
+                    # The custom_words line is comma separated, so a comma cannot be stored.
+                    self.notify("Từ không được chứa dấu phẩy, hãy thêm từng từ riêng")
+                    return
                 if w and w not in self.cfg.custom_words:
                     self.cfg.custom_words.append(w)
                     self.cfg.save()
+                    self.refresh_words()
                     self.notify(f"Đã thêm từ: {w}")
 
         dialog.connect("response", on_resp)

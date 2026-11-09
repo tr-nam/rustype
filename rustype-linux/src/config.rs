@@ -220,6 +220,13 @@ fn strip_comment(line: &str) -> &str {
     line
 }
 
+/// Strips one pair of surrounding double quotes. Any other text is returned unchanged.
+fn unquote(s: &str) -> &str {
+    s.strip_prefix('"')
+        .and_then(|t| t.strip_suffix('"'))
+        .unwrap_or(s)
+}
+
 fn parse_bool(v: &str) -> Option<bool> {
     match v.to_ascii_lowercase().as_str() {
         "true" | "yes" | "on" | "1" => Some(true),
@@ -252,7 +259,7 @@ pub(crate) fn parse(text: &str) -> Config {
         let Some((k, v)) = line.split_once('=') else {
             continue;
         };
-        let (k, v) = (k.trim().trim_matches('"'), v.trim().trim_matches('"'));
+        let (k, v) = (unquote(k.trim()), unquote(v.trim()));
         if section == "app_modes" {
             // Lookups in mode_for_app are lowercase, so store the key that way.
             cfg.app_modes.insert(k.to_lowercase(), parse_mode(v));
@@ -662,6 +669,22 @@ hn = \"Hà Nội\"
         );
         assert_eq!(c.mode_for_app(Some("firefox")), Mode::Auto);
         assert_eq!(c.mode, Mode::Auto);
+    }
+
+    #[test]
+    fn quotes_strip_one_pair_only() {
+        assert_eq!(unquote("\"a\""), "a");
+        assert_eq!(unquote("\"Nói \"hi\"\""), "Nói \"hi\"");
+        assert_eq!(unquote("\""), "\"");
+        assert_eq!(unquote("auto"), "auto");
+        let c = parse("[macros]\n\"nh\" = \"Nói \"hi\"\"\n");
+        assert_eq!(
+            c.telex.macros.get("nh").map(|s| s.as_str()),
+            Some("Nói \"hi\"")
+        );
+        assert_eq!(parse("mode = auto").mode, Mode::Auto);
+        assert_eq!(parse("mode = \"auto\"").mode, Mode::Auto);
+        assert_eq!(parse("mode = \"preedit\"").mode, Mode::Preedit);
     }
 
     #[test]
