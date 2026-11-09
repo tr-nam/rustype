@@ -281,6 +281,7 @@ fn config_check(r: &mut Report) {
         config::Mode::Auto => "auto",
         config::Mode::Preedit => "preedit",
         config::Mode::Direct => "direct",
+        config::Mode::Off => "off",
     };
     let method = match cfg.telex.input_method {
         InputMethod::Telex => "Telex",

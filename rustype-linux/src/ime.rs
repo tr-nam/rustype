@@ -141,9 +141,27 @@ impl Chord {
     }
 }
 
+/// Where the field text stands for auto-capitalisation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Sentence {
+    /// Nothing typed in this field since focus: the first letter is left alone.
+    Unknown,
+    /// A sentence end (`.`, `!`, `?`) and a space were typed: the next letter is capitalised.
+    Start,
+    /// Anything else was typed last.
+    Mid,
+}
+
 pub struct Ime {
     telex: Telex,
     chord: Chord,
+    /// Whether the config asks for auto-capitalisation.
+    auto_cap: bool,
+    sentence: Sentence,
+    /// A `.`, `!` or `?` was typed and no space after it yet.
+    dot_pending: bool,
+    /// The last letter committed was an auto-capital that starts the word being typed.
+    word_cap: bool,
     /// Whether the config enables the Ctrl+Shift toggle.
     toggle_enabled: bool,
     mode: Mode,
@@ -306,6 +324,10 @@ impl Ime {
             telex: Telex::new(cfg.telex.clone()),
             chord: Chord::default(),
             toggle_enabled: cfg.toggle_shortcut == ToggleShortcut::CtrlShift,
+            auto_cap: cfg.auto_capitalize,
+            sentence: Sentence::Unknown,
+            dot_pending: false,
+            word_cap: false,
             mode: cfg.mode,
             caps: 0,
             purpose: 0,
@@ -325,6 +347,9 @@ impl Ime {
         self.surrounding_requested = false;
         self.model.clear();
         self.chord = Chord::default();
+        self.sentence = Sentence::Unknown;
+        self.dot_pending = false;
+        self.word_cap = false;
     }
 
     pub(crate) fn is_enabled(&self) -> bool {
@@ -346,6 +371,7 @@ impl Ime {
 
     pub(crate) fn apply_config(&mut self, cfg: &Config) {
         self.toggle_enabled = cfg.toggle_shortcut == ToggleShortcut::CtrlShift;
+        self.auto_cap = cfg.auto_capitalize;
         if self.telex.is_empty() && !self.preedit_visible {
             self.pending_cfg = None;
             self.telex.cfg = cfg.telex.clone();
@@ -447,7 +473,7 @@ impl Ime {
             }
             let surrounding = self.caps & CAP_SURROUNDING_TEXT != 0;
             self.show = match self.mode {
-                Mode::Preedit => Show::Preedit,
+                Mode::Preedit | Mode::Off => Show::Preedit,
                 Mode::Auto | Mode::Direct if surrounding => Show::Surrounding,
                 Mode::Auto | Mode::Direct => Show::Preedit,
             };
@@ -517,30 +543,57 @@ impl Ime {
         if self.chord.observe(keyval, state) && self.toggle_enabled {
             out.push(Out::ToggleVietnamese);
         }
+        let shortcut = CONTROL_MASK | MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
+        let pressed = state & RELEASE_MASK == 0 && !is_modifier_key(keyval);
+        if pressed && !self.enabled {
+            // Typing still happens while Vietnamese is off, so the sentence state follows it.
+            self.track_plain(keyval, state);
+        }
         if !self.enabled || state & RELEASE_MASK != 0 || is_modifier_key(keyval) {
             return false;
         }
-        let shortcut = CONTROL_MASK | MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
         if state & shortcut != 0 || self.purpose == PURPOSE_PASSWORD || self.purpose == PURPOSE_PIN
         {
             self.flush_preedit(out);
             self.telex.reset();
             self.model.clear();
+            self.sentence_break();
             return false;
         }
 
         let show = self.pick_show(out);
         if keyval == KEY_BACKSPACE {
-            return self.backspace(show, out);
+            let handled = self.backspace(show, out);
+            // Deleting the capital empties the word: the next letter starts a sentence again.
+            if self.word_cap && self.telex.is_empty() {
+                self.sentence = Sentence::Start;
+                self.word_cap = false;
+            }
+            return handled;
         }
         if (0x20..=0x7e).contains(&keyval) {
-            let ch = char::from_u32(keyval).unwrap();
+            let typed = char::from_u32(keyval).unwrap();
+            let capped = self.auto_cap_applies(show, typed);
+            let ch = if capped {
+                typed.to_ascii_uppercase()
+            } else {
+                typed
+            };
+            self.track_typed(ch);
+            if capped {
+                self.word_cap = true;
+            }
             return match show {
                 Show::Preedit => self.printable_preedit(ch, out),
                 _ => {
                     let url_tail = self.purpose == PURPOSE_URL && show == Show::Surrounding;
                     let r = self.telex.key(ch);
                     if !r.handled {
+                        if capped {
+                            // The engine has the capital; the field gets it from us.
+                            out.push(Out::Commit(ch.to_string()));
+                            return true;
+                        }
                         if url_tail {
                             self.model.native(ch);
                             self.settle_url_model(ch);
@@ -564,7 +617,59 @@ impl Ime {
         self.flush_preedit(out);
         self.telex.reset();
         self.model.clear();
+        self.sentence_break();
         false
+    }
+
+    /// Whether this typed letter is the first of a sentence and is capitalised.
+    fn auto_cap_applies(&self, show: Show, typed: char) -> bool {
+        self.auto_cap
+            && show == Show::Surrounding
+            && self.purpose != PURPOSE_URL
+            && self.purpose != PURPOSE_PASSWORD
+            && self.purpose != PURPOSE_PIN
+            && self.sentence == Sentence::Start
+            && typed.is_ascii_lowercase()
+            && self.telex.is_empty()
+    }
+
+    /// Sentence state after a printable character `ch` went into the field.
+    fn track_typed(&mut self, ch: char) {
+        if ch.is_ascii_alphabetic() {
+            self.sentence = Sentence::Mid;
+            self.dot_pending = false;
+        } else if ch == ' ' {
+            // A further space keeps the state; the first one after a sentence end starts a sentence.
+            if self.dot_pending {
+                self.sentence = Sentence::Start;
+                self.dot_pending = false;
+            }
+            self.word_cap = false;
+        } else if matches!(ch, '.' | '!' | '?') {
+            self.sentence = Sentence::Mid;
+            self.dot_pending = true;
+            self.word_cap = false;
+        } else {
+            self.sentence_break();
+        }
+    }
+
+    /// Something other than a letter, space or sentence mark went into the field, or a key that
+    /// changes the text in ways not tracked here.
+    fn sentence_break(&mut self) {
+        self.sentence = Sentence::Mid;
+        self.dot_pending = false;
+        self.word_cap = false;
+    }
+
+    /// Tracks a key taken without the engine (Vietnamese off).
+    fn track_plain(&mut self, keyval: u32, state: u32) {
+        let shortcut = CONTROL_MASK | MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
+        if (0x20..=0x7e).contains(&keyval) && state & shortcut == 0 {
+            self.track_typed(char::from_u32(keyval).unwrap());
+        } else {
+            self.sentence_break();
+        }
     }
 
     fn backspace(&mut self, show: Show, out: &mut Vec<Out>) -> bool {
@@ -1320,5 +1425,157 @@ mod tests {
         n += toggles(&release(&mut ime, KEY_SHIFT_L));
         n += toggles(&release(&mut ime, KEY_CTRL_L));
         assert_eq!(n, 1);
+    }
+
+    /// An engine for a client that reports Surrounding Text, with auto-capitalisation on.
+    fn cap_engine() -> Ime {
+        let cfg = Config {
+            auto_capitalize: true,
+            ..Config::default()
+        };
+        let mut ime = Ime::new(&cfg);
+        ime.set_capabilities(CAP_SURROUNDING_TEXT);
+        ime
+    }
+
+    /// Types `s` into `field` the way a client applies the engine: commits and deletes from the
+    /// outputs, and a key the engine does not take is typed by the app itself.
+    fn type_into(ime: &mut Ime, field: &mut String, s: &str) {
+        for ch in s.chars() {
+            let kv = if ch == '\u{8}' {
+                KEY_BACKSPACE
+            } else {
+                ch as u32
+            };
+            let mut out = Vec::new();
+            let handled = ime.process_key(kv, 0, 0, &mut out);
+            for o in out {
+                match o {
+                    Out::Commit(t) => field.push_str(&t),
+                    Out::DeleteSurrounding { nchars, .. } => {
+                        for _ in 0..nchars {
+                            field.pop();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if !handled {
+                if kv == KEY_BACKSPACE {
+                    field.pop();
+                } else {
+                    field.push(ch);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sentence_end_and_space_capitalise_the_next_letter() {
+        for (typed, want) in [
+            ("a. b", "a. B"),
+            ("a! b", "a! B"),
+            ("a? b", "a? B"),
+            ("a.b", "a.b"),
+            ("a.  b", "a.  B"),
+            ("a, b", "a, b"),
+            ("a. 1b", "a. 1b"),
+        ] {
+            let mut ime = cap_engine();
+            let mut field = String::new();
+            type_into(&mut ime, &mut field, typed);
+            assert_eq!(field, want, "typed {typed:?}");
+        }
+    }
+
+    #[test]
+    fn first_letter_after_focus_is_left_alone() {
+        let mut ime = cap_engine();
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "b");
+        assert_eq!(field, "b");
+    }
+
+    #[test]
+    fn off_by_default() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(CAP_SURROUNDING_TEXT);
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "a. b");
+        assert_eq!(field, "a. b");
+    }
+
+    #[test]
+    fn url_password_and_pin_fields_are_left_alone() {
+        for purpose in [PURPOSE_URL, PURPOSE_PASSWORD, PURPOSE_PIN] {
+            let mut ime = cap_engine();
+            ime.set_content_type(purpose, 0);
+            let mut field = String::new();
+            type_into(&mut ime, &mut field, "a. b");
+            assert_eq!(field, "a. b", "purpose {purpose}");
+        }
+    }
+
+    #[test]
+    fn preedit_fields_are_left_alone() {
+        // No Surrounding Text: the engine composes in a preedit, which is never capitalised.
+        let cfg = Config {
+            auto_capitalize: true,
+            ..Config::default()
+        };
+        let mut ime = Ime::new(&cfg);
+        let mut out = Vec::new();
+        ime.process_key('a' as u32, 0, 0, &mut out);
+        ime.process_key('.' as u32, 0, 0, &mut out);
+        ime.process_key(' ' as u32, 0, 0, &mut out);
+        out.clear();
+        ime.process_key('b' as u32, 0, 0, &mut out);
+        assert!(!out.iter().any(|o| matches!(o, Out::Commit(t) if t == "B")));
+        assert!(out
+            .iter()
+            .all(|o| !matches!(o, Out::Commit(t) if t.contains('B'))));
+    }
+
+    #[test]
+    fn composition_continues_on_the_capital() {
+        let mut ime = cap_engine();
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "a. vieetj");
+        assert_eq!(field, "a. Việt");
+    }
+
+    #[test]
+    fn backspace_over_the_capital_restores_the_sentence_start() {
+        let mut ime = cap_engine();
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "a. b");
+        assert_eq!(field, "a. B");
+        type_into(&mut ime, &mut field, "\u{8}");
+        assert_eq!(field, "a. ");
+        type_into(&mut ime, &mut field, "c");
+        assert_eq!(field, "a. C");
+    }
+
+    #[test]
+    fn a_digit_or_newline_clears_the_pending_capital() {
+        let mut ime = cap_engine();
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "a. 1b");
+        assert_eq!(field, "a. 1b");
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "a.\nb");
+        assert_eq!(field, "a.\nb");
+    }
+
+    #[test]
+    fn typing_while_vietnamese_is_off_still_tracks_the_sentence() {
+        let mut ime = cap_engine();
+        let mut field = String::new();
+        type_into(&mut ime, &mut field, "a. ");
+        ime.set_enabled(false, &mut Vec::new());
+        type_into(&mut ime, &mut field, "x");
+        ime.set_enabled(true, &mut Vec::new());
+        type_into(&mut ime, &mut field, "b");
+        assert_eq!(field, "a. xb");
     }
 }

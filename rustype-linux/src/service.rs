@@ -2,7 +2,7 @@
 //! client and rustype's own interface. Key handling is crate::ime, unchanged.
 
 use crate::bus::{Bus, IBUS_NAME, PANEL_IFACE, PANEL_NAME, PANEL_PATH};
-use crate::config::{update_input_method, Watcher};
+use crate::config::{update_input_method, Mode, Watcher};
 use crate::dbus::{Message, Reader, Writer};
 use crate::ime::{Ime, Out};
 use crate::props::{
@@ -396,6 +396,10 @@ impl IBusService {
                 bus.reply(IBUS_NAME, m, "", &[]);
             }
             "ToggleState" => {
+                if self.app_is_off() {
+                    bus.reply(IBUS_NAME, m, "b", &body_bool(false));
+                    return Ok(());
+                }
                 let new_state = match self.current_app.clone() {
                     Some(app) => {
                         let cur = app_state_mut(&mut self.app_states, &app);
@@ -417,6 +421,7 @@ impl IBusService {
             "GetState" => {
                 // Read only: an app we have not seen is reported as enabled and not stored.
                 let state = match &self.current_app {
+                    _ if self.app_is_off() => false,
                     Some(app) => *self.app_states.get(app).unwrap_or(&true),
                     None => true,
                 };
@@ -663,8 +668,20 @@ impl IBusService {
         );
     }
 
-    /// Per-app on/off as ibus.rs keeps it: a remembered state for the focused app, else on.
+    /// Whether the focused app is one where Vietnamese is always off (`[app_modes]` = off).
+    fn app_is_off(&self) -> bool {
+        self.config
+            .current
+            .mode_for_app(self.current_app.as_deref())
+            == Mode::Off
+    }
+
+    /// Per-app on/off as ibus.rs keeps it: a remembered state for the focused app, else on. An
+    /// app where Vietnamese is always off is off, and its remembered state is left alone.
     fn app_enabled(&mut self) -> bool {
+        if self.app_is_off() {
+            return false;
+        }
         if self.config.current.remember_state_per_app {
             if let Some(app) = self.current_app.clone() {
                 return *app_state_mut(&mut self.app_states, &app);
@@ -830,6 +847,9 @@ impl IBusService {
     fn activate(&mut self, bus: &mut Bus, path: &str, name: &str, state: u32) {
         match name {
             "InputMode" => {
+                if self.app_is_off() {
+                    return;
+                }
                 let Some(cur) = self
                     .ctxs
                     .get(path)
@@ -1021,13 +1041,17 @@ mod tests {
     /// A bus with one client that owns a focused rustype context. The config is fixed, so the
     /// user's own file does not matter.
     fn setup() -> (IBusService, Bus, usize, String) {
+        setup_with(Config::default())
+    }
+
+    fn setup_with(cfg: Config) -> (IBusService, Bus, usize, String) {
         let (a, _b) = UnixStream::pair().unwrap();
         a.set_nonblocking(true).unwrap();
         let mut bus = Bus::new("uuid".into());
         let id = bus.add_peer(Peer::new(a, Sasl::new("00", 0, 0), 0, 0));
         bus.peers.get_mut(&id).unwrap().unique = Some(format!(":1.{id}"));
         let mut svc = IBusService::new("unix:path=/x".into());
-        svc.config = Watcher::fixed(Config::default());
+        svc.config = Watcher::fixed(cfg);
         svc.global = ENGINE_RUSTYPE.to_string();
         let path = svc.create_ic(&format!(":1.{id}"));
         svc.focus_in(&mut bus, &path);
@@ -1095,6 +1119,67 @@ mod tests {
         assert!(
             key(&mut svc, &mut bus, &path, 0x61, false),
             "converts again"
+        );
+    }
+
+    /// `SetFocusApp(app)` as GNOME Shell sends it.
+    fn set_focus_app(svc: &mut IBusService, bus: &mut Bus, app: &str) {
+        let mut w = crate::dbus::Writer::new();
+        w.string(app);
+        let m = crate::dbus::Message {
+            mtype: crate::dbus::METHOD_CALL,
+            serial: 9,
+            sender: Some(":1.1".into()),
+            signature: "s".into(),
+            body: w.buf,
+            ..Default::default()
+        };
+        svc.rustype_method(bus, &m, "SetFocusApp").unwrap();
+    }
+
+    fn terminal_off() -> Config {
+        let mut cfg = Config::default();
+        cfg.app_modes
+            .insert("org.gnome.terminal".into(), crate::config::Mode::Off);
+        cfg
+    }
+
+    #[test]
+    fn off_app_passes_keys_and_shows_en_and_toggles_are_noops() {
+        let (mut svc, mut bus, id, path) = setup_with(terminal_off());
+        set_focus_app(&mut svc, &mut bus, "org.gnome.Terminal");
+        assert!(!enabled(&svc, &path), "off app is off");
+        assert!(
+            !key(&mut svc, &mut bus, &path, 0x61, false),
+            "keys pass through"
+        );
+
+        // Focus comes back to the app: the indicator says EN.
+        bus.peers.get_mut(&id).unwrap().wq.clear();
+        svc.focus_out(&mut bus, &path);
+        svc.focus_in(&mut bus, &path);
+        assert!(contains(&sent(&bus, id), b"EN"));
+
+        // Chord and menu toggle change nothing and store nothing for the app.
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, false);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, false);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, true);
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, true);
+        svc.activate(&mut bus, &path, "InputMode", TOGGLE_REQUEST);
+        assert!(!enabled(&svc, &path));
+        assert!(!svc.app_states.contains_key("org.gnome.Terminal"));
+    }
+
+    #[test]
+    fn other_apps_are_unaffected_by_an_off_app() {
+        let (mut svc, mut bus, _id, path) = setup_with(terminal_off());
+        set_focus_app(&mut svc, &mut bus, "org.gnome.Terminal");
+        assert!(!enabled(&svc, &path));
+        set_focus_app(&mut svc, &mut bus, "firefox");
+        assert!(enabled(&svc, &path), "firefox is on again");
+        assert!(
+            key(&mut svc, &mut bus, &path, 0x61, false),
+            "firefox converts"
         );
     }
 }

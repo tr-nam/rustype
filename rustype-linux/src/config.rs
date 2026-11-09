@@ -13,6 +13,9 @@ pub(crate) enum Mode {
     Preedit,
     /// No underline where the app supports Surrounding Text; elsewhere it behaves like Preedit.
     Direct,
+    /// Vietnamese is always off in this app, whatever was remembered for it. Only `[app_modes]`
+    /// can say this.
+    Off,
 }
 
 /// The key chord that turns Vietnamese on and off inside the engine.
@@ -31,6 +34,7 @@ pub struct Config {
     pub(crate) app_modes: HashMap<String, Mode>,
     pub(crate) remember_state_per_app: bool,
     pub(crate) toggle_shortcut: ToggleShortcut,
+    pub(crate) auto_capitalize: bool,
 }
 
 impl Default for Config {
@@ -41,6 +45,7 @@ impl Default for Config {
             app_modes: HashMap::new(),
             remember_state_per_app: true,
             toggle_shortcut: ToggleShortcut::CtrlShift,
+            auto_capitalize: false,
         }
     }
 }
@@ -92,6 +97,15 @@ free_tone_order = true
 # Kiểu gõ: telex | vni
 input_method = telex
 
+# Telex đơn giản: 'w' đứng riêng là chữ w, không thành 'ư' (true: bật)
+simple_telex = false
+
+# Telex nhanh: gõ đôi phụ âm đầu thành âm ghép: cc=ch, gg=gi, kk=kh, nn=ng, pp=ph, qq=qu, tt=th
+quick_telex = false
+
+# Tự viết hoa chữ cái đầu câu, sau . ! ? và một khoảng trắng (không áp dụng cho ô URL, mật khẩu)
+auto_capitalize = false
+
 # Bật gõ tắt (macro) từ file ~/.config/rustype/macro hoặc mục [macros]
 enable_macro = false
 
@@ -107,6 +121,7 @@ toggle_shortcut = ctrl_shift
 # Cấu hình chế độ riêng cho từng ứng dụng (tuỳ chọn):
 # [app_modes]
 # \"org.gnome.Ptyxis\" = preedit
+# \"org.gnome.Terminal\" = off   (tắt hẳn tiếng Việt trong ứng dụng này)
 # \"kitty\" = preedit
 # \"google-chrome\" = auto
 
@@ -214,9 +229,10 @@ fn parse_bool(v: &str) -> Option<bool> {
 }
 
 fn parse_mode(v: &str) -> Mode {
-    match v {
+    match v.to_ascii_lowercase().as_str() {
         "preedit" => Mode::Preedit,
         "direct" => Mode::Direct,
+        "off" => Mode::Off,
         _ => Mode::Auto,
     }
 }
@@ -247,7 +263,13 @@ pub(crate) fn parse(text: &str) -> Config {
             continue;
         }
         match k {
-            "mode" => cfg.mode = parse_mode(v),
+            // Off is per app: a global `mode = off` would switch Vietnamese off everywhere.
+            "mode" => {
+                cfg.mode = match parse_mode(v) {
+                    Mode::Off => Mode::Auto,
+                    m => m,
+                }
+            }
             "input_method" => {
                 cfg.telex.input_method = match v.to_ascii_lowercase().as_str() {
                     "vni" => telex::InputMethod::Vni,
@@ -279,6 +301,21 @@ pub(crate) fn parse(text: &str) -> Config {
                     "off" => ToggleShortcut::Off,
                     _ => ToggleShortcut::CtrlShift,
                 };
+            }
+            "simple_telex" => {
+                if let Some(b) = parse_bool(v) {
+                    cfg.telex.simple_telex = b;
+                }
+            }
+            "quick_telex" => {
+                if let Some(b) = parse_bool(v) {
+                    cfg.telex.quick_telex = b;
+                }
+            }
+            "auto_capitalize" => {
+                if let Some(b) = parse_bool(v) {
+                    cfg.auto_capitalize = b;
+                }
             }
             "enable_macro" => {
                 if let Some(b) = parse_bool(v) {
@@ -601,5 +638,35 @@ hn = \"Hà Nội\"
             Some("Việt Nam")
         );
         assert_eq!(c.telex.macros.get("hn").map(|s| s.as_str()), Some("Hà Nội"));
+    }
+
+    #[test]
+    fn new_telex_and_capitalisation_keys_default_off_and_parse() {
+        let d = parse(DEFAULT_FILE);
+        assert!(!d.telex.simple_telex);
+        assert!(!d.telex.quick_telex);
+        assert!(!d.auto_capitalize);
+        let c = parse("simple_telex = true\nquick_telex = yes\nauto_capitalize = on");
+        assert!(c.telex.simple_telex);
+        assert!(c.telex.quick_telex);
+        assert!(c.auto_capitalize);
+    }
+
+    #[test]
+    fn app_mode_off_applies_to_that_app_only() {
+        let c = parse("mode = auto\n[app_modes]\n\"org.gnome.Terminal\" = off\n");
+        assert_eq!(c.mode_for_app(Some("org.gnome.Terminal")), Mode::Off);
+        assert_eq!(
+            c.mode_for_app(Some("org.gnome.Terminal.desktop")),
+            Mode::Off
+        );
+        assert_eq!(c.mode_for_app(Some("firefox")), Mode::Auto);
+        assert_eq!(c.mode, Mode::Auto);
+    }
+
+    #[test]
+    fn global_mode_off_is_not_allowed() {
+        // Off is per app; a global `mode = off` means auto.
+        assert_eq!(parse("mode = off").mode, Mode::Auto);
     }
 }
