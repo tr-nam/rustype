@@ -1,5 +1,5 @@
 Name:           rustype
-Version:        0.1.0
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        Lightweight Vietnamese input method for GNOME (IBus)
 
@@ -72,5 +72,9 @@ install -Dm644 docs/man/rustype-settings.1 %{buildroot}%{_mandir}/man1/rustype-s
 %{_mandir}/man1/*.1*
 
 %changelog
+* Mon Nov 09 2026 Nam Tran <support@namtr.dev> - 0.1.1-1
+- Replace the IBus engine with rustype-linux.
+- Fix VNI spelling of ươ after h, kh and th.
+
 * Sat Nov 07 2026 Nam Tran <support@namtr.dev> - 0.1.0-1
 - Initial release for Fedora and RPM distributions.

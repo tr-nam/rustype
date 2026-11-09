@@ -10,7 +10,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/language-Rust-orange.svg?style=flat-square&logo=rust" alt="Rust"></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg?style=flat-square" alt="Platform">
   <a href="https://github.com/tr-nam/rustype/actions/workflows/release.yml"><img src="https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat-square" alt="Build Status"></a>
-  <a href="https://github.com/tr-nam/rustype/releases"><img src="https://img.shields.io/badge/release-v0.1.0-blue.svg?style=flat-square" alt="Latest Release"></a>
+  <a href="https://github.com/tr-nam/rustype/releases"><img src="https://img.shields.io/badge/release-v0.1.1-blue.svg?style=flat-square" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License"></a>
 </p>
 
