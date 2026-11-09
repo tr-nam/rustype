@@ -157,6 +157,10 @@ def sequence(bus_m, bus_i, tag):
         if ed.table is not None and ctx.needs_surrounding_text():
             n = len(ed.text)
             ctx.set_surrounding_text(IBus.Text.new_from_string(ed.text + ed.sugg), n, n + len(ed.sugg))
+        elif ed.table is None:
+            # A field with Surrounding Text reports its text after each change.
+            n = len(ed.text)
+            ctx.set_surrounding_text(IBus.Text.new_from_string(ed.text), n, n)
 
     def keys(text, lag=False):
         """lag: all keys first, then one report, as if Chrome's reports arrive late."""

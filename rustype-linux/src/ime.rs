@@ -191,6 +191,13 @@ pub struct Ime {
     replace_pending: u32,
     /// What the URL field's tail may hold, see `FieldModel`.
     model: FieldModel,
+    /// The caret of the last Surrounding Text report. Mutter keeps the same caret and aborts a
+    /// delete that reaches before the start of its text, see `delete_fits`.
+    report_cursor: Option<u32>,
+    /// Reports still owed for keys in Surrounding Text: a delete with its commit owes two, other
+    /// keys one. A URL field's caret is trusted for a delete only at zero, and a report matching the
+    /// newest text resets it, so a client that coalesces reports cannot leave it stuck above zero.
+    reports_awaited: u32,
 }
 
 /// What a URL field's tail may really hold. Chrome's Surrounding Text reports lag behind the keys,
@@ -356,6 +363,8 @@ impl Ime {
             word_confirmed: false,
             replace_pending: 0,
             model: FieldModel::default(),
+            report_cursor: None,
+            reports_awaited: 0,
         }
     }
 
@@ -365,6 +374,8 @@ impl Ime {
         self.surrounding_requested = true;
         out.push(Out::RequireSurrounding);
         self.surrounding_seen = false;
+        self.report_cursor = None;
+        self.reports_awaited = 0;
         self.clear_word_track();
         self.model.clear();
         self.chord = Chord::default();
@@ -433,6 +444,8 @@ impl Ime {
         anchor_pos: u32,
         out: &mut Vec<Out>,
     ) {
+        self.report_cursor = Some(cursor_pos);
+        self.reports_awaited = self.reports_awaited.saturating_sub(1);
         self.surrounding_seen = true;
         // Only URL fields use the suggestion repair below; other fields only track their word.
         if self.purpose != PURPOSE_URL {
@@ -459,6 +472,7 @@ impl Ime {
             return;
         };
         if best == self.model.want {
+            self.reports_awaited = 0;
             // The word as typed is in the field, but an older report can match it too: keep the
             // other variants until a later report or a word boundary settles them.
             return;
@@ -509,8 +523,16 @@ impl Ime {
         self.show
     }
 
+    /// Whether a delete of `n` chars before the caret is within the last report.
+    fn delete_fits(&self, n: usize) -> bool {
+        self.report_cursor.is_some_and(|c| n <= c as usize)
+    }
+
     fn replace(&mut self, backspaces: usize, text: String, out: &mut Vec<Out>) {
-        if backspaces > 0 {
+        // Mutter 46/47 aborts a delete past the caret it stores. A URL field whose report is
+        // lagging keeps its delete: the repair handles a dropped one, as on GNOME 48+ today.
+        let lagging_url = self.purpose == PURPOSE_URL && self.reports_awaited > 0;
+        if backspaces > 0 && (self.delete_fits(backspaces) || lagging_url) {
             out.push(Out::DeleteSurrounding {
                 offset: -(backspaces as i32),
                 nchars: backspaces as u32,
@@ -562,6 +584,28 @@ impl Ime {
     }
 
     pub fn process_key(
+        &mut self,
+        keyval: u32,
+        keycode: u32,
+        state: u32,
+        out: &mut Vec<Out>,
+    ) -> bool {
+        let start = out.len();
+        let handled = self.process_key_event(keyval, keycode, state, out);
+        // Releases and modifiers change no text, so no report follows them.
+        let pressed = state & RELEASE_MASK == 0 && !is_modifier_key(keyval);
+        if pressed && self.show == Show::Surrounding {
+            let emitted = &out[start..];
+            let delete = emitted
+                .iter()
+                .any(|o| matches!(o, Out::DeleteSurrounding { .. }));
+            let commit = emitted.iter().any(|o| matches!(o, Out::Commit(_)));
+            self.reports_awaited += if delete && commit { 2 } else { 1 };
+        }
+        handled
+    }
+
+    fn process_key_event(
         &mut self,
         keyval: u32,
         _keycode: u32,
@@ -618,7 +662,13 @@ impl Ime {
                     let url_tail = self.purpose == PURPOSE_URL && show == Show::Surrounding;
                     let plain = show == Show::Surrounding && !url_tail;
                     let word_start = self.telex.is_empty();
-                    let r = self.telex.key(ch);
+                    let mut r = self.telex.key(ch);
+                    if plain && r.backspaces > 0 && !self.delete_fits(r.backspaces) {
+                        // The app replaced the field, so the word is gone: this key starts a new one.
+                        self.telex.reset();
+                        self.clear_word_track();
+                        r = self.telex.key(ch);
+                    }
                     if plain {
                         if word_start {
                             self.clear_word_track();
@@ -721,6 +771,17 @@ impl Ime {
         }
         if show != Show::Preedit {
             let r = self.telex.backspace();
+            let plain = self.purpose != PURPOSE_URL;
+            if plain && r.backspaces > 0 && !self.delete_fits(r.backspaces) {
+                // The app replaced the field, so the word is gone: the app erases the char itself.
+                self.telex.reset();
+                return false;
+            }
+            if plain && !self.telex.is_empty() {
+                // A word brought back for editing is watched as one typed here, so a report of its
+                // text confirms it. A late report of the longer text before it matches nothing.
+                self.word_states.push(self.telex.displayed());
+            }
             if !r.handled {
                 return false;
             }
@@ -887,6 +948,9 @@ mod tests {
                     other => panic!("unexpected {other:?}"),
                 }
             }
+            // The field reports its text after each key, as a client does.
+            let n = text.chars().count() as u32;
+            ime.set_surrounding_text(&text, n, n, &mut Vec::new());
         }
         assert_eq!(text, "kiểm tra ");
     }
@@ -1568,6 +1632,9 @@ mod tests {
                     field.push(ch);
                 }
             }
+            // The field reports its text after each key, as a client does.
+            let n = field.chars().count() as u32;
+            ime.set_surrounding_text(field.as_str(), n, n, &mut Vec::new());
         }
     }
 
@@ -1681,11 +1748,14 @@ mod tests {
         assert_eq!(field, "a. xb");
     }
 
-    /// A plain text field: what the app holds, driven by the engine's outputs. It reports its
-    /// text after each key unless the test says otherwise.
+    /// A plain text field: what the app holds, driven by the engine's outputs. Typing and commits
+    /// go in at the caret. It reports its text after each key unless the test says otherwise.
+    /// A delete past the start of the text aborts GNOME Shell (Mutter 46/47), so `apply` panics.
     struct Plain {
         ime: Ime,
         text: String,
+        /// Chars before the caret.
+        caret: usize,
     }
 
     impl Plain {
@@ -1695,6 +1765,7 @@ mod tests {
             let mut plain = Plain {
                 ime,
                 text: String::new(),
+                caret: 0,
             };
             let mut out = Vec::new();
             plain.ime.focus_in(&mut out);
@@ -1704,14 +1775,44 @@ mod tests {
             plain
         }
 
+        fn byte_at(&self, chars: usize) -> usize {
+            self.text
+                .char_indices()
+                .nth(chars)
+                .map_or(self.text.len(), |(i, _)| i)
+        }
+
+        fn insert(&mut self, s: &str) {
+            let at = self.byte_at(self.caret);
+            self.text.insert_str(at, s);
+            self.caret += s.chars().count();
+        }
+
+        fn delete_before_caret(&mut self, n: usize) {
+            let start = self.byte_at(self.caret - n);
+            let end = self.byte_at(self.caret);
+            self.text.replace_range(start..end, "");
+            self.caret -= n;
+        }
+
+        /// The app's field is changed by something else: new text and caret.
+        fn set_text(&mut self, text: &str, caret: usize) {
+            self.text = text.to_string();
+            self.caret = caret;
+        }
+
         fn apply(&mut self, outs: Vec<Out>) {
             for o in outs {
                 match o {
-                    Out::Commit(s) => self.text.push_str(&s),
+                    Out::Commit(s) => self.insert(&s),
                     Out::DeleteSurrounding { nchars, .. } => {
-                        for _ in 0..nchars {
-                            self.text.pop();
-                        }
+                        assert!(
+                            nchars as usize <= self.caret,
+                            "crash: deletes {nchars} chars with {} before the caret in {:?}",
+                            self.caret,
+                            self.text
+                        );
+                        self.delete_before_caret(nchars as usize);
                     }
                     Out::RequireSurrounding => {}
                     other => panic!("unexpected {other:?} in a plain field"),
@@ -1719,25 +1820,42 @@ mod tests {
             }
         }
 
-        /// The report of the current text, caret at its end.
+        /// The report of the current text, caret as it is.
         fn report(&mut self) -> Vec<Out> {
-            let n = self.text.chars().count() as u32;
             let text = self.text.clone();
+            let caret = self.caret as u32;
             let mut out = Vec::new();
-            self.ime.set_surrounding_text(&text, n, n, &mut out);
+            self.ime.set_surrounding_text(&text, caret, caret, &mut out);
             out
         }
 
-        fn key_quiet(&mut self, ch: char) {
+        /// A key as the app sees it: the engine takes it, or the app does.
+        fn press(&mut self, keyval: u32) {
             let mut out = Vec::new();
-            if !self.ime.process_key(ch as u32, 0, 0, &mut out) {
-                self.text.push(ch);
+            if !self.ime.process_key(keyval, 0, 0, &mut out) {
+                if keyval == KEY_BACKSPACE {
+                    if self.caret > 0 {
+                        self.delete_before_caret(1);
+                    }
+                } else {
+                    self.insert(&char::from_u32(keyval).unwrap().to_string());
+                }
             }
             self.apply(out);
         }
 
+        fn key_quiet(&mut self, ch: char) {
+            self.press(ch as u32);
+        }
+
         fn key(&mut self, ch: char) {
             self.key_quiet(ch);
+            let outs = self.report();
+            self.apply(outs);
+        }
+
+        fn backspace(&mut self) {
+            self.press(KEY_BACKSPACE);
             let outs = self.report();
             self.apply(outs);
         }
@@ -1773,7 +1891,10 @@ mod tests {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
         report_at_focus(&mut ime);
-        let out = outs_of(&mut ime, "tuaa");
+        let mut out = outs_of(&mut ime, "tua");
+        // The field reports its text before the second 'a', as a client does.
+        ime.set_surrounding_text("tua", 3, 3, &mut Vec::new());
+        out.extend(outs_of(&mut ime, "a"));
         assert!(out
             .iter()
             .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
@@ -1831,14 +1952,14 @@ mod tests {
         let mut f = Plain::new();
         f.type_text("vieej");
         // The app empties the field under the word in progress.
-        f.text.clear();
+        f.set_text("", 0);
         let outs = f.report();
         assert!(outs.is_empty());
         assert_eq!(f.ime.telex.displayed(), "");
         f.type_text("tr");
         assert_eq!(f.text, "tr");
         f.type_text("tieengs");
-        f.text.clear();
+        f.set_text("", 0);
         let outs = f.report();
         assert!(outs.is_empty());
         f.type_text("Traanf");
@@ -1872,7 +1993,7 @@ mod tests {
             let (delete, commit) = (out[0].clone(), out[1].clone());
             assert!(matches!(delete, Out::DeleteSurrounding { nchars: 1, .. }));
             assert_eq!(commit, Out::Commit(want.into()));
-            f.text.pop();
+            f.delete_before_caret(1);
             let mut out = Vec::new();
             f.ime.set_surrounding_text("", 0, 0, &mut out);
             assert!(out.is_empty());
@@ -1882,5 +2003,172 @@ mod tests {
             assert!(outs.is_empty());
             assert_eq!(f.text, want);
         }
+    }
+
+    #[test]
+    fn reopened_word_in_a_replaced_field_does_not_crash() {
+        let mut f = Plain::new();
+        f.type_text("aa ");
+        f.backspace(); // reopens "â"
+        f.set_text("tiếng việt", 0);
+        let outs = f.report();
+        f.apply(outs);
+        f.type_text("cm");
+        assert_eq!(f.text, "cmtiếng việt");
+    }
+
+    #[test]
+    fn url_field_cleared_under_a_word_does_not_crash() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        f.type_text("vieej");
+        f.set_text("", 0);
+        let outs = f.report();
+        f.apply(outs);
+        f.type_text("tr");
+    }
+
+    #[test]
+    fn plain_delete_past_the_report_restarts_the_word() {
+        let mut f = Plain::new();
+        f.type_text("aa ");
+        f.press(KEY_BACKSPACE); // reopens "â", no report
+        f.set_text("tiếng việt", 0);
+        let outs = f.report(); // matches no word display: ignored
+        f.apply(outs);
+        assert_eq!(f.ime.telex.displayed(), "â");
+        f.key('c'); // appended to the reopened word, no delete
+        assert_eq!(f.ime.telex.displayed(), "âc");
+        // The restored word needs two deletes, but the caret is at 1: this key starts a new word.
+        f.key('m');
+        assert_eq!(f.ime.telex.displayed(), "m");
+        assert_eq!(f.text, "cmtiếng việt");
+    }
+
+    #[test]
+    fn url_field_lagging_report_keeps_the_delete() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        for ch in "Rus".chars() {
+            f.key_quiet(ch); // no report reaches the engine after the keys
+        }
+        // The report lags behind the keys, so the delete goes out as before: "Rú", not "Ruú".
+        assert_eq!(f.text, "Rú");
+        let outs = f.report();
+        f.apply(outs);
+        assert_eq!(f.text, "Rú");
+    }
+
+    #[test]
+    fn url_field_delete_and_commit_await_two_reports() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        f.key_quiet('a');
+        f.key_quiet('a'); // "â": a delete and its commit, so two reports are owed
+                          // Both reports arrive, describing the text before the keys: one key's report is still owed.
+        for _ in 0..2 {
+            let mut out = Vec::new();
+            f.ime.set_surrounding_text("", 0, 0, &mut out);
+        }
+        // The first key's report is still owed, so the delete stays.
+        let mut out = Vec::new();
+        f.ime.process_key('a' as u32, 0, 0, &mut out);
+        assert!(
+            out.iter()
+                .any(|o| matches!(o, Out::DeleteSurrounding { .. })),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn url_field_key_release_owes_no_report() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        f.key('b'); // the word starts, and its report settles the count
+        assert_eq!(f.ime.reports_awaited, 0);
+        let mut out = Vec::new();
+        f.ime.process_key('b' as u32, 0, RELEASE_MASK, &mut out);
+        f.ime.process_key(0xffe1, 0, 0, &mut out); // Shift_L
+        assert_eq!(f.ime.reports_awaited, 0);
+    }
+
+    #[test]
+    fn url_field_matching_report_resyncs_the_count() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        f.key_quiet('b');
+        f.key_quiet('a'); // two keys, no reports yet
+        let outs = f.report(); // matches the newest text, so nothing is owed
+        f.apply(outs);
+        assert_eq!(f.ime.reports_awaited, 0);
+    }
+
+    #[test]
+    fn url_field_key_awaiting_a_report_keeps_the_delete() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        f.key_quiet('a');
+        f.key_quiet('a'); // "â": two keys await their reports
+                          // One report arrives, describing the text before them: a key is still awaiting.
+        let mut out = Vec::new();
+        f.ime.set_surrounding_text("", 0, 0, &mut out);
+        let mut out = Vec::new();
+        f.ime.process_key('a' as u32, 0, 0, &mut out);
+        assert!(
+            out.iter()
+                .any(|o| matches!(o, Out::DeleteSurrounding { .. })),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn url_field_current_short_report_skips_the_delete() {
+        let mut f = Plain::new();
+        f.ime.set_content_type(PURPOSE_URL, 0);
+        f.key('a');
+        f.set_text("", 0);
+        let outs = f.report(); // current: no key since it, and the caret is at 0
+        f.apply(outs);
+        // The second 'a' wants a delete of 1 char before a caret at 0: it is left out.
+        let mut out = Vec::new();
+        assert!(f.ime.process_key('a' as u32, 0, 0, &mut out));
+        assert_eq!(out, vec![Out::Commit("â".into())]);
+    }
+
+    #[test]
+    fn reopened_word_is_watched_until_a_report_contradicts_it() {
+        let mut f = Plain::new();
+        f.type_text("aa ");
+        f.press(KEY_BACKSPACE); // reopens "â", no report
+                                // A late report of the text from before the Backspace: it matches nothing.
+        let mut out = Vec::new();
+        f.ime.set_surrounding_text("â ", 2, 2, &mut out);
+        assert!(out.is_empty());
+        assert_eq!(f.ime.telex.displayed(), "â");
+        // The reopened word itself confirms it.
+        let outs = f.report();
+        f.apply(outs);
+        assert_eq!(f.ime.telex.displayed(), "â");
+        // Then a report that contradicts it resets the word.
+        f.set_text("xyz", 3);
+        let outs = f.report();
+        f.apply(outs);
+        assert_eq!(f.ime.telex.displayed(), "");
+    }
+
+    #[test]
+    fn backspace_on_a_stale_word_leaves_the_engine_empty() {
+        let mut f = Plain::new();
+        f.type_text("hoafn ");
+        f.press(KEY_BACKSPACE); // reopens "hoàn", no report
+        f.set_text("tiếng việt", 0);
+        let outs = f.report(); // matches no word display: the reopened word is unconfirmed
+        f.apply(outs);
+        assert_eq!(f.ime.telex.displayed(), "hoàn");
+        // Erasing the 'n' re-places the tone: a delete of 4 chars, but the caret is at 0.
+        let mut out = Vec::new();
+        assert!(!f.ime.process_key(KEY_BACKSPACE, 0, 0, &mut out));
+        assert!(out.is_empty());
+        assert_eq!(f.ime.telex.displayed(), "");
     }
 }

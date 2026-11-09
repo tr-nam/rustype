@@ -30,6 +30,8 @@ class App:
         self.shown, self.deletes, self.fwd = [], 0, []
         # Omnibox model (table set): the inline suggestion selected after the caret.
         self.table, self.sugg, self.required = table, "", 0
+        # A client that advertises Surrounding Text and reports it after each change (silent: never).
+        self.surrounding_reports = surrounding and not silent
         ic = self.ic = bus.create_input_context(name)
         ic.connect("commit-text", lambda c, t: self._commit(t.get_text()))
         ic.connect("forward-key-event", lambda c, kv, kc, st: self._forward(kv, st))
@@ -66,6 +68,8 @@ class App:
         """Surrounding Text is reported only when the engine asked for it
         (ic.needs_surrounding_text), and Chrome's report can lag behind the keys."""
         if self.table is None:
+            if self.surrounding_reports:
+                self._sync()
             return
         if self.ic.needs_surrounding_text():
             n = len(self.text)
