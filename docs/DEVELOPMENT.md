@@ -32,6 +32,19 @@ tools/rustype_linux_sandbox.sh target/release/rustype-linux
 
 Sandbox chạy với địa chỉ, cấu hình và bộ nhớ đệm riêng. Nó không đụng tới IBus đang chạy trên máy.
 
+### Kiểm thử tích hợp (install.sh, uninstall.sh, gói .deb)
+
+```
+make test-integration                 # build rồi chạy tests/run_all.sh
+RUSTYPE_LINUX_BIN=/abs/path/rustype-linux tests/run_all.sh
+```
+
+Bộ kiểm thử nằm trong `tests/`: `install/run.sh` (cài đặt, gỡ cài đặt), `deb/run.sh` (gói .deb và các script bảo trì), `settings/` (cài đặt ứng dụng). Mỗi test chạy trong một sandbox riêng: HOME và XDG_* tạm, `env -i`, PATH chỉ có các stub và vài công cụ vô hại, không có `sudo`, `systemctl`, `gsettings` thật. Lệnh không có sẵn trong sandbox làm test thất bại. Bộ này không cần quyền root, phiên GNOME hay GNOME đã cài. `dpkg -i` không chạy được trong sandbox.
+
+Kết quả kết thúc bằng một dòng `SUMMARY: passed=… failed=… known-fail=…`. Test `known-fail` ghi lại một lỗi đã biết của sản phẩm: nó được báo `KNOWN-FAIL` và không làm hỏng bộ kiểm thử. Nếu nó bất ngờ pass, bộ kiểm thử báo `UNEXPECTED-PASS` và thất bại, để gỡ đánh dấu.
+
+Chỉ chạy một phần: `RT_FILTER=<chuỗi> tests/install/run.sh`.
+
 **Thử nhanh một chuỗi phím** mà không cần IBus:
 
 ```
