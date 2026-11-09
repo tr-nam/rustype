@@ -8,7 +8,7 @@ CARGO_FLAGS ?= --release --locked
 UNIT = org.freedesktop.IBus.session.GNOME.service
 DROPIN_DIR = $(PREFIX)/lib/systemd/user/$(UNIT).d
 
-.PHONY: all build test test-integration check fmt clippy deb sandbox install uninstall clean help
+.PHONY: all build test test-integration test-e2e test-e2e-46 check fmt clippy deb sandbox install uninstall clean help
 
 all: build
 
@@ -17,6 +17,8 @@ help:
 	@echo "  make build       - Biên dịch release rustype-linux"
 	@echo "  make test        - Chạy toàn bộ unit test và golden test"
 	@echo "  make test-integration - Chạy kiểm thử tích hợp: install.sh, uninstall.sh, gói .deb (trong sandbox)"
+	@echo "  make test-e2e    - Kiểm thử đầu cuối trên GNOME Shell headless của máy này (phiên và D-Bus riêng)"
+	@echo "  make test-e2e-46 - Kiểm thử đầu cuối trên GNOME 46 trong Docker (Ubuntu 24.04, không mạng)"
 	@echo "  make check       - Kiểm tra fmt, clippy và test"
 	@echo "  make sandbox     - Chạy thử rustype-linux trên D-Bus riêng (không đụng IBus thật)"
 	@echo "  make deb         - Tạo gói Debian (.deb) trong target/packages/"
@@ -32,6 +34,12 @@ test:
 
 test-integration: build
 	RUSTYPE_LINUX_BIN=$(CURDIR)/target/release/rustype-linux tests/run_all.sh
+
+test-e2e: build
+	tests/e2e/run-all.sh $(CURDIR)/target/release/rustype-linux
+
+test-e2e-46:
+	tests/e2e/docker-run.sh
 
 check: fmt clippy test
 

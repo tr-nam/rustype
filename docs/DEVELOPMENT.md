@@ -51,6 +51,24 @@ Chỉ chạy một phần: `RT_FILTER=<chuỗi> tests/install/run.sh`.
 echo "Vieetj Nam ddepj" | target/release/rustype-linux --feed
 ```
 
+### Kiểm thử đầu cuối (GNOME Shell thật, headless)
+
+`make test-e2e` chạy rustype-linux với GNOME Shell 50 headless trên máy này, trong một phiên D-Bus và một D-Bus hệ thống riêng. Mỗi ca chạy trong một phiên mới, có `timeout 150`, và chỉ dừng các nhóm tiến trình do chính nó tạo. Trước và sau khi chạy, bộ kiểm tra so sánh trạng thái `org.freedesktop.IBus.session.GNOME.service` và `org.gnome.desktop.input-sources sources` của phiên thật: hai giá trị phải không đổi.
+
+`make test-e2e-46` chạy cùng bộ ca trong Docker, trên Ubuntu 24.04 với GNOME 46. Ảnh được build từ cây làm việc, và rustype-linux được biên dịch ngay trong ảnh, không sao chép từ máy host. Container chạy với `--network none`, không đặc quyền, không gắn kết thư mục từ máy host. Ảnh và container đều có nhãn `rustype-e2e=1`.
+
+| Ca | Nội dung | Kết quả mong đợi |
+|---|---|---|
+| a | Terminal VTE thật, `tieengs vieejt` + Enter vào `cat` | `tiếng việt`, Shell còn sống |
+| b | Ô GTK, ứng dụng tự xóa ô giữa chừng, không có phím nào: `vieej` xóa `tr`; `tieengs` xóa `Traanf` | `tr`, Shell và ứng dụng còn sống; ca thứ hai là lỗi đã biết |
+| c | Chuyển focus từ ô GTK có chữ sang terminal trong cùng cửa sổ | `tiếng` và `việt` |
+| d | Telex cả câu, chữ hoa, Backspace, ô mật khẩu giữ nguyên, ô thường không gạch chân kể cả sau khi đổi focus | `Tiếng Việt`, `Tiếng Việ`, `tieengs`, 0 lần preedit |
+| e | Chrome: thanh địa chỉ có gợi ý nội tuyến chọn sẵn, và một ô `<input>` | `Rú`, `Trần` |
+
+Ca b thứ hai được ghi là `KNOWN-FAIL`: GTK chỉ báo nội dung ô sau phím kế tiếp, nên nếu phím đó làm thay chữ của từ cũ thì engine chưa kịp biết ô đã bị xóa. Nếu ca này bất ngờ đạt, bộ kiểm tra báo `UNEXPECTED-PASS` và thất bại, để gỡ nhãn. Ca e cần Google Chrome; ảnh GNOME 46 không có Chrome nên ca bị bỏ qua và được ghi là `SKIP`. Bộ kiểm tra không dùng `gsettings set`, `dconf write`, `systemctl` hay `sudo`.
+
+Mỗi ca in dòng `RESULT <ca> PASS|FAIL`. Nếu GNOME Shell chết, ca bị ghi là FAIL, không treo. Để giữ thư mục làm việc khi gỡ lỗi, đặt `E2E_KEEP=1`.
+
 ## Đổi luật gõ
 
 Luật nằm trong `rustype-core/src/tables.rs` và `rustype-core/src/telex.rs`, sửa trực tiếp. Sau khi sửa, `cargo test` sẽ báo những chuỗi phím có kết quả khác trước. Quy trình:
