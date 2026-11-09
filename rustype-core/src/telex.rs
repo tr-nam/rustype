@@ -695,6 +695,45 @@ impl Telex {
         None
     }
 
+    /// A deliberate double-key escape: a tone key typed twice ('tesst', 'resst', 'caasst'), with
+    /// the letters after it forming one Vietnamese final. Such a word keeps its letters on
+    /// screen. The gate: the word without the doubled key, typed on a fresh engine, must be a
+    /// valid Vietnamese syllable ('tesst' -> 'test': 'tét' is valid). 'beseech' doubles 'e', a
+    /// mark key, so it is not a deliberate escape.
+    fn deliberate_escape(&self) -> bool {
+        if !self.disabled {
+            return false;
+        }
+        let Some(n) = self.escape_at else {
+            return false;
+        };
+        if n < 2 || self.raw.len() <= n {
+            return false;
+        }
+        let (a, b) = (lower(self.raw[n - 1]), lower(self.raw[n - 2]));
+        let tone_key = match self.cfg.input_method {
+            InputMethod::Telex => tone_key(a).is_some_and(|t| t != 0),
+            InputMethod::Vni => ('1'..='5').contains(&a),
+        };
+        if a != b || !tone_key {
+            return false;
+        }
+        let tail: String = self.raw[n..].iter().map(|&c| lower(c)).collect();
+        if !matches!(
+            tail.as_str(),
+            "c" | "ch" | "m" | "n" | "ng" | "nh" | "p" | "t"
+        ) {
+            return false;
+        }
+        let mut alt = self.raw.clone();
+        alt.remove(n - 1);
+        let mut replay = Telex::new(self.cfg.clone());
+        for &c in &alt {
+            replay.key(c);
+        }
+        !replay.disabled && replay.is_valid(false)
+    }
+
     fn boundary(&mut self, ch: char) -> KeyResult {
         if self.raw.is_empty() && self.chars.is_empty() {
             if self.prev.is_some() {
@@ -730,7 +769,8 @@ impl Telex {
                 .iter()
                 .any(|w| w.to_lowercase() == raw_lc);
             // 'affected', 'arrived': the escape pair is followed by more letters.
-            let escaped_english = self.escape_at.is_some_and(|n| self.raw.len() > n);
+            let escaped_english =
+                self.escape_at.is_some_and(|n| self.raw.len() > n) && !self.deliberate_escape();
             let restore = is_custom
                 || if self.disabled {
                     in_set(ENGLISH_COLLISION_WORDS, &raw_lc) || escaped_english
@@ -1320,6 +1360,43 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(off.feed("affected "), "afected ");
+    }
+
+    #[test]
+    fn deliberate_escape_keeps_letters() {
+        let mut t = Telex::new(Config::default());
+        for (input, want) in [
+            ("Tesst ", "Test "),
+            ("tesst ", "test "),
+            ("Tesst.", "Test."),
+            ("resst ", "rest "),
+            // Ordinary English with a double key and letters after it: unchanged.
+            ("assert ", "assert "),
+            ("lesson ", "lesson "),
+            ("message ", "message "),
+            ("passport ", "passport "),
+            ("misstep ", "misstep "),
+            ("affected ", "affected "),
+            ("arrived ", "arrived "),
+            ("lasso ", "lasso "),
+            ("posse ", "posse "),
+            ("class ", "class "),
+            ("pass ", "pass "),
+            ("coffee ", "coffee "),
+            ("Mississippi ", "Mississippi "),
+            ("beseech ", "beseech "),
+            ("Caasst ", "Câst "),
+            // A word ending at the escape keeps today's behaviour.
+            ("Tess ", "Tes "),
+        ] {
+            assert_eq!(t.feed(input), want, "input {input:?}");
+        }
+        // VNI: the doubled tone key is dropped the same way.
+        let mut vni = Telex::new(Config {
+            input_method: InputMethod::Vni,
+            ..Default::default()
+        });
+        assert_eq!(vni.feed("Te11t "), "Te1t ");
     }
 
     #[test]
