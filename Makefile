@@ -60,7 +60,7 @@ install: build
 	install -Dm644 docs/man/rustype-linux.1 $(DESTDIR)$(PREFIX)/share/man/man1/rustype-linux.1
 	install -Dm644 docs/man/rustype-settings.1 $(DESTDIR)$(PREFIX)/share/man/man1/rustype-settings.1
 	mkdir -p $(DESTDIR)$(DROPIN_DIR)
-	printf '[Service]\nExecStart=\nExecStart=$(PREFIX)/libexec/rustype-linux --own-session-name\n' > $(DESTDIR)$(DROPIN_DIR)/rustype.conf
+	printf '[Service]\nExecStart=\nExecStart=$(PREFIX)/libexec/rustype-linux --own-session-name\nRestart=on-failure\nRestartSec=1\n' > $(DESTDIR)$(DROPIN_DIR)/rustype.conf
 	chmod 644 $(DESTDIR)$(DROPIN_DIR)/rustype.conf
 
 uninstall:

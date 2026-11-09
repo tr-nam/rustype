@@ -110,7 +110,7 @@ timer_active() { $SYSTEMCTL --user is-active --quiet "$TIMER"; }
 write_dropin() {
     mkdir -p "$DROPIN_DIR"
     local tmp="$DROPIN_DIR/.override.conf.$$"
-    printf '[Service]\nExecStart=\nExecStart=%s --own-session-name\n' "$BIN" > "$tmp"
+    printf '[Service]\nExecStart=\nExecStart=%s --own-session-name\nRestart=on-failure\nRestartSec=1\n' "$BIN" > "$tmp"
     mv -f "$tmp" "$DROPIN"
 }
 
