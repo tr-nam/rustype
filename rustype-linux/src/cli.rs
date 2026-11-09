@@ -260,7 +260,11 @@ pub fn main() {
         Ok(Command::Version) => println!("rustype-linux {VERSION}"),
         Ok(Command::Help) => println!("{USAGE}"),
         Ok(Command::WriteConfig) => write_config(),
-        Ok(Command::Doctor) => doctor::run(),
+        Ok(Command::Doctor) => {
+            if !doctor::run() {
+                std::process::exit(1);
+            }
+        }
         Ok(Command::Feed) => feed(),
         // Always exits 0: these run from package scripts and autostart, and must never fail them.
         Ok(Command::Activate { restart }) => activate::activate(restart),

@@ -62,7 +62,9 @@ fn home_join(rel: &str) -> Option<PathBuf> {
     std::env::var_os("HOME").map(|h| PathBuf::from(h).join(rel))
 }
 
-pub fn run() {
+/// Prints the checks and returns whether none failed: a `[✗]` check makes the command exit 1.
+/// Warnings alone exit 0.
+pub fn run() -> bool {
     println!("=== Chẩn đoán Rustype (rustype-linux v{}) ===", VERSION);
     let mut r = Report::default();
     session_check(&mut r);
@@ -73,6 +75,7 @@ pub fn run() {
     extension_check(&mut r);
     config_check(&mut r);
     summary(&r);
+    r.fail == 0
 }
 
 fn session_check(r: &mut Report) {

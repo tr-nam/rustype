@@ -29,7 +29,7 @@ which the installer points at
 .SH OPTIONS
 .TP
 .B \-\-doctor
-Run system diagnostic checks: installation, the bus, component registration, GNOME input sources, the GNOME Shell focus extension, and the configuration file. Prints a recommendation for each failing check.
+Run system diagnostic checks: installation, the bus, component registration, GNOME input sources, the GNOME Shell focus extension, and the configuration file. Prints a recommendation for each failing check. It exits with status 1 when any check fails; warnings alone keep status 0.
 .TP
 .B \-\-write\-config
 Create the default configuration file at \fI~/.config/rustype/config\fR if it does not exist.
