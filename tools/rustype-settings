@@ -60,7 +60,7 @@ def get_installed_version() -> str:
                     return token.strip()
         except Exception:
             pass
-    return "0.1.1"
+    return "0.2.0"
 
 
 def strip_comment(line: str) -> str:
@@ -121,6 +121,145 @@ def rewrite_file(path: pathlib.Path, transform):
     return None
 
 
+TOP_KEYS = (
+    "mode",
+    "input_method",
+    "modern_orthography",
+    "auto_restore_english",
+    "remember_state_per_app",
+    "enable_macro",
+    "custom_words",
+    "free_tone_order",
+    "toggle_shortcut",
+    "simple_telex",
+    "quick_telex",
+    "auto_capitalize",
+)
+
+
+def config_key_value(line: str):
+    """(key, value) of a key = value line, read the way load() reads it. None for other lines."""
+    body = strip_comment(line).strip()
+    if not body or (body.startswith("[") and body.endswith("]")) or "=" not in body:
+        return None
+    k, v = body.split("=", 1)
+    return k.strip().strip('"'), v.strip().strip('"')
+
+
+def section_name(line: str):
+    """The name of a [section] header line, or None."""
+    body = strip_comment(line).strip()
+    if body.startswith("[") and body.endswith("]"):
+        return body[1:-1].strip()
+    return None
+
+
+def _append_before_trailing_blank(lines, new):
+    """Appends new lines after the content but before any trailing blank lines."""
+    tail = []
+    while lines and not lines[-1].strip():
+        tail.insert(0, lines.pop())
+    lines.extend(new)
+    lines.extend(tail)
+    return lines
+
+
+def _entry_line(key: str, value: str, quote_value: bool) -> str:
+    return f'"{key}" = "{value}"' if quote_value else f'"{key}" = {value}'
+
+
+def merge_entries(body, mapping, quote_value: bool):
+    """Brings one section body in line with mapping. Comments and blank lines stay, an unchanged
+    entry keeps its original line, an entry missing from mapping is dropped, and new entries are
+    added at the end."""
+    out, seen = [], set()
+    for line in body:
+        kv = config_key_value(line)
+        if kv is None:
+            out.append(line)
+            continue
+        k, v = kv
+        if k not in mapping or k in seen:
+            continue
+        seen.add(k)
+        out.append(line if mapping[k] == v else _entry_line(k, mapping[k], quote_value))
+    missing = [
+        _entry_line(k, mapping[k], quote_value) for k in sorted(mapping) if k not in seen
+    ]
+    return _append_before_trailing_blank(out, missing)
+
+
+def render_config(existing: str, top: dict, app_modes: dict, macros: dict) -> str:
+    """The config text after a save. Managed top-level keys are set from top, app_modes and macros
+    are merged as above, and every other line (unknown keys, unknown sections, comments) is kept."""
+    lines = existing.splitlines() if existing.strip() else ["# Rustype configuration"]
+    head, sections = [], []
+    cur = head
+    for line in lines:
+        name = section_name(line)
+        if name is None:
+            cur.append(line)
+        else:
+            cur = []
+            sections.append((name, line, cur))
+
+    out, seen = [], set()
+    for line in head:
+        kv = config_key_value(line)
+        if kv is not None and kv[0] in top:
+            k, v = kv
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append(line if v == top[k] else f"{k} = {top[k]}")
+        else:
+            out.append(line)
+    out = _append_before_trailing_blank(
+        out, [f"{k} = {top[k]}" for k in TOP_KEYS if k not in seen]
+    )
+
+    managed = {"app_modes": app_modes, "macros": macros}
+    done = set()
+    blocks = []
+    for name, header, body in sections:
+        if name in managed and name not in done:
+            done.add(name)
+            body = merge_entries(body, managed[name], quote_value=(name == "macros"))
+        blocks.append((header, body))
+    for name in ("app_modes", "macros"):
+        if name not in done:
+            blocks.append(
+                (f"[{name}]", merge_entries([], managed[name], quote_value=(name == "macros")))
+            )
+
+    result = list(out)
+    for header, body in blocks:
+        if result and result[-1].strip():
+            result.append("")
+        result.append(header)
+        result.extend(body)
+    return "\n".join(result) + "\n"
+
+
+def write_config_text(path: pathlib.Path, text: str):
+    """Writes text beside the target and renames it over the target, following a symlink first."""
+    target = path.resolve() if path.exists() else path
+    tmp = target.with_name(f".{target.name}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _bool_text(value: bool) -> str:
+    return "true" if value else "false"
+
+
 class ConfigManager:
     def __init__(self):
         self.mode = "auto"
@@ -129,6 +268,11 @@ class ConfigManager:
         self.auto_restore_english = True
         self.remember_state_per_app = True
         self.enable_macro = False
+        self.free_tone_order = True
+        self.toggle_shortcut = "ctrl_shift"
+        self.simple_telex = False
+        self.quick_telex = False
+        self.auto_capitalize = False
         self.app_modes = {}
         self.macros = {}
         self.custom_words = []
@@ -184,6 +328,16 @@ class ConfigManager:
                             self.custom_words = [
                                 w.strip().strip('"') for w in v.split(",") if w.strip()
                             ]
+                        elif k == "free_tone_order":
+                            self.free_tone_order = v.lower() in ("true", "1", "yes", "on")
+                        elif k == "toggle_shortcut":
+                            self.toggle_shortcut = v.lower()
+                        elif k == "simple_telex":
+                            self.simple_telex = v.lower() in ("true", "1", "yes", "on")
+                        elif k == "quick_telex":
+                            self.quick_telex = v.lower() in ("true", "1", "yes", "on")
+                        elif k == "auto_capitalize":
+                            self.auto_capitalize = v.lower() in ("true", "1", "yes", "on")
 
         if MACRO_FILE.exists():
             for line in MACRO_FILE.read_text(encoding="utf-8").splitlines():
@@ -200,28 +354,26 @@ class ConfigManager:
                     self.custom_words.append(w)
 
     def save(self):
+        """Writes the config. Keys and sections this app does not manage are kept as they are."""
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        lines = [
-            "# Rustype configuration",
-            f"mode = {self.mode}",
-            f"input_method = {self.input_method}",
-            f"modern_orthography = {'true' if self.modern_orthography else 'false'}",
-            f"auto_restore_english = {'true' if self.auto_restore_english else 'false'}",
-            f"remember_state_per_app = {'true' if self.remember_state_per_app else 'false'}",
-            f"enable_macro = {'true' if self.enable_macro else 'false'}",
-            f"custom_words = {', '.join(self.custom_words)}",
-            "",
-            "[app_modes]",
-        ]
-        for app, m in sorted(self.app_modes.items()):
-            lines.append(f'"{app}" = {m}')
-
-        lines.append("")
-        lines.append("[macros]")
-        for k, v in sorted(self.macros.items()):
-            lines.append(f'"{k}" = "{v}"')
-
-        CONFIG_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        top = {
+            "mode": self.mode,
+            "input_method": self.input_method,
+            "modern_orthography": _bool_text(self.modern_orthography),
+            "auto_restore_english": _bool_text(self.auto_restore_english),
+            "remember_state_per_app": _bool_text(self.remember_state_per_app),
+            "enable_macro": _bool_text(self.enable_macro),
+            "custom_words": ", ".join(self.custom_words),
+            "free_tone_order": _bool_text(self.free_tone_order),
+            "toggle_shortcut": self.toggle_shortcut,
+            "simple_telex": _bool_text(self.simple_telex),
+            "quick_telex": _bool_text(self.quick_telex),
+            "auto_capitalize": _bool_text(self.auto_capitalize),
+        }
+        existing = CONFIG_FILE.read_text(encoding="utf-8") if CONFIG_FILE.exists() else ""
+        write_config_text(
+            CONFIG_FILE, render_config(existing, top, self.app_modes, self.macros)
+        )
 
 
 class RustypeSettingsApp(Adw.Application):
@@ -320,6 +472,65 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         )
         grp_features.add(self.sw_remember)
 
+        self.sw_free_tone = Adw.SwitchRow(
+            title="Gõ dấu tự do (thfi → thì)",
+            subtitle="Dấu f, j, x gõ trước nguyên âm vẫn có hiệu lực. Mặc định bật",
+            active=cfg.free_tone_order,
+        )
+        self.sw_free_tone.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed(
+                "free_tone_order", self.sw_free_tone.get_active()
+            ),
+        )
+        grp_features.add(self.sw_free_tone)
+
+        self.sw_toggle = Adw.SwitchRow(
+            title="Phím tắt Ctrl+Shift bật/tắt tiếng Việt",
+            subtitle="Nhấn Ctrl và Shift cùng lúc, rồi nhả một phím",
+            active=cfg.toggle_shortcut != "off",
+        )
+        self.sw_toggle.connect(
+            "notify::active",
+            lambda *_: self.on_toggle_shortcut_changed(self.sw_toggle.get_active()),
+        )
+        grp_features.add(self.sw_toggle)
+
+        self.sw_simple = Adw.SwitchRow(
+            title="Simple Telex",
+            subtitle="w đứng một mình không thành ư",
+            active=cfg.simple_telex,
+        )
+        self.sw_simple.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed("simple_telex", self.sw_simple.get_active()),
+        )
+        grp_features.add(self.sw_simple)
+
+        self.sw_quick = Adw.SwitchRow(
+            title="Quick Telex",
+            subtitle="cc thành ch, gg thành gi, kk thành kh, nn thành ng, pp thành ph, qq thành qu, tt thành th, chỉ ở đầu từ",
+            active=cfg.quick_telex,
+        )
+        self.sw_quick.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed("quick_telex", self.sw_quick.get_active()),
+        )
+        grp_features.add(self.sw_quick)
+
+        self.sw_capitalize = Adw.SwitchRow(
+            title="Tự viết hoa đầu câu",
+            subtitle="Viết hoa chữ đầu sau dấu chấm, chấm hỏi, chấm than và dấu cách; không áp dụng ở ô URL và terminal",
+            active=cfg.auto_capitalize,
+        )
+        self.sw_capitalize.connect(
+            "notify::active",
+            lambda *_: self.on_switch_changed(
+                "auto_capitalize", self.sw_capitalize.get_active()
+            ),
+        )
+        grp_features.add(self.sw_capitalize)
+
         # ---------------- Trang 2: Gõ tắt (Macro) ----------------
         page_macro = Adw.PreferencesPage(
             title="Gõ tắt", icon_name="document-edit-symbolic"
@@ -368,6 +579,24 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
         btn_add_word.connect("clicked", self.on_add_word_clicked)
         self.grp_words.set_header_suffix(btn_add_word)
         self.refresh_words()
+
+        # ---------------- Trang: Ứng dụng luôn tắt ----------------
+        page_off = Adw.PreferencesPage(
+            title="Ứng dụng luôn tắt", icon_name="window-close-symbolic"
+        )
+        self.add(page_off)
+
+        self.grp_off = Adw.PreferencesGroup(
+            title="Ứng dụng không gõ tiếng Việt",
+            description="Nhập mã ứng dụng, ví dụ org.gnome.Terminal. Tính năng này cần tiện ích GNOME Shell của Rustype.",
+        )
+        page_off.add(self.grp_off)
+
+        btn_add_off = Gtk.Button(label="Thêm ứng dụng", icon_name="list-add-symbolic")
+        btn_add_off.connect("clicked", self.on_add_off_clicked)
+        self.grp_off.set_header_suffix(btn_add_off)
+        self.off_rows = []
+        self.refresh_off_apps()
 
         # ---------------- Trang 4: Giới thiệu & Chẩn đoán ----------------
         self.version = get_installed_version()
@@ -555,6 +784,65 @@ class RustypePreferencesWindow(Adw.PreferencesWindow):
     def on_switch_changed(self, key, value):
         setattr(self.cfg, key, value)
         self.cfg.save()
+
+    def on_toggle_shortcut_changed(self, active):
+        self.cfg.toggle_shortcut = "ctrl_shift" if active else "off"
+        self.cfg.save()
+
+    def refresh_off_apps(self):
+        for row in self.off_rows:
+            self.grp_off.remove(row)
+        self.off_rows = []
+        for app in sorted(k for k, v in self.cfg.app_modes.items() if v.lower() == "off"):
+            row = Adw.ActionRow(title=app, use_markup=False)
+            btn_del = Gtk.Button(
+                icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER
+            )
+            btn_del.connect("clicked", lambda _, a=app: self.delete_off_app(a))
+            row.add_suffix(btn_del)
+            self.grp_off.add(row)
+            self.off_rows.append(row)
+
+    def delete_off_app(self, app):
+        # Only an entry whose mode is off is removed; other modes in [app_modes] stay.
+        if self.cfg.app_modes.get(app, "").lower() == "off":
+            del self.cfg.app_modes[app]
+            self.cfg.save()
+            self.refresh_off_apps()
+            self.notify(f"Đã xóa: {app}")
+
+    def on_add_off_clicked(self, _):
+        dialog = Adw.MessageDialog(
+            transient_for=self,
+            heading="Thêm ứng dụng luôn tắt",
+            body="Rustype sẽ không gõ tiếng Việt trong ứng dụng này.",
+        )
+        entry = Gtk.Entry(placeholder_text="Mã ứng dụng (vd: org.gnome.Terminal)")
+        dialog.set_extra_child(entry)
+        dialog.add_response("cancel", "Hủy")
+        dialog.add_response("add", "Thêm")
+        dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
+
+        def on_resp(d, resp):
+            if resp != "add":
+                return
+            app = entry.get_text().strip().lower()
+            if not app:
+                return
+            if any(c in app for c in '"#=[] \t'):
+                self.notify("Mã ứng dụng không hợp lệ")
+                return
+            current = self.cfg.app_modes.get(app)
+            if current is not None and current.lower() != "off":
+                self.notify(f"{app} đã có chế độ {current}, sửa trong tệp cấu hình")
+                return
+            self.cfg.app_modes[app] = "off"
+            self.cfg.save()
+            self.refresh_off_apps()
+            self.notify(f"Đã thêm: {app}")
+
+        dialog.connect("response", on_resp)
+        dialog.present()
 
     def refresh_macros(self):
         # Clear existing rows in macro group
