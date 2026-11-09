@@ -16,6 +16,7 @@
 - Sửa một từ gõ tắt đang nằm trong file `macro` giờ có tác dụng. Từ gõ tắt kết thúc bằng dấu `"` không còn mất dấu.
 - `uninstall.sh` dọn hết dù `systemctl` lỗi. `install.sh` không còn báo thất bại khi chỉ không đọc được nguồn nhập. Gói `.deb` chỉ báo sẵn sàng khi kích hoạt thành công.
 - Windows: chữ hoa ghép không còn ra chữ thường (`Đ`, `Â`, `TÔI`), với cả Shift và Caps Lock. Chưa thử trên máy Windows thật.
+- `install.sh` dùng được trên máy đã cài gói `.deb`.
 
 ### Thêm
 - Bộ kiểm thử tích hợp cho `install.sh`, `uninstall.sh`, gói `.deb` và ứng dụng Cài đặt (`make test-integration`).

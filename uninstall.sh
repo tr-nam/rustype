@@ -11,7 +11,9 @@ UNIT=org.freedesktop.IBus.session.GNOME.service
 TIMER=rustype-rollback.timer
 CONF_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 DROPIN_DIR="$CONF_HOME/systemd/user/$UNIT.d"
-DROPIN="$DROPIN_DIR/override.conf"
+# Drop-in của bản cài từ mã nguồn (tên phải khớp install.sh). override.conf chỉ xóa khi là của mình.
+DROPIN="$DROPIN_DIR/zz-rustype.conf"
+LEGACY_DROPIN="$DROPIN_DIR/override.conf"
 
 main_pid() { $SYSTEMCTL --user show -p MainPID --value "$UNIT" 2>/dev/null || echo 0; }
 exe_of() { readlink "/proc/$1/exe" 2>/dev/null || true; }
@@ -38,6 +40,10 @@ if [ -f "$DROPIN" ]; then
     rm -f "$DROPIN"
     had_dropin=1
 fi
+if [ -f "$LEGACY_DROPIN" ] && grep -q -- 'rustype-linux --own-session-name' "$LEGACY_DROPIN"; then
+    rm -f "$LEGACY_DROPIN"
+    had_dropin=1
+fi
 rmdir "$DROPIN_DIR" 2>/dev/null || true
 if $SYSTEMCTL --user cat "$UNIT" >/dev/null 2>&1; then
     # Under set -e a failed systemctl would stop the cleanup below, so failures are reported instead.
@@ -53,11 +59,11 @@ if $SYSTEMCTL --user cat "$UNIT" >/dev/null 2>&1; then
             while :; do
                 pid=$(main_pid)
                 case "$(exe_of "$pid")" in
-                    */ibus-daemon) echo "ibus-daemon đang chạy (PID $pid)."; break ;;
+                    */ibus-daemon|*/libexec/rustype-linux) echo "$(exe_of "$pid") đang chạy (PID $pid)."; break ;;
                 esac
                 tries=$((tries + 1))
                 if [ "$tries" -ge 10 ]; then
-                    echo "CẢNH BÁO: MainPID ($pid) chưa phải ibus-daemon. Kiểm tra: $SYSTEMCTL --user status $UNIT"
+                    echo "CẢNH BÁO: MainPID ($pid) chưa phải ibus-daemon hoặc rustype-linux của hệ thống. Kiểm tra: $SYSTEMCTL --user status $UNIT"
                     break
                 fi
                 sleep 0.5

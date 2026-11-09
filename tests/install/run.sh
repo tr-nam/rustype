@@ -11,7 +11,15 @@ UNIT=org.freedesktop.IBus.session.GNOME.service
 EXT=rustype-focus@namtr.dev
 RESTART_RE='^systemctl --user restart org\.freedesktop\.IBus\.session\.GNOME\.service$'
 
-dropin_path() { printf '%s' "$SB/xdg/config/systemd/user/$UNIT.d/override.conf"; }
+dropin_path() { printf '%s' "$SB/xdg/config/systemd/user/$UNIT.d/zz-rustype.conf"; }
+legacy_path() { printf '%s' "$SB/xdg/config/systemd/user/$UNIT.d/override.conf"; }
+
+# An override.conf written by an older source install: it starts our binary, so it is ours.
+write_legacy_ours() {
+    mkdir -p "$SB/xdg/config/systemd/user/$UNIT.d"
+    printf '[Service]\nExecStart=\nExecStart=%s --own-session-name\nRestart=on-failure\nRestartSec=1\n' \
+        "$(installed_bin)" > "$(legacy_path)"
+}
 installed_bin() { printf '%s' "$SB/home/.local/lib/rustype/rustype-linux"; }
 
 # Sandbox with the repo copy, the stock ibus stand-in running, and a health check that logs its
@@ -323,6 +331,68 @@ t_gsettings_read_failure_warns_and_continues() {
     assert_later_steps_ran
 }
 
+# ---- packaged drop-in and the drop-in names --------------------------------
+# Regression: the source drop-in used to be override.conf. systemd merges drop-ins by name and the
+# packaged rustype.conf sorts after override.conf, so the package binary started and the health
+# check failed. With the vendor drop-in present, the run below must succeed.
+
+t_install_succeeds_with_packaged_dropin() {
+    setup_install ok
+    sb_vendor_dropin
+    install_ok
+    assert_exists "$(dropin_path)"
+    assert_eq "$(readlink "/proc/$(cat "$SB/state/mainpid")/exe")" "$(installed_bin)" \
+        "the unit must run the source install's binary"
+}
+
+t_failed_health_with_packaged_dropin_rolls_back_to_packaged_binary() {
+    setup_install fail
+    sb_vendor_dropin
+    sb_run "$SB/repo/install.sh" --yes
+    assert_rc_nonzero "install.sh with a failing health check"
+    assert_absent "$(dropin_path)"
+    assert_output_has "Đã hoàn tác: $SB/vendor/usr/libexec/rustype-linux đang chạy"
+    assert_output_lacks "CẢNH BÁO: sau khi hoàn tác"
+}
+
+t_old_override_of_ours_removed_after_success() {
+    setup_install ok
+    write_legacy_ours
+    install_ok
+    assert_absent "$(legacy_path)"
+    assert_exists "$(dropin_path)"
+}
+
+t_old_override_of_ours_kept_after_failed_health() {
+    setup_install fail
+    write_legacy_ours
+    sb_run "$SB/repo/install.sh" --yes
+    assert_rc_nonzero "install.sh with a failing health check"
+    assert_exists "$(legacy_path)"
+    assert_absent "$(dropin_path)"
+}
+
+t_foreign_override_untouched_by_install_and_uninstall() {
+    setup_install ok
+    mkdir -p "$SB/xdg/config/systemd/user/$UNIT.d"
+    printf '[Service]\nEnvironment=FOO=1\n' > "$(legacy_path)"
+    cp "$(legacy_path)" "$SB/foreign-expected"
+    install_ok
+    assert_same_file "$(legacy_path)" "$SB/foreign-expected"
+    uninstall_ok
+    assert_same_file "$(legacy_path)" "$SB/foreign-expected"
+    assert_absent "$(dropin_path)"
+}
+
+t_uninstall_removes_both_of_ours() {
+    setup_install ok
+    install_ok
+    write_legacy_ours
+    uninstall_ok
+    assert_absent "$(dropin_path)"
+    assert_absent "$(legacy_path)"
+}
+
 # ---- uninstall.sh ----------------------------------------------------------
 
 t_uninstall_removes_install_and_keeps_config() {
@@ -413,6 +483,12 @@ test_case "refuses outside a GNOME session" t_refuses_outside_gnome
 test_case "refuses without a terminal and without --yes" t_refuses_without_terminal_or_yes
 test_case "refuses when the IBus unit does not exist" t_refuses_when_unit_missing
 test_case "rejects an unknown argument" t_rejects_bad_argument
+test_case "install succeeds with the packaged rustype.conf present (zz-rustype.conf sorts after it)" t_install_succeeds_with_packaged_dropin
+test_case "failed health check with the packaged drop-in rolls back to the packaged binary, no false warning" t_failed_health_with_packaged_dropin_rolls_back_to_packaged_binary
+test_case "old override.conf of ours is removed after a successful install" t_old_override_of_ours_removed_after_success
+test_case "old override.conf of ours is kept after a failed health check" t_old_override_of_ours_kept_after_failed_health
+test_case "a foreign override.conf is untouched by install and uninstall" t_foreign_override_untouched_by_install_and_uninstall
+test_case "uninstall removes both drop-ins of ours" t_uninstall_removes_both_of_ours
 test_case "extension copied and enabled when gnome-shell exists" t_extension_installed_and_enabled
 test_case "extension skipped without gnome-shell" t_extension_skipped_without_gnome_shell
 test_case "gnome-extensions enable failure is tolerated" t_extension_enable_failure_is_tolerated

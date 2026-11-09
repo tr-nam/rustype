@@ -28,7 +28,12 @@ CONF_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
 DEST="$HOME/.local/lib/rustype"
 BIN="$DEST/rustype-linux"
 DROPIN_DIR="$CONF_HOME/systemd/user/$UNIT.d"
-DROPIN="$DROPIN_DIR/override.conf"
+# systemd merges drop-ins by file name and the later name wins. The package ships rustype.conf, so
+# this name must sort after it; override.conf would sort before it and the package binary would win.
+DROPIN="$DROPIN_DIR/zz-rustype.conf"
+# Bản cài từ mã nguồn trước đây dùng override.conf, file mà `systemctl --user edit` cũng ghi. Chỉ
+# coi là của mình khi nội dung có dòng khởi động rustype-linux.
+LEGACY_DROPIN="$DROPIN_DIR/override.conf"
 
 YES=0
 for a in "$@"; do
@@ -107,9 +112,14 @@ arm_rollback() {
 stop_timer() { $SYSTEMCTL --user stop "$TIMER" >/dev/null 2>&1 || true; }
 timer_active() { $SYSTEMCTL --user is-active --quiet "$TIMER"; }
 
+# Drop-in do script này ghi ra, nên là của mình: có dòng khởi động rustype-linux.
+is_ours_dropin() {
+    [ -f "$1" ] && grep -q -- 'rustype-linux --own-session-name' "$1"
+}
+
 write_dropin() {
     mkdir -p "$DROPIN_DIR"
-    local tmp="$DROPIN_DIR/.override.conf.$$"
+    local tmp="$DROPIN_DIR/.zz-rustype.conf.$$"
     printf '[Service]\nExecStart=\nExecStart=%s --own-session-name\nRestart=on-failure\nRestartSec=1\n' "$BIN" > "$tmp"
     mv -f "$tmp" "$DROPIN"
 }
@@ -151,13 +161,14 @@ rollback_now() {
         pid=$(main_pid)
         exe=$(exe_of "$pid")
         case "$exe" in
-            */ibus-daemon) say "Đã hoàn tác: ibus-daemon đang chạy (PID $pid)."; return 0 ;;
+            # ibus-daemon của hệ thống, hoặc rustype-linux của gói (drop-in của gói chạy binary này).
+            */ibus-daemon|*/libexec/rustype-linux) say "Đã hoàn tác: $exe đang chạy (PID $pid)."; return 0 ;;
         esac
         tries=$((tries + 1))
         [ "$tries" -lt 10 ] || break
         sleep 0.5
     done
-    say "CẢNH BÁO: sau khi hoàn tác, MainPID ($pid) không phải ibus-daemon. Kiểm tra: $SYSTEMCTL --user status $UNIT"
+    say "CẢNH BÁO: sau khi hoàn tác, MainPID ($pid) không phải ibus-daemon hoặc rustype-linux của hệ thống. Kiểm tra: $SYSTEMCTL --user status $UNIT"
     return 1
 }
 
@@ -183,6 +194,9 @@ BIN_REAL=$(readlink -f "$BIN")
 
 had_dropin=0
 [ -e "$DROPIN" ] && had_dropin=1
+# Drop-in cũ của mình được giữ đến khi bản mới chạy được, để hoàn tác còn đưa về trạng thái cũ.
+legacy_ours=0
+is_ours_dropin "$LEGACY_DROPIN" && legacy_ours=1
 say "==> Ghi drop-in systemd: $DROPIN"
 write_dropin
 
@@ -206,6 +220,11 @@ if $SYSTEMCTL --user daemon-reload && $SYSTEMCTL --user restart "$UNIT" && healt
     say "rustype-linux đang chạy trên phiên này. Hẹn giờ rollback đã được hủy tự động."
     # Chỉ dọn engine cũ khi bản mới đã chạy: nếu phải hoàn tác, ibus vẫn còn engine để gõ.
     rm -f "$DEST/ibus-engine-rustype" "$HOME/.local/bin/ibus-engine-rustype"
+    if [ "$legacy_ours" = 1 ]; then
+        rm -f "$LEGACY_DROPIN"
+        $SYSTEMCTL --user daemon-reload >/dev/null 2>&1 || true
+        say "Đã gỡ drop-in cũ $LEGACY_DROPIN của bản cài trước."
+    fi
 else
     say "Kiểm tra thất bại: hoàn tác ngay."
     rollback_now || true

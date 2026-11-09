@@ -17,6 +17,7 @@
 #   known_fail  "<bug text>"    <function> [args]   documents a product bug: must fail
 # A known_fail that passes prints UNEXPECTED-PASS and counts as a failure.
 
+RT_UNIT=org.freedesktop.IBus.session.GNOME.service
 RT_TESTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 RT_REPO_ROOT=$(cd "$RT_TESTS_DIR/.." && pwd)
 RT_PASS=0
@@ -185,6 +186,12 @@ assert_output_has() {
     cat "$SB/out" "$SB/err" | grep -qF -- "$1" || fail "output does not contain: $1"
 }
 
+assert_output_lacks() {
+    if cat "$SB/out" "$SB/err" | grep -qF -- "$1"; then
+        fail "output unexpectedly contains: $1"
+    fi
+}
+
 # Line number in calls.log of the Nth (or last) line matching the ERE; empty when none.
 log_line() {
     if [ "${2:-1}" = last ]; then
@@ -282,6 +289,15 @@ sb_expect_missing() {
 
 sb_set_sources() {
     printf '%s\n' "$1" > "$SB/state/sources"
+}
+
+# Installs the packaged drop-in as /usr/lib would, pointing at a copy of rustype-linux under the
+# sandbox (the vendor directory is merged with the user's by the systemctl stub).
+sb_vendor_dropin() {
+    mkdir -p "$SB/vendor/systemd/$RT_UNIT.d" "$SB/vendor/usr/libexec"
+    cp "$RUSTYPE_LINUX_BIN" "$SB/vendor/usr/libexec/rustype-linux" || fail "cannot copy the vendor binary"
+    printf '[Service]\nExecStart=\nExecStart=%s --own-session-name\nRestart=on-failure\nRestartSec=1\n' \
+        "$SB/vendor/usr/libexec/rustype-linux" > "$SB/vendor/systemd/$RT_UNIT.d/rustype.conf"
 }
 
 sb_legacy_engine() {
@@ -410,22 +426,39 @@ printf '%s\n' "systemctl${*:+ $*}" >> "$SB/calls.log"
 ctl_check systemctl "$@"
 . "$SB/holder-lib.sh"
 
-# Starts the unit the way the drop-in says: the drop-in's ExecStart binary when the drop-in exists,
-# otherwise the stock ibus-daemon stand-in. The address file gets the new MainPID.
+# Starts the unit with the ExecStart that the drop-ins give (see effective_exe), or the stock
+# ibus-daemon stand-in when there is none. The address file gets the new MainPID.
+# The ExecStart systemd would run. Drop-ins from the vendor directory and the user directory are
+# merged by file name in sorted order; a user file replaces a vendor file of the same name. An empty
+# ExecStart= clears what came before, and the last ExecStart=/path wins.
+effective_exe() {
+    local vendor="$SB/vendor/systemd/$UNIT.d" user="$SB/xdg/config/systemd/user/$UNIT.d"
+    local -A files=()
+    local f name line exe=
+    for f in "$vendor"/*.conf "$user"/*.conf; do
+        [ -f "$f" ] || continue
+        files[${f##*/}]=$f
+    done
+    for name in $(printf '%s\n' "${!files[@]}" | sort); do
+        while IFS= read -r line; do
+            case $line in
+                ExecStart=) exe= ;;
+                ExecStart=/*) exe=${line#ExecStart=}; exe=${exe%% *} ;;
+            esac
+        done < "${files[$name]}"
+    done
+    printf '%s' "$exe"
+}
+
 restart_unit() {
-    local old exe line dropin="$SB/xdg/config/systemd/user/$UNIT.d/override.conf"
+    local old exe
     if [ -s "$st/mainpid" ]; then
         old=$(cat "$st/mainpid")
         kill "$old" 2>/dev/null
     fi
-    if [ -e "$dropin" ]; then
-        exe=
-        while IFS= read -r line; do
-            case $line in
-                ExecStart=/*) exe=${line#ExecStart=}; exe=${exe%% *} ;;
-            esac
-        done < "$dropin"
-        [ -n "$exe" ] && [ -x "$exe" ] || return 1
+    exe=$(effective_exe)
+    if [ -n "$exe" ]; then
+        [ -x "$exe" ] || return 1
         start_holder "$exe" || return 1
     else
         start_holder "$SB/fake-ibus/ibus-daemon" || return 1

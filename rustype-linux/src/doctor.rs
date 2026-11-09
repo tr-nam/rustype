@@ -94,16 +94,38 @@ fn session_check(r: &mut Report) {
     }
 }
 
+/// The source install's drop-in. Its name sorts after the packaged rustype.conf, which systemd
+/// merges by file name.
+const SOURCE_DROPIN: &str = "zz-rustype.conf";
+/// Older source installs wrote this name, which `systemctl --user edit` also uses.
+const LEGACY_DROPIN: &str = "override.conf";
+/// Present in every drop-in rustype-linux writes, so it tells our override.conf from a user's.
+const OWN_EXEC: &str = "rustype-linux --own-session-name";
+
+/// The user's drop-in that starts rustype-linux: the source install's file, or an older
+/// override.conf only when it is ours.
+fn user_dropin(dir: &Path) -> Option<PathBuf> {
+    let source = dir.join(SOURCE_DROPIN);
+    if source.exists() {
+        return Some(source);
+    }
+    let legacy = dir.join(LEGACY_DROPIN);
+    let ours = std::fs::read_to_string(&legacy).is_ok_and(|s| s.contains(OWN_EXEC));
+    ours.then_some(legacy)
+}
+
 /// The systemd drop-in that makes GNOME's IBus session start rustype-linux: the user's copy
 /// wins over the packaged one.
 fn dropin_check(r: &mut Report) {
-    let user = home_join(&format!(".config/systemd/user/{DROPIN_DIR}/override.conf"));
-    if let Some(p) = user.as_ref().filter(|p| p.exists()) {
+    let dir = home_join(&format!(".config/systemd/user/{DROPIN_DIR}"));
+    if let Some(p) = dir.as_deref().and_then(user_dropin) {
         r.check(Level::Ok, format!("Drop-in người dùng: {}", p.display()));
     } else if Path::new(PACKAGED_DROPIN).exists() {
         r.check(Level::Ok, format!("Drop-in của gói: {PACKAGED_DROPIN}"));
     } else {
-        let user_text = user.map(|p| p.display().to_string()).unwrap_or_default();
+        let user_text = dir
+            .map(|d| d.join(SOURCE_DROPIN).display().to_string())
+            .unwrap_or_default();
         r.check(
             Level::Fail,
             format!("Chưa có drop-in cho {UNIT}: {user_text} hoặc {PACKAGED_DROPIN}"),
@@ -322,6 +344,31 @@ fn summary(r: &Report) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_dropin_is_the_source_file_or_our_own_override() {
+        let dir = std::env::temp_dir().join(format!("rustype-dropin-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(user_dropin(&dir), None);
+        let legacy = dir.join(LEGACY_DROPIN);
+        std::fs::write(&legacy, "[Service]\nEnvironment=FOO=1\n").unwrap();
+        assert_eq!(
+            user_dropin(&dir),
+            None,
+            "a foreign override.conf must not count"
+        );
+        std::fs::write(
+            &legacy,
+            "[Service]\nExecStart=\nExecStart=/x/rustype-linux --own-session-name\n",
+        )
+        .unwrap();
+        assert_eq!(user_dropin(&dir), Some(legacy.clone()));
+        let source = dir.join(SOURCE_DROPIN);
+        std::fs::write(&source, "[Service]\n").unwrap();
+        assert_eq!(user_dropin(&dir), Some(source));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn extension_is_found_under_home_or_the_package_path() {

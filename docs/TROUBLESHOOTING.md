@@ -99,7 +99,7 @@ Nếu đã cài gói `.deb`, gỡ gói bằng `sudo apt remove rustype`. Gói t�
 
 Nếu `./uninstall.sh` không chạy được, làm thủ công:
 
-1. Xóa file `~/.config/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/override.conf`.
+1. Xóa file `~/.config/systemd/user/org.freedesktop.IBus.session.GNOME.service.d/zz-rustype.conf`. Nếu còn file `override.conf` trong thư mục đó và nội dung có `rustype-linux --own-session-name`, xóa cả file đó.
 2. Chạy `systemctl --user daemon-reload`.
 3. Khởi động lại `org.freedesktop.IBus.session.GNOME.service`, hoặc đăng xuất và đăng nhập lại.
 
