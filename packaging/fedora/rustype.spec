@@ -1,5 +1,5 @@
 Name:           rustype
-Version:        0.2.1
+Version:        0.2.2
 Release:        1%{?dist}
 Summary:        Lightweight Vietnamese input method for GNOME (IBus)
 
@@ -72,6 +72,9 @@ install -Dm644 docs/man/rustype-settings.1 %{buildroot}%{_mandir}/man1/rustype-s
 %{_mandir}/man1/*.1*
 
 %changelog
+* Mon Nov 09 2026 Nam Tran <support@namtr.dev> - 0.2.2-1
+- Fix a GNOME Shell crash when an application changes a field mid-word.
+
 * Mon Nov 09 2026 Nam Tran <support@namtr.dev> - 0.2.1-1
 - Fix a GNOME Shell crash in VTE terminals on GNOME 45 to 48.
 - Settings, installer, Telex and Windows fixes.

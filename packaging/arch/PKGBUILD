@@ -1,6 +1,6 @@
 # Maintainer: Nam Tran <support@namtr.dev>
 pkgname=rustype
-pkgver=0.2.1
+pkgver=0.2.2
 pkgrel=1
 pkgdesc="Lightweight, privacy-friendly Vietnamese input method for GNOME (IBus)"
 arch=('x86_64' 'aarch64')

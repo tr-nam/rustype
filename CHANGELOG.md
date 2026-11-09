@@ -4,6 +4,15 @@
 
 ## [Chưa phát hành]
 
+## [0.2.2] - 2026-11-09
+
+### Sửa lỗi
+- Ứng dụng tự thay hoặc xóa chữ trong ô lúc đang gõ dở không còn làm sập GNOME Shell trên GNOME 46 và 47, kể cả ở ô URL. Rustype không xin xóa quá số chữ mà ô đã báo.
+- Từ mở lại bằng Backspace được theo dõi như từ đang gõ, nên nhận ra khi ứng dụng đổi nội dung ô. Ở ô URL, chữ vẫn có thể sai trong tình huống này, nhưng không còn sập.
+
+### Thêm
+- Ba ca kiểm thử đầu cuối: ứng dụng tự đổi chữ giữa từ, gõ rất nhanh ngay sau khi focus, và đổi qua lại giữa cửa sổ X11 và Wayland.
+
 ## [0.2.1] - 2026-11-09
 
 ### Sửa lỗi
