@@ -64,6 +64,11 @@ echo "Vieetj Nam ddepj" | target/release/rustype-linux --feed
 | c | Chuyển focus từ ô GTK có chữ sang terminal trong cùng cửa sổ | `tiếng` và `việt` |
 | d | Telex cả câu, chữ hoa, Backspace, ô mật khẩu giữ nguyên, ô thường không gạch chân kể cả sau khi đổi focus | `Tiếng Việt`, `Tiếng Việ`, `tieengs`, 0 lần preedit |
 | e | Chrome: thanh địa chỉ có gợi ý nội tuyến chọn sẵn, và một ô `<input>` | `Rú`, `Trần` |
+| f | Ứng dụng thay chữ giữa từ mà không có phím (SIGUSR1 xóa, SIGUSR2 đặt `tiếng việt` và con trỏ về 0): `aa`, dấu cách, Backspace, rồi thay chữ và gõ `cm`. f2: ô có `input-purpose` URL, xóa ngoài băng rồi gõ `tr` | f1: `cmtiếng việt`. f2: chỉ kiểm tra Shell và ứng dụng còn sống, văn bản được ghi trong ghi chú |
+| g | 40 vòng: chuyển focus giữa hai ô bằng Tab hoặc Shift+Tab, rồi gõ `tieengs vieejt ` ngay với 4 ms mỗi phím | Shell và ứng dụng còn sống. Số vòng đúng được in trong ghi chú và không được kiểm tra |
+| h | Cửa sổ GTK4 Wayland và cửa sổ GTK3 chạy qua Xwayland (`GDK_BACKEND=x11`, `GTK_IM_MODULE=ibus`), Alt+Tab giữa hai cửa sổ: `ab ` ở cửa sổ Wayland, rồi `vieejt`, `nguowif`, `tieengs` ở cửa sổ X11 | Mỗi từ đúng, Shell và hai ứng dụng còn sống. Chuỗi ngắn này không tái hiện được lỗi sai dấu từng thấy trong lượt stress dài. Nếu GTK3 không nhận IBus, ca in `SKIP` kèm lý do |
+
+Ca f chạy hai phiên, WORD `1` (f1) và `2` (f2). Ca g và h chạy một phiên. Ca h là phiên duy nhất không có `--no-x11`, vì cần Xwayland. Shell có thể khởi động `ibus-daemon` hai lần cùng lúc: stub chỉ chạy bản đầu tiên, vì bản thứ hai sẽ chiếm tệp địa chỉ và xóa socket của bản đầu. Ảnh GNOME 46 cần `/tmp/.X11-unix` có quyền 1777, nếu không Xwayland không khởi động.
 
 Ca b thứ hai được ghi là `KNOWN-FAIL`: GTK chỉ báo nội dung ô sau phím kế tiếp, nên nếu phím đó làm thay chữ của từ cũ thì engine chưa kịp biết ô đã bị xóa. Nếu ca này bất ngờ đạt, bộ kiểm tra báo `UNEXPECTED-PASS` và thất bại, để gỡ nhãn. Ca e cần Google Chrome; ảnh GNOME 46 không có Chrome nên ca bị bỏ qua và được ghi là `SKIP`. Bộ kiểm tra không dùng `gsettings set`, `dconf write`, `systemctl` hay `sudo`.
 

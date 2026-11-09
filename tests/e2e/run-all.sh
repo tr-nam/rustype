@@ -5,7 +5,7 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 ENGINE=${1:?usage: run-all.sh ENGINE_BIN [CASES...]}; shift
-CASES=${*:-a b c d e}
+CASES=${*:-a b c d e f g h}
 # Per-case logs go to a writable temp dir: the scripts can be read-only (container image).
 LOGDIR=$(mktemp -d /tmp/rustype-e2e-logs.XXXXXX) || exit 2
 echo "logs: $LOGDIR"
@@ -20,7 +20,7 @@ for c in $CASES; do
     if [ "$c" = e ] && [ ! -x /usr/bin/google-chrome ]; then
         echo "SKIP e: /usr/bin/google-chrome not present"; continue
     fi
-    if [ "$c" = e ]; then WORDS="Rus Traanf"; else WORDS="-"; fi
+    case "$c" in e) WORDS="Rus Traanf" ;; f) WORDS="1 2" ;; *) WORDS="-" ;; esac
     for w in $WORDS; do
         LOG="$LOGDIR/case-$c$([ "$w" = - ] || echo "-$w").log"
         t0=$(date +%s)

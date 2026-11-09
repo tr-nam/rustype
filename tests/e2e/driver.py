@@ -3,7 +3,7 @@
 # Keys: org.gnome.Mutter.RemoteDesktop (NotifyKeyboardKeysym / NotifyPointerButton).
 # Read-back: files the test apps write, and Chrome DevTools (WebSocket) for case e.
 # usage: driver.py CASE WORD WORK_DIR LOGS_DIR SHELL_PID
-import base64, json, os, signal, socket, subprocess, sys, time, urllib.parse, urllib.request
+import base64, glob, json, os, re, signal, socket, subprocess, sys, time, urllib.parse, urllib.request
 import gi
 gi.require_version("Gio", "2.0")
 from gi.repository import Gio, GLib
@@ -15,7 +15,7 @@ OUT = os.path.join(WORK, "out")
 os.makedirs(OUT, exist_ok=True)
 RD = "org.gnome.Mutter.RemoteDesktop"
 KEY_DELAY = 0.12
-SHIFT, CTRL, RETURN, TAB, L, K, BACKSPACE = 0xffe1, 0xffe3, 0xff0d, 0xff09, 0x6c, 0x6b, 0xff08
+SHIFT, CTRL, RETURN, TAB, L, K, BACKSPACE, ALT = 0xffe1, 0xffe3, 0xff0d, 0xff09, 0x6c, 0x6b, 0xff08, 0xffe9
 RESULTS = []
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 
@@ -66,17 +66,20 @@ def key(ks, pressed):
     bus.call_sync(RD, RDS, RD + ".Session", "NotifyKeyboardKeysym", GLib.Variant("(ub)", (ks, pressed)),
                   None, Gio.DBusCallFlags.NONE, -1, None)
 
-def tap(ks):
-    key(ks, True); time.sleep(KEY_DELAY); key(ks, False); time.sleep(KEY_DELAY)
+def tap(ks, delay=KEY_DELAY):
+    """One key: press, sleep(delay), release, sleep(delay). A key takes 2*delay plus the D-Bus calls."""
+    key(ks, True); time.sleep(delay); key(ks, False); time.sleep(delay)
 
-def type_text(text):
+def type_text(text, delay=KEY_DELAY):
+    """delay is the sleep after each press and each release. The default (0.12 s) is about 0.24 s per key.
+    Case g passes 0.002, which is about 4 ms per key before the D-Bus calls."""
     for ch in text:
-        if ch == "\n": tap(RETURN); continue
-        if ch == "\t": tap(TAB); continue
+        if ch == "\n": tap(RETURN, delay); continue
+        if ch == "\t": tap(TAB, delay); continue
         if ch.isupper():
-            key(SHIFT, True); time.sleep(KEY_DELAY); tap(ord(ch.lower())); key(SHIFT, False); time.sleep(KEY_DELAY)
+            key(SHIFT, True); time.sleep(delay); tap(ord(ch.lower()), delay); key(SHIFT, False); time.sleep(delay)
         else:
-            tap(ord(ch))
+            tap(ord(ch), delay)
 
 def click_center():
     """Mutter does not focus a fresh window by itself: a pointer click at the centre gives it focus."""
@@ -318,7 +321,153 @@ def case_e():
 def tap_ctrl_l():
     key(CTRL, True); time.sleep(KEY_DELAY); tap(L); key(CTRL, False); time.sleep(KEY_DELAY)
 
-CASES = {"a": case_a, "b": case_b, "c": case_c, "d": case_d, "e": case_e}
+# ---------- case f: the app replaces the text out of band, mid-word (SIGUSR2: 'tiếng việt', cursor at 0) ----------
+# WORD selects the variant: "2" is the URL-purpose entry (f2), anything else is the plain entry (f1).
+def case_f():
+    url = WORD == "2"
+    sub = "f2" if url else "f1"
+    p = start_app(gtk_argv("entry.py", OUT, "url") if url else gtk_argv("entry.py", OUT))
+    if not wait_file("ready", 30): record(sub, "window", "no window", False); return
+    time.sleep(1.0); click_center(); wait_focus()
+    if url:
+        type_text("vieej"); time.sleep(0.8)
+        os.kill(p.pid, signal.SIGUSR1); time.sleep(0.8)   # out-of-band clear: no key event
+        type_text("tr"); time.sleep(1.0)
+        got = read("entry.txt")
+        alive = shell_alive() and app_alive(p)
+        record("f2", "Shell and app alive", alive, alive and not shell_log_bad(),
+               f"text={got!r} (URL field: only checked for crashes) shell_alive={shell_alive()} app_alive={app_alive(p)}")
+    else:
+        type_text("aa"); type_text(" "); tap(BACKSPACE); time.sleep(0.8)
+        os.kill(p.pid, signal.SIGUSR2); time.sleep(0.8)  # out-of-band replace: no key event
+        type_text("cm"); time.sleep(1.0)
+        got = read("entry.txt")
+        record("f1", "cmtiếng việt", got,
+               got == "cmtiếng việt" and shell_alive() and app_alive(p) and not shell_log_bad(),
+               f"shell_alive={shell_alive()} app_alive={app_alive(p)}")
+
+# ---------- case g: fast typing right after a focus move (4 ms per key) ----------
+def case_g():
+    p = start_app(gtk_argv("two.py", OUT))
+    if not wait_file("ready", 30): record("g", "window", "no window", False); return
+    time.sleep(1.0); click_center(); wait_focus()
+    prev = {"a": "", "b": ""}
+    exact = rounds = keys = 0
+    typing = 0.0
+    for k in range(40):
+        if not shell_alive(): break
+        # Even rounds: focus goes a -> b (Tab). Odd rounds: b -> a (Shift+Tab). Keys follow the move at once.
+        field = "b" if k % 2 == 0 else "a"
+        if k % 2 == 0:
+            tap(TAB, delay=0.002)
+        else:
+            key(SHIFT, True); time.sleep(0.002); tap(TAB, delay=0.002); key(SHIFT, False); time.sleep(0.002)
+        s = time.time()
+        type_text("tieengs vieejt ", delay=0.002)
+        typing += time.time() - s
+        keys += len("tieengs vieejt ")
+        time.sleep(0.5)
+        other = "a" if field == "b" else "b"
+        got = read(f"field-{field}.txt") or ""
+        rounds += 1
+        if got == prev[field] + "tiếng việt " and (read(f"field-{other}.txt") or "") == prev[other]:
+            exact += 1
+        prev[field] = got
+    alive = shell_alive() and app_alive(p)
+    rate = keys / typing if typing > 0 else 0.0
+    record("g-alive", True, alive, alive and not shell_log_bad(),
+           f"exact {exact}/{rounds} rounds (not asserted); {keys} keys in {typing:.2f}s = {rate:.0f} keys/s; "
+           f"shell_alive={shell_alive()} app_alive={app_alive(p)}")
+
+# ---------- case h: a GTK4 Wayland window and a GTK3 X11 window (Xwayland), Alt+Tab between them ----------
+def children_of(ppid, comm):
+    out = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit(): continue
+        try:
+            st = open(f"/proc/{d}/stat", encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        name = st[st.index("(") + 1:st.rindex(")")]
+        if name == comm and int(st[st.rindex(")") + 2:].split()[1]) == ppid:
+            out.append(int(d))
+    return out
+
+def xwayland_display(timeout=30):
+    """The public display of the Xwayland that the Shell under test started, found through its own children
+    and listening sockets. Mutter also listens on the next number for its own managed services (only the
+    window manager may use it), so the lowest number is the public one. Never a display picked by number
+    alone: /tmp/.X11-unix is shared with the real session."""
+    end = time.time() + timeout
+    while time.time() < end:
+        for xw in children_of(SHELL_PID, "Xwayland"):
+            inodes = set()
+            try:
+                for fd in os.listdir(f"/proc/{xw}/fd"):
+                    try: target = os.readlink(f"/proc/{xw}/fd/{fd}")
+                    except OSError: continue
+                    if target.startswith("socket:["): inodes.add(target[8:-1])
+            except OSError:
+                continue
+            nums = []
+            for line in open("/proc/net/unix", encoding="utf-8", errors="replace"):
+                parts = line.split()
+                if len(parts) >= 8 and parts[6] in inodes:
+                    m = re.search(r"/tmp/\.X11-unix/X(\d+)$", parts[7])
+                    if m: nums.append(int(m.group(1)))
+            if nums: return ":" + str(min(nums))
+        time.sleep(0.3)
+    return None
+
+def alt_tab():
+    key(ALT, True); time.sleep(KEY_DELAY); tap(TAB); key(ALT, False); time.sleep(0.8)
+
+def focus_to(name, tries=3):
+    """Alt+Tab (two windows: it always goes to the other one) until the named focus file says active."""
+    for _ in range(tries):
+        if read(name) == "active": return True
+        alt_tab()
+        end = time.time() + 3
+        while time.time() < end and read(name) != "active": time.sleep(0.2)
+    return read(name) == "active"
+
+def case_h():
+    wp = start_app(gtk_argv("entry.py", OUT))
+    if not wait_file("ready", 30): record("h", "wayland window", "no window", False); return
+    disp = xwayland_display()
+    if not disp: record("h", "xwayland display", None, False, "no Xwayland under the Shell"); return
+    env = {"DISPLAY": disp, "GDK_BACKEND": "x11", "GTK_IM_MODULE": "ibus",
+           "IBUS_ADDRESS": f"unix:path={WORK}/xdg/ibus.sock"}
+    xauth = glob.glob(os.path.join(WORK, "xdg", ".mutter-Xwaylandauth.*"))
+    if xauth: env["XAUTHORITY"] = xauth[0]
+    xp = start_app(gtk_argv("x11.py", OUT), env)
+    if not wait_file("ready-x11", 30): record("h", "x11 window", "no window", False, f"display={disp}"); return
+    time.sleep(1.0); click_center()
+    if not focus_to("x11-focus.txt"): record("h", "x11 window focused", "not focused", False); return
+    skip = None
+    for word, want in [("vieejt", "việt"), ("nguowif", "người"), ("tieengs", "tiếng")]:
+        if not shell_alive(): break
+        if not focus_to("focus.txt"): record("h", "wayland window focused", "not focused", False); break
+        type_text("ab "); time.sleep(0.8)
+        if not focus_to("x11-focus.txt"): record("h", "x11 window focused", "not focused", False); break
+        prev = read("x11-entry.txt") or ""
+        type_text(word + " "); time.sleep(1.0)
+        now = read("x11-entry.txt") or ""
+        delta = now[len(prev):] if now.startswith(prev) else now
+        if delta.isascii():
+            # No conversion at all: the GTK3 IBus module is not in the path, so this says nothing about tones.
+            skip = f"GTK3 IBus did not convert {word!r}: x11 field got raw {delta!r}"
+            break
+        # A plain check: this short sequence does not reproduce the wrong tones seen in a long stress run.
+        record(f"h-x11-{word}", want + " ", delta, delta == want + " ",
+               f"x11 display={disp} wayland entry={read('entry.txt')!r}")
+    if skip: print(f"NOTE {CASE} SKIP {skip}", flush=True)
+    alive = shell_alive() and app_alive(wp) and app_alive(xp)
+    record("h-alive", True, alive, alive and not shell_log_bad(),
+           f"shell_alive={shell_alive()} wayland_alive={app_alive(wp)} x11_alive={app_alive(xp)}"
+           + (f" skip={skip!r}" if skip else ""))
+
+CASES = {"a": case_a, "b": case_b, "c": case_c, "d": case_d, "e": case_e, "f": case_f, "g": case_g, "h": case_h}
 if __name__ == "__main__":
     try:
         RDS = rd_session() if CASE != "e" else RDS

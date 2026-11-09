@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One end-to-end case on this machine: private buses, private headless GNOME Shell, the engine behind
 # an ibus-daemon PATH stub, then tests/e2e/driver.py. Each case is one fresh session.
-# usage: run-host.sh ENGINE_BIN CASE [WORD]    (CASE: a b c d e, or D for the address-bar word case)
+# usage: run-host.sh ENGINE_BIN CASE [WORD]    (CASE: a b c d e f g h; e takes a WORD, f takes 1 or 2)
 # Requires: timeout -k 5 150 wraps the call (done by the Makefile target).
 set -u
 E2E_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"; export E2E_LIB
@@ -15,7 +15,10 @@ LOGS="$E2E_WORK/logs"
 echo "$ENGINE" > "$E2E_WORK/engine-path"
 cat > "$E2E_WORK/stubs/ibus-daemon" <<STUB
 #!/usr/bin/env bash
-# PATH stub: GNOME Shell starts "ibus-daemon --panel disable" when no IBus unit exists.
+# PATH stub: GNOME Shell starts "ibus-daemon --panel disable" when no IBus unit exists. The Shell can start it
+# twice at once. Only the first start runs the engine, as a real ibus-daemon refuses a second start: a second
+# engine would take over the address file and remove the socket of the first one.
+mkdir "$E2E_WORK/stubs/engine.lock" 2>/dev/null || exit 0
 exec env RUSTYPE_DEBUG=1 "$ENGINE" --address unix:path=$E2E_WORK/xdg/ibus.sock --own-session-name --replace 2>>"$LOGS/rustype-linux.log"
 STUB
 chmod +x "$E2E_WORK/stubs/ibus-daemon"
@@ -47,7 +50,9 @@ SESSION=$(cat "$LOGS/session.addr")
 export E2E_SESSION="$SESSION"
 
 # Headless GNOME Shell, its own process group.
-setsid "$HERE/sb-wrap.sh" "$SESSION" env GSETTINGS_BACKEND=keyfile gnome-shell --headless --wayland --no-x11 \
+# Case h needs Xwayland for its GTK3 X11 window, so only h runs without --no-x11.
+X11_OPT=--no-x11; [ "$CASE" = h ] && X11_OPT=
+setsid "$HERE/sb-wrap.sh" "$SESSION" env GSETTINGS_BACKEND=keyfile gnome-shell --headless --wayland $X11_OPT \
     --virtual-monitor 1280x800 --wayland-display=rustype-e2e-0 > "$LOGS/shell.log" 2>&1 < /dev/null &
 SHELL_PID=$!; echo "$SHELL_PID" >> "$PIDS"
 echo "shell pid $SHELL_PID" >&2
