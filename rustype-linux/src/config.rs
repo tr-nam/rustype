@@ -15,12 +15,22 @@ pub(crate) enum Mode {
     Direct,
 }
 
+/// The key chord that turns Vietnamese on and off inside the engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToggleShortcut {
+    /// Press Ctrl and Shift together, then let go of one of them.
+    CtrlShift,
+    /// No shortcut: the panel menu is the only switch.
+    Off,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub(crate) mode: Mode,
     pub(crate) telex: telex::Config,
     pub(crate) app_modes: HashMap<String, Mode>,
     pub(crate) remember_state_per_app: bool,
+    pub(crate) toggle_shortcut: ToggleShortcut,
 }
 
 impl Default for Config {
@@ -30,6 +40,7 @@ impl Default for Config {
             telex: telex::Config::default(),
             app_modes: HashMap::new(),
             remember_state_per_app: true,
+            toggle_shortcut: ToggleShortcut::CtrlShift,
         }
     }
 }
@@ -75,6 +86,9 @@ modern_orthography = false
 # Tự trả lại từ tiếng Anh khi gõ window, software, user...
 auto_restore_english = true
 
+# Telex: phím dấu f, j, x gõ trước nguyên âm vẫn được nhận: thfi ra thì
+free_tone_order = true
+
 # Kiểu gõ: telex | vni
 input_method = telex
 
@@ -83,6 +97,9 @@ enable_macro = false
 
 # Nhớ trạng thái bật/tắt tiếng Việt theo từng ứng dụng (như EVKey)
 remember_state_per_app = true
+
+# Phím tắt bật/tắt tiếng Việt: ctrl_shift (nhấn Ctrl và Shift cùng lúc, rồi nhả một phím) | off
+toggle_shortcut = ctrl_shift
 
 # Từ tiếng Anh bổ sung (không bị bỏ dấu nhầm):
 # custom_words = this, test, github, cargo, rust
@@ -247,10 +264,21 @@ pub(crate) fn parse(text: &str) -> Config {
                     cfg.telex.auto_restore_english = b;
                 }
             }
+            "free_tone_order" => {
+                if let Some(b) = parse_bool(v) {
+                    cfg.telex.free_tone_order = b;
+                }
+            }
             "remember_state_per_app" => {
                 if let Some(b) = parse_bool(v) {
                     cfg.remember_state_per_app = b;
                 }
+            }
+            "toggle_shortcut" => {
+                cfg.toggle_shortcut = match v.to_ascii_lowercase().as_str() {
+                    "off" => ToggleShortcut::Off,
+                    _ => ToggleShortcut::CtrlShift,
+                };
             }
             "enable_macro" => {
                 if let Some(b) = parse_bool(v) {
@@ -343,6 +371,18 @@ impl Watcher {
         w
     }
 
+    /// A watcher that never reads a file and holds `current`. For tests that must not depend on the
+    /// user's config.
+    #[cfg(test)]
+    pub(crate) fn fixed(current: Config) -> Self {
+        Watcher {
+            watched: Vec::new(),
+            dir: None,
+            stamps: None,
+            current,
+        }
+    }
+
     /// Returns true when the config changed.
     pub(crate) fn refresh(&mut self) -> bool {
         if self.watched.is_empty() {
@@ -379,6 +419,27 @@ mod tests {
         assert_eq!(c.mode, Mode::Auto);
         assert!(!c.telex.modern_orthography);
         assert!(c.telex.auto_restore_english);
+        assert_eq!(c.toggle_shortcut, ToggleShortcut::CtrlShift);
+    }
+
+    #[test]
+    fn toggle_shortcut_is_case_insensitive_and_falls_back() {
+        assert_eq!(
+            parse("toggle_shortcut = OFF").toggle_shortcut,
+            ToggleShortcut::Off
+        );
+        assert_eq!(
+            parse("toggle_shortcut = Off").toggle_shortcut,
+            ToggleShortcut::Off
+        );
+        assert_eq!(
+            parse("toggle_shortcut = Ctrl_Shift").toggle_shortcut,
+            ToggleShortcut::CtrlShift
+        );
+        assert_eq!(
+            parse("toggle_shortcut = bogus").toggle_shortcut,
+            ToggleShortcut::CtrlShift
+        );
     }
 
     #[test]
@@ -388,6 +449,8 @@ mod tests {
         assert_eq!(c.mode, Mode::Preedit);
         assert!(c.telex.modern_orthography);
         assert!(!c.telex.auto_restore_english);
+        assert!(c.telex.free_tone_order);
+        assert!(!parse("free_tone_order = off").telex.free_tone_order);
     }
 
     #[test]

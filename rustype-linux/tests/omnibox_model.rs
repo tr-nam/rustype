@@ -354,8 +354,10 @@ fn golden_rows_through_omnibox_match_plain_field() {
         };
         for (pi, &policy) in policies.iter().enumerate() {
             for (li, &lag) in lags.iter().enumerate() {
-                // AfterAll holds the whole input back, so it is only meaningful for short rows.
-                if matches!(lag, Lag::AfterAll) && word_count(keys) > 2 {
+                // AfterAll holds every report back. Only the last two words stay repairable, so
+                // a report held past a second word boundary cannot reach the first word.
+                let boundaries = keys.iter().filter(|&&k| is_boundary(k)).count();
+                if matches!(lag, Lag::AfterAll) && (word_count(keys) > 2 || boundaries > 1) {
                     words_out_of_scope += 1;
                     continue;
                 }
@@ -417,6 +419,23 @@ fn golden_rows_through_omnibox_match_plain_field() {
         }
         panic!("{msg}");
     }
+}
+
+#[test]
+fn late_report_after_backspace_never_erases_good_text() {
+    // A report of the state before the Backspace looks like a dropped delete.
+    let keys: Vec<u32> = "ab vfe\u{8}"
+        .chars()
+        .map(|c| {
+            if c == '\u{8}' {
+                KEY_BACKSPACE
+            } else {
+                c as u32
+            }
+        })
+        .collect();
+    assert_eq!(run(&keys, Policy::None, Lag::Fixed(3), 1).0, "ab v");
+    assert_eq!(run(&keys, Policy::None, Lag::AfterAll, 1).0, "ab v");
 }
 
 #[test]

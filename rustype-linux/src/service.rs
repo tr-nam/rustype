@@ -27,6 +27,9 @@ const ENGINE_PASSTHROUGH: &str = "xkb:us::eng";
 /// IBusEngineDesc as libibus deserializes it (FACTS B-section check with IBus.EngineDesc).
 const DESC_SIG: &str = "(sa{sv}ssssssssussssssss)";
 const MODE_COMMIT: u32 = 1;
+/// A PropertyActivate state that is neither checked nor unchecked: `activate` flips InputMode, as
+/// the Ctrl+Shift chord asks.
+const TOGGLE_REQUEST: u32 = 2;
 
 const INVALID_ARGS: &str = "org.freedesktop.DBus.Error.InvalidArgs";
 const UNKNOWN_METHOD: &str = "org.freedesktop.DBus.Error.UnknownMethod";
@@ -909,7 +912,17 @@ impl IBusService {
 
     /// Sends one engine output to the context's client, in order, as IBus's input-context
     /// signals. Also keeps the COMMIT-mode preedit that reset/focus-out may need to commit.
-    fn emit(&mut self, bus: &mut Bus, path: &str, outs: Vec<Out>) {
+    fn emit(&mut self, bus: &mut Bus, path: &str, mut outs: Vec<Out>) {
+        // The toggle is not a signal: it goes through the same path as the panel's InputMode click.
+        let toggle = outs.iter().any(|o| matches!(o, Out::ToggleVietnamese));
+        outs.retain(|o| !matches!(o, Out::ToggleVietnamese));
+        self.send_outs(bus, path, outs);
+        if toggle {
+            self.activate(bus, path, "InputMode", TOGGLE_REQUEST);
+        }
+    }
+
+    fn send_outs(&mut self, bus: &mut Bus, path: &str, outs: Vec<Out>) {
         if outs.is_empty() {
             return;
         }
@@ -960,6 +973,7 @@ impl IBusService {
                 Out::RequireSurrounding => {
                     bus.ibus_signal(&owner, path, IC_IFACE, "RequireSurroundingText", "", &[])
                 }
+                Out::ToggleVietnamese => continue,
             };
             bus.queue_unique(&owner, &bytes);
         }
@@ -989,4 +1003,98 @@ fn read_string_array(r: &mut Reader) -> io::Result<Vec<String>> {
         out.push(r.string()?);
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bus::Peer;
+    use crate::config::Config;
+    use crate::sasl::Sasl;
+    use std::os::unix::net::UnixStream;
+
+    const KEY_CTRL_L: u32 = 0xffe3;
+    const KEY_SHIFT_L: u32 = 0xffe1;
+    const KEY_LEFT: u32 = 0xff51;
+    const RELEASE: u32 = 1 << 30;
+
+    /// A bus with one client that owns a focused rustype context. The config is fixed, so the
+    /// user's own file does not matter.
+    fn setup() -> (IBusService, Bus, usize, String) {
+        let (a, _b) = UnixStream::pair().unwrap();
+        a.set_nonblocking(true).unwrap();
+        let mut bus = Bus::new("uuid".into());
+        let id = bus.add_peer(Peer::new(a, Sasl::new("00", 0, 0), 0, 0));
+        bus.peers.get_mut(&id).unwrap().unique = Some(format!(":1.{id}"));
+        let mut svc = IBusService::new("unix:path=/x".into());
+        svc.config = Watcher::fixed(Config::default());
+        svc.global = ENGINE_RUSTYPE.to_string();
+        let path = svc.create_ic(&format!(":1.{id}"));
+        svc.focus_in(&mut bus, &path);
+        (svc, bus, id, path)
+    }
+
+    fn enabled(svc: &IBusService, path: &str) -> bool {
+        svc.ctxs[path].ime.as_ref().unwrap().is_enabled()
+    }
+
+    fn key(svc: &mut IBusService, bus: &mut Bus, path: &str, kv: u32, up: bool) -> bool {
+        svc.process_key(bus, path, kv, 0, if up { RELEASE } else { 0 })
+    }
+
+    /// Bytes the owner has been sent since the last clear.
+    fn sent(bus: &Bus, id: usize) -> Vec<u8> {
+        bus.peers[&id].wq.clone()
+    }
+
+    fn contains(hay: &[u8], needle: &[u8]) -> bool {
+        hay.windows(needle.len()).any(|w| w == needle)
+    }
+
+    #[test]
+    fn ctrl_shift_chord_flips_input_mode_and_stops_conversion() {
+        let (mut svc, mut bus, id, path) = setup();
+        assert!(enabled(&svc, &path));
+        assert!(
+            key(&mut svc, &mut bus, &path, 0x61, false),
+            "'a' composes while on"
+        );
+
+        bus.peers.get_mut(&id).unwrap().wq.clear();
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, false);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, false);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, true);
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, true);
+        assert!(!enabled(&svc, &path), "chord turned Vietnamese off");
+        let out = sent(&bus, id);
+        assert!(
+            contains(&out, b"UpdateProperty"),
+            "owner gets the InputMode update"
+        );
+        assert!(contains(&out, b"InputMode"));
+        assert!(contains(&out, b"EN"), "indicator now shows EN");
+        assert!(
+            !key(&mut svc, &mut bus, &path, 0x61, false),
+            "typing passes through while off"
+        );
+
+        // Ctrl+Shift+Left does not toggle.
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, false);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, false);
+        key(&mut svc, &mut bus, &path, KEY_LEFT, false);
+        key(&mut svc, &mut bus, &path, KEY_LEFT, true);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, true);
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, true);
+        assert!(!enabled(&svc, &path));
+
+        // The same chord again turns it back on.
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, false);
+        key(&mut svc, &mut bus, &path, KEY_SHIFT_L, false);
+        key(&mut svc, &mut bus, &path, KEY_CTRL_L, true);
+        assert!(enabled(&svc, &path));
+        assert!(
+            key(&mut svc, &mut bus, &path, 0x61, false),
+            "converts again"
+        );
+    }
 }

@@ -9,7 +9,7 @@
 //!   so GNOME/Mutter commits it instead of dropping it on a mouse click or focus change.
 //!   `direct` without Surrounding Text also uses this way.
 
-use crate::config::{Config, Mode};
+use crate::config::{Config, Mode, ToggleShortcut};
 use rustype_core::telex::Telex;
 
 pub const CAP_SURROUNDING_TEXT: u32 = 1 << 5;
@@ -24,6 +24,8 @@ const SUPER_MASK: u32 = 1 << 26;
 const HYPER_MASK: u32 = 1 << 27;
 const META_MASK: u32 = 1 << 28;
 pub(crate) const RELEASE_MASK: u32 = 1 << 30;
+/// Modifiers other than Ctrl and Shift: a chord with any of them held is not the toggle.
+const OTHER_MODS: u32 = MOD1_MASK | MOD4_MASK | SUPER_MASK | HYPER_MASK | META_MASK;
 
 pub(crate) const KEY_BACKSPACE: u32 = 0xff08;
 
@@ -39,6 +41,9 @@ pub enum Out {
     },
     /// Ask the client to report Surrounding Text (IBus RequireSurroundingText).
     RequireSurrounding,
+    /// The Ctrl+Shift chord was completed: the service flips Vietnamese on or off, as the panel
+    /// menu does.
+    ToggleVietnamese,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,8 +52,100 @@ enum Show {
     Preedit,
 }
 
+/// Ctrl+Shift toggle tracking. Fires once per chord, when one of the two keys is released after
+/// both were down with no other key or modifier in between.
+#[derive(Default)]
+struct Chord {
+    /// Ctrl and Shift keys currently down (CHORD_CTRL | CHORD_SHIFT bits).
+    held: u8,
+    /// Alt, Super, Meta or Hyper key currently down.
+    other_down: bool,
+    state: ChordState,
+}
+
+const CHORD_CTRL: u8 = 1;
+const CHORD_SHIFT: u8 = 2;
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum ChordState {
+    /// No chord in progress.
+    #[default]
+    Idle,
+    /// The first of the two keys went down and nothing else has since.
+    Armed,
+    /// Cancelled, or already fired: nothing fires until every chord key is up again.
+    Spent,
+}
+
+/// Alt, Meta, Super and Hyper, left and right: keys whose presence cancels the Ctrl+Shift chord.
+fn is_other_mod_key(keyval: u32) -> bool {
+    (0xffe7..=0xffea).contains(&keyval) || (0xffeb..=0xffee).contains(&keyval)
+}
+
+impl Chord {
+    /// Feeds one key event. True when this event completes the toggle.
+    fn observe(&mut self, keyval: u32, state: u32) -> bool {
+        let released = state & RELEASE_MASK != 0;
+        let bit = match keyval {
+            0xffe3 | 0xffe4 => CHORD_CTRL,
+            0xffe1 | 0xffe2 => CHORD_SHIFT,
+            _ => 0,
+        };
+        let other_mod = state & OTHER_MODS != 0;
+        if is_other_mod_key(keyval) {
+            if released {
+                self.other_down = false;
+            } else {
+                self.other_down = true;
+                if self.held != 0 {
+                    self.state = ChordState::Spent;
+                }
+            }
+            return false;
+        }
+        if bit == 0 {
+            // Any other key cancels a chord that has a key down.
+            if self.held != 0 && (!released || other_mod) {
+                self.state = ChordState::Spent;
+            }
+            return false;
+        }
+        if released {
+            let fire = !other_mod
+                && self.state == ChordState::Armed
+                && self.held == (CHORD_CTRL | CHORD_SHIFT);
+            if fire {
+                self.state = ChordState::Spent;
+            }
+            self.held &= !bit;
+            if self.held == 0 {
+                self.state = ChordState::Idle;
+            }
+            return fire;
+        }
+        if self.held & bit != 0 {
+            // Key repeat of a chord key that is already down.
+            return false;
+        }
+        if self.held == 0 {
+            self.state = if other_mod || self.other_down {
+                ChordState::Spent
+            } else {
+                ChordState::Armed
+            };
+        } else if other_mod {
+            self.state = ChordState::Spent;
+        }
+        self.held |= bit;
+        false
+    }
+}
+
 pub struct Ime {
     telex: Telex,
+    chord: Chord,
+    /// Whether the config enables the Ctrl+Shift toggle.
+    toggle_enabled: bool,
     mode: Mode,
     caps: u32,
     purpose: u32,
@@ -196,20 +293,6 @@ impl FieldModel {
         }
         self.store(next);
     }
-
-    /// Native Backspace: every variant loses its last char.
-    fn native_backspace(&mut self) {
-        let next: Vec<String> = self
-            .candidates
-            .iter()
-            .map(|c| {
-                let mut c = c.clone();
-                c.pop();
-                c
-            })
-            .collect();
-        self.store(next);
-    }
 }
 
 fn is_modifier_key(keyval: u32) -> bool {
@@ -221,6 +304,8 @@ impl Ime {
     pub fn new(cfg: &Config) -> Self {
         Ime {
             telex: Telex::new(cfg.telex.clone()),
+            chord: Chord::default(),
+            toggle_enabled: cfg.toggle_shortcut == ToggleShortcut::CtrlShift,
             mode: cfg.mode,
             caps: 0,
             purpose: 0,
@@ -239,6 +324,7 @@ impl Ime {
     pub(crate) fn focus_in(&mut self) {
         self.surrounding_requested = false;
         self.model.clear();
+        self.chord = Chord::default();
     }
 
     pub(crate) fn is_enabled(&self) -> bool {
@@ -259,6 +345,7 @@ impl Ime {
     }
 
     pub(crate) fn apply_config(&mut self, cfg: &Config) {
+        self.toggle_enabled = cfg.toggle_shortcut == ToggleShortcut::CtrlShift;
         if self.telex.is_empty() && !self.preedit_visible {
             self.pending_cfg = None;
             self.telex.cfg = cfg.telex.clone();
@@ -412,6 +499,7 @@ impl Ime {
     /// Reset / focus out. The client already committed a COMMIT-mode preedit itself,
     /// so only the engine state is dropped (committing it here would type it twice).
     pub(crate) fn reset(&mut self, out: &mut Vec<Out>) {
+        self.chord = Chord::default();
         self.hide_preedit(out);
         self.telex.reset();
         self.has_selection = false;
@@ -425,6 +513,10 @@ impl Ime {
         state: u32,
         out: &mut Vec<Out>,
     ) -> bool {
+        // The chord is tracked even while Vietnamese is off, so the toggle can turn it back on.
+        if self.chord.observe(keyval, state) && self.toggle_enabled {
+            out.push(Out::ToggleVietnamese);
+        }
         if !self.enabled || state & RELEASE_MASK != 0 || is_modifier_key(keyval) {
             return false;
         }
@@ -476,22 +568,18 @@ impl Ime {
     }
 
     fn backspace(&mut self, show: Show, out: &mut Vec<Out>) -> bool {
+        // Backspace shrinks the tail back to an earlier state, so a late report of that state
+        // would look like a dropped delete and a repair would erase good text. Stop tracking.
+        self.model.clear();
         if self.purpose == PURPOSE_URL && self.has_selection {
             // Omnibox: native Backspace removes the selected suggestion; the typed text stays.
             self.has_selection = false;
             return false;
         }
         if show != Show::Preedit {
-            let url_tail = self.purpose == PURPOSE_URL && show == Show::Surrounding;
             let r = self.telex.backspace();
             if !r.handled {
-                if url_tail {
-                    self.model.native_backspace();
-                }
                 return false;
-            }
-            if url_tail {
-                self.model.edit(r.backspaces, &r.commit);
             }
             self.replace(r.backspaces, r.commit, out);
             return true;
@@ -1046,5 +1134,191 @@ mod tests {
         let handled = ime.process_key('w' as u32, 0, 0, &mut out);
         assert!(!handled);
         assert!(out.is_empty());
+    }
+
+    const KEY_CTRL_L: u32 = 0xffe3;
+    const KEY_CTRL_R: u32 = 0xffe4;
+    const KEY_SHIFT_L: u32 = 0xffe1;
+    const KEY_SHIFT_R: u32 = 0xffe2;
+    const KEY_ALT_L: u32 = 0xffe9;
+    const KEY_LEFT: u32 = 0xff51;
+
+    /// One key event, press or release, with the modifier bits in its state.
+    fn ev(ime: &mut Ime, kv: u32, up: bool, mods: u32) -> Vec<Out> {
+        let mut out = Vec::new();
+        let state = mods | if up { RELEASE_MASK } else { 0 };
+        ime.process_key(kv, 0, state, &mut out);
+        out
+    }
+
+    fn press(ime: &mut Ime, kv: u32) -> Vec<Out> {
+        ev(ime, kv, false, 0)
+    }
+
+    fn release(ime: &mut Ime, kv: u32) -> Vec<Out> {
+        ev(ime, kv, true, 0)
+    }
+
+    fn toggles(outs: &[Out]) -> usize {
+        outs.iter().filter(|o| **o == Out::ToggleVietnamese).count()
+    }
+
+    fn engine() -> Ime {
+        Ime::new(&Config::default())
+    }
+
+    #[test]
+    fn ctrl_shift_toggles_in_either_order_and_side() {
+        for (a, b) in [
+            (KEY_CTRL_L, KEY_SHIFT_L),
+            (KEY_SHIFT_L, KEY_CTRL_L),
+            (KEY_CTRL_R, KEY_SHIFT_R),
+            (KEY_SHIFT_R, KEY_CTRL_R),
+            (KEY_CTRL_L, KEY_SHIFT_R),
+            (KEY_SHIFT_R, KEY_CTRL_L),
+        ] {
+            let mut ime = engine();
+            let mut n = toggles(&press(&mut ime, a));
+            n += toggles(&press(&mut ime, b));
+            n += toggles(&release(&mut ime, a));
+            n += toggles(&release(&mut ime, b));
+            assert_eq!(n, 1, "chord {a:#x} then {b:#x}");
+        }
+        // Releasing the second key first fires too.
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 1);
+    }
+
+    #[test]
+    fn modifier_events_pass_through_to_the_app() {
+        let mut ime = engine();
+        let mut handled = false;
+        for (kv, up) in [
+            (KEY_CTRL_L, false),
+            (KEY_SHIFT_L, false),
+            (KEY_SHIFT_L, true),
+            (KEY_CTRL_L, true),
+        ] {
+            let mut out = Vec::new();
+            handled |= ime.process_key(kv, 0, if up { RELEASE_MASK } else { 0 }, &mut out);
+        }
+        assert!(!handled);
+    }
+
+    #[test]
+    fn other_key_cancels_the_chord() {
+        // Ctrl+Shift+Left and Ctrl+Shift+T are not the toggle.
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        let mut n = toggles(&press(&mut ime, KEY_LEFT));
+        n += toggles(&release(&mut ime, KEY_LEFT));
+        n += toggles(&release(&mut ime, KEY_SHIFT_L));
+        n += toggles(&release(&mut ime, KEY_CTRL_L));
+        assert_eq!(n, 0);
+
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        let mut n = toggles(&press(&mut ime, 0x74)); // 't'
+        n += toggles(&release(&mut ime, 0x74));
+        n += toggles(&release(&mut ime, KEY_CTRL_L));
+        n += toggles(&release(&mut ime, KEY_SHIFT_L));
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn alt_or_super_cancels_the_chord_until_all_released() {
+        let mut ime = engine();
+        press(&mut ime, KEY_ALT_L);
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        let mut n = toggles(&release(&mut ime, KEY_SHIFT_L));
+        n += toggles(&release(&mut ime, KEY_CTRL_L));
+        assert_eq!(n, 0, "Alt held before the chord");
+
+        // Alt is in the state of the Ctrl press, though its own press was never seen.
+        let mut ime = engine();
+        ev(&mut ime, KEY_CTRL_L, false, MOD1_MASK);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 0);
+
+        // Super in the state of the release.
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&ev(&mut ime, KEY_CTRL_L, true, MOD4_MASK)), 0);
+    }
+
+    #[test]
+    fn key_between_the_two_modifiers_cancels() {
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, 0x61); // 'a'
+        release(&mut ime, 0x61);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 0);
+        assert_eq!(toggles(&release(&mut ime, KEY_CTRL_L)), 0);
+    }
+
+    #[test]
+    fn toggle_fires_while_vietnamese_is_off() {
+        let mut ime = engine();
+        ime.set_enabled(false, &mut Vec::new());
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 1);
+        // And typing is not converted while disabled.
+        let mut out = Vec::new();
+        assert!(!ime.process_key(0x61, 0, 0, &mut out));
+    }
+
+    #[test]
+    fn off_config_never_toggles() {
+        let cfg = Config {
+            toggle_shortcut: crate::config::ToggleShortcut::Off,
+            ..Config::default()
+        };
+        let mut ime = Ime::new(&cfg);
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 0);
+    }
+
+    #[test]
+    fn focus_and_reset_clear_the_chord() {
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        ime.focus_in();
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 0);
+        release(&mut ime, KEY_CTRL_L);
+
+        let mut ime = engine();
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        ime.reset(&mut Vec::new());
+        assert_eq!(toggles(&release(&mut ime, KEY_CTRL_L)), 0);
+
+        // After the clear, a new chord still works.
+        press(&mut ime, KEY_CTRL_L);
+        press(&mut ime, KEY_SHIFT_L);
+        assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 1);
+    }
+
+    #[test]
+    fn key_repeat_fires_once() {
+        let mut ime = engine();
+        let mut n = toggles(&press(&mut ime, KEY_CTRL_L));
+        n += toggles(&press(&mut ime, KEY_SHIFT_L));
+        n += toggles(&press(&mut ime, KEY_SHIFT_L)); // auto-repeat
+        n += toggles(&press(&mut ime, KEY_CTRL_L)); // auto-repeat
+        n += toggles(&release(&mut ime, KEY_SHIFT_L));
+        n += toggles(&press(&mut ime, KEY_SHIFT_L)); // pressed again while Ctrl is still down
+        n += toggles(&release(&mut ime, KEY_SHIFT_L));
+        n += toggles(&release(&mut ime, KEY_CTRL_L));
+        assert_eq!(n, 1);
     }
 }
