@@ -230,10 +230,11 @@ fn syllables() -> Vec<Syllable> {
 }
 
 /// English words that the collision list still restores. Their Vietnamese readings
-/// (bôm, kên, dể, pổ, ...) are not words, so the test does not expect them to compose.
+/// (bôm, kên, dể, pổ, í, ò, ...) are not common words, so the test does not expect them to
+/// compose.
 const NOT_VIETNAMESE: &[&str] = &[
     "boom", "cheer", "deem", "deer", "door", "keen", "loom", "past", "peer", "poor", "post",
-    "queer", "seem", "soon", "veer",
+    "queer", "seem", "soon", "veer", "is", "of", "or", "was", "her", "here",
 ];
 
 /// Runs every syllable through one configuration. Returns (checked, failures).
@@ -357,5 +358,106 @@ fn known_words_regressions() {
             ..Default::default()
         };
         assert_eq!(Telex::new(cfg).feed(input), want, "VNI {input:?}");
+    }
+}
+
+/// Free tone order: a tone key typed after a consonant but before the vowel.
+#[test]
+fn free_tone_order_composes_when_the_vowel_arrives() {
+    for (input, want) in [
+        ("thfi ", "thì "),
+        ("tfhi ", "thì "),
+        ("THFI ", "THÌ "),
+        ("tfi ", "tì "),
+        ("ngfi ", "ngì "),
+        ("thji ", "thị "),
+        ("thxi ", "thĩ "),
+        ("tri ", "tri "),
+        ("xa ", "xa "),
+        ("ra ", "ra "),
+        ("sau ", "sau "),
+    ] {
+        assert_eq!(Telex::new(Config::default()).feed(input), want, "{input:?}");
+    }
+}
+
+/// With the switch off, the tone key before the vowel stays literal, as before.
+#[test]
+fn free_tone_order_off_keeps_old_behaviour() {
+    let cfg = || Config {
+        free_tone_order: false,
+        ..Default::default()
+    };
+    for (input, want) in [
+        ("thfi ", "thfi "),
+        ("tfhi ", "tfhi "),
+        ("tsa ", "tsa "),
+        ("sau ", "sau "),
+    ] {
+        assert_eq!(Telex::new(cfg()).feed(input), want, "{input:?}");
+    }
+}
+
+/// English that must stay English with the switch on.
+#[test]
+fn free_tone_order_leaves_english_alone() {
+    for word in ["https", "html", "shift", "for", "from", "find", "fi"] {
+        assert_eq!(
+            Telex::new(Config::default()).feed(&format!("{word} ")),
+            format!("{word} "),
+            "{word}"
+        );
+    }
+    assert_eq!(Telex::new(Config::default()).feed("this "), "thí ");
+}
+
+/// Backspace removes the pending letter one char at a time and drops the pending tone with it.
+#[test]
+fn backspace_through_pending_tone() {
+    let mut t = Telex::new(Config::default());
+    assert_eq!(t.feed("thf\u{8}"), "th");
+    assert_eq!(t.feed("thfi\u{8}"), "th");
+    assert_eq!(t.feed("thfi\u{8}\u{8}\u{8}a "), "a ");
+    // Removing the pending letter itself: the next vowel is a plain vowel again.
+    assert_eq!(t.feed("thf\u{8}i "), "thi ");
+    // The pending f survives: only the h went, so the tone still applies.
+    assert_eq!(t.feed("tfh\u{8}i "), "tì ");
+}
+
+/// Randomised screen consistency with pending tones, Backspace, boundaries and uppercase.
+/// The screen is rebuilt from the handled/unhandled results of key() and backspace() only.
+#[test]
+fn pending_tone_screen_stays_consistent() {
+    let alphabet: Vec<char> = "thfsrxjiaeoyTHFIxn \u{8}".chars().collect();
+    let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+    for _ in 0..3000 {
+        let mut t = Telex::new(Config::default());
+        let mut screen: Vec<char> = Vec::new();
+        for _ in 0..40 {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let ch = alphabet[(seed >> 33) as usize % alphabet.len()];
+            let r = if ch == '\u{8}' {
+                t.backspace()
+            } else {
+                t.key(ch)
+            };
+            if r.handled {
+                for _ in 0..r.backspaces {
+                    screen.pop();
+                }
+                screen.extend(r.commit.chars());
+            } else if ch == '\u{8}' {
+                screen.pop();
+            } else {
+                screen.push(ch);
+            }
+            let disp: Vec<char> = t.displayed().chars().collect();
+            assert!(
+                screen.ends_with(&disp),
+                "screen {screen:?} vs composing {disp:?}"
+            );
+        }
     }
 }

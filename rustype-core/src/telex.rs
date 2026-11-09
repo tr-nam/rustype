@@ -31,6 +31,9 @@ pub struct Config {
     pub macros: HashMap<String, String>,
     /// Whether macro expansion is enabled.
     pub enable_macro: bool,
+    /// Telex only: a tone key typed before the vowel ('thfi') is kept as a pending letter and
+    /// applied when the vowel arrives ('thì'). false: the old behaviour.
+    pub free_tone_order: bool,
 }
 
 impl Default for Config {
@@ -42,6 +45,7 @@ impl Default for Config {
             custom_words: Vec::new(),
             macros: HashMap::new(),
             enable_macro: false,
+            free_tone_order: true,
         }
     }
 }
@@ -92,6 +96,9 @@ pub struct Telex {
     prev_trailing: usize,
     /// Length of `raw` right after the last double-key escape (e.g. 'ff' in 'affected').
     escape_at: Option<usize>,
+    /// A tone key typed before any vowel: (index in `chars` of the literal letter, tone).
+    /// The letter stays on screen until the first vowel arrives.
+    pending: Option<(usize, u8)>,
 }
 
 fn lower(c: char) -> char {
@@ -201,6 +208,7 @@ impl Telex {
             prev: None,
             prev_trailing: 0,
             escape_at: None,
+            pending: None,
         }
     }
 
@@ -219,12 +227,17 @@ impl Telex {
         self.has_backspaced = false;
         self.last_mod = None;
         self.escape_at = None;
+        self.pending = None;
     }
 
     fn commit_word(&mut self) {
         if self.chars.is_empty() {
             self.reset();
             return;
+        }
+        if self.pending.take().is_some() {
+            // The literal pending letter stays as typed: the word is kept as plain text.
+            self.disabled = true;
         }
         self.prev = Some(PrevWord {
             raw: self.raw.clone(),
@@ -263,6 +276,7 @@ impl Telex {
         self.chars = self.render().chars().collect();
         self.tone = 0;
         self.disabled = true;
+        self.pending = None;
     }
 
     /// A double-key escape ('aa' -> 'aa', 'ss' -> 's'): the word is frozen and remembers where it
@@ -276,11 +290,19 @@ impl Telex {
         self.chars = self.raw.clone();
         self.tone = 0;
         self.disabled = true;
+        self.pending = None;
     }
 
     fn split(&self) -> Split {
-        let n = self.chars.len();
-        let lc: Vec<char> = self.chars.iter().map(|&c| lower(c)).collect();
+        let skip = self.pending.map(|(p, _)| p);
+        let lc: Vec<char> = self
+            .chars
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| Some(*i) != skip)
+            .map(|(_, &c)| lower(c))
+            .collect();
+        let n = lc.len();
         let mut i = 0;
         if n >= 2 && lc[0] == 'q' && lc[1] == 'u' {
             i = 2;
@@ -392,7 +414,14 @@ impl Telex {
                 return false;
             }
         }
-        let lc: Vec<char> = self.chars.iter().map(|&c| lower(c)).collect();
+        let skip = self.pending.map(|(p, _)| p);
+        let lc: Vec<char> = self
+            .chars
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| Some(*i) != skip)
+            .map(|(_, &c)| lower(c))
+            .collect();
         if lc.iter().any(|c| matches!(c, 'f' | 'j' | 'w' | 'z')) {
             return false;
         }
@@ -558,6 +587,9 @@ impl Telex {
         let removed = self.chars.len() - 1;
         self.chars.pop();
         self.raw.pop();
+        if self.pending.is_some_and(|(p, _)| p >= self.chars.len()) {
+            self.pending = None;
+        }
         if self.chars.is_empty() {
             self.clear_word();
             return KeyResult::pass();
@@ -889,6 +921,15 @@ impl Telex {
         }
     }
 
+    /// Whether the typed consonants plus `key` can still start a syllable.
+    fn onset_accepts(&self, key: char) -> bool {
+        let mut onset: String = self.chars.iter().map(|&c| lower(c)).collect();
+        onset.push(key);
+        VALID_INITIALS_TYPING
+            .iter()
+            .any(|o| o.starts_with(onset.as_str()))
+    }
+
     /// uơ / ưo + final or glide -> ươ. Shared by Telex and VNI: 'hu7o7ng' is 'hương'.
     fn fix_open_uo(&mut self) {
         let s = self.split();
@@ -909,6 +950,15 @@ impl Telex {
         }
         let cl = lower(ch);
         let restore = self.cfg.auto_restore_english;
+
+        // The first vowel arrives: the pending letter goes, its tone applies to the vowel.
+        if let Some((p, t)) = self.pending {
+            if matches!(cl, 'a' | 'e' | 'i' | 'o' | 'u' | 'y') {
+                self.chars.remove(p);
+                self.pending = None;
+                self.tone = t;
+            }
+        }
 
         // dd -> đ (and ddd -> dd)
         if cl == 'd' && !self.chars.is_empty() {
@@ -952,6 +1002,19 @@ impl Telex {
                     }
                     return;
                 }
+            }
+            // At least one consonant must precede the key: a word-initial 'f' or 'r' is English
+            // ('for', 'from') and keeps the old behaviour.
+            if self.cfg.free_tone_order
+                && matches!(cl, 'f' | 'j' | 'x')
+                && self.pending.is_none()
+                && !self.chars.is_empty()
+                && s.vidx.is_empty()
+                && !self.onset_accepts(cl)
+            {
+                self.chars.push(ch);
+                self.pending = Some((self.chars.len() - 1, new_tone));
+                return;
             }
         }
 
