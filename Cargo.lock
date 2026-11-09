@@ -4,18 +4,18 @@ version = 4
 
 [[package]]
 name = "rustype-core"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "rustype-linux"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "rustype-core",
 ]
 
 [[package]]
 name = "rustype-windows"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "rustype-core",
  "windows-sys",

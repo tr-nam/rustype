@@ -1,5 +1,5 @@
 Name:           rustype
-Version:        0.2.0
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        Lightweight Vietnamese input method for GNOME (IBus)
 
@@ -72,6 +72,10 @@ install -Dm644 docs/man/rustype-settings.1 %{buildroot}%{_mandir}/man1/rustype-s
 %{_mandir}/man1/*.1*
 
 %changelog
+* Mon Nov 09 2026 Nam Tran <support@namtr.dev> - 0.2.1-1
+- Fix a GNOME Shell crash in VTE terminals on GNOME 45 to 48.
+- Settings, installer, Telex and Windows fixes.
+
 * Mon Nov 09 2026 Nam Tran <support@namtr.dev> - 0.2.0-1
 - Add Ctrl+Shift toggle, free tone order, Quick Telex and Simple Telex.
 

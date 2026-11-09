@@ -4,6 +4,23 @@
 
 ## [Chưa phát hành]
 
+## [0.2.1] - 2026-11-09
+
+### Sửa lỗi
+- Gõ vào terminal dùng VTE (GNOME Console, GNOME Terminal, Ptyxis) với cấu hình mặc định có thể làm sập GNOME Shell trên GNOME 45 đến 48. Terminal giờ luôn dùng gạch chân, và Rustype chỉ xóa rồi gõ lại ở ô đã báo nội dung. Đã thử trên GNOME 46 và 50.
+- Ứng dụng tự xóa nội dung ô lúc đang gõ dở không còn làm sập GNOME Shell. Nếu phím ngay sau đó làm thay chữ của từ cũ thì vẫn có thể ra chữ thừa, vì GTK chỉ báo thay đổi sau phím đó.
+- Gõ đôi phím thanh rồi gõ tiếp phụ âm cuối không còn bị trả về phím thô: `tesst` ra `test`, `resst` ra `rest`.
+- `rustype-linux --doctor` trả mã thoát 1 khi có mục lỗi.
+- Ứng dụng Cài đặt: danh sách từ gõ tắt và từ riêng cập nhật ngay khi thêm hoặc xóa.
+- Ứng dụng Cài đặt đọc file cấu hình giống bộ gõ, kể cả giá trị lạ và dòng `app_mode.<ứng dụng>`. File không phải UTF-8 không còn làm ứng dụng sập; khi lưu, file cũ được giữ lại thành `config.invalid`.
+- Sửa một từ gõ tắt đang nằm trong file `macro` giờ có tác dụng. Từ gõ tắt kết thúc bằng dấu `"` không còn mất dấu.
+- `uninstall.sh` dọn hết dù `systemctl` lỗi. `install.sh` không còn báo thất bại khi chỉ không đọc được nguồn nhập. Gói `.deb` chỉ báo sẵn sàng khi kích hoạt thành công.
+- Windows: chữ hoa ghép không còn ra chữ thường (`Đ`, `Â`, `TÔI`), với cả Shift và Caps Lock. Chưa thử trên máy Windows thật.
+
+### Thêm
+- Bộ kiểm thử tích hợp cho `install.sh`, `uninstall.sh`, gói `.deb` và ứng dụng Cài đặt (`make test-integration`).
+- Bộ kiểm thử đầu cuối trên GNOME Shell thật (`make test-e2e`, và `make test-e2e-46` cho GNOME 46 trong Docker).
+
 ## [0.2.0] - 2026-11-09
 
 ### Sửa lỗi

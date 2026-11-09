@@ -1,3 +1,15 @@
+rustype (0.2.1-1) unstable; urgency=medium
+
+  * Fix a GNOME Shell crash when typing in VTE terminals on GNOME 45 to 48.
+  * Do not delete text that the application has already removed.
+  * Keep the letters after a deliberate double tone key (tesst gives test).
+  * Exit with status 1 from --doctor when a check fails.
+  * Settings: refresh lists at once and read the config as the engine does.
+  * Installer: finish cleanup after service errors.
+  * Windows: compose capitals with Shift and Caps Lock.
+
+ -- Nam Tran <support@namtr.dev>  Mon, 09 Nov 2026 20:41:48 +0700
+
 rustype (0.2.0-1) unstable; urgency=medium
 
   * Add a Ctrl+Shift toggle for Vietnamese.

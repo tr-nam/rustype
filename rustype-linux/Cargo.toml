@@ -1,6 +1,6 @@
 [package]
 name = "rustype-linux"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Rustype's IBus-protocol bus for GNOME, with the Vietnamese engine in-process"
 license = "MIT"
