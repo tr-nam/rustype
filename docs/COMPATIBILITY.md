@@ -68,4 +68,6 @@ kitty = preedit
 
 ### Nhận diện ứng dụng đang focus
 
+Ngoài `preedit` và `auto`, có thể đặt `off` để ứng dụng đó luôn tắt tiếng Việt, ví dụ `"org.gnome.Terminal" = off`. Trên Linux, trang "Ứng dụng luôn tắt" trong ứng dụng Cài đặt cũng đặt được danh sách này.
+
 Trên GNOME Wayland, các ứng dụng kết nối tới IBus qua GNOME Shell, nên engine không tự biết ứng dụng nào đang focus. Extension `gnome-shell-extension/rustype-focus@namtr.dev` gửi tên ứng dụng cho Rustype qua `SetFocusApp` mỗi khi bạn đổi cửa sổ. Nếu không có extension, mục `[app_modes]` không áp dụng được theo từng ứng dụng.

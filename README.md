@@ -10,7 +10,7 @@
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/language-Rust-orange.svg?style=flat-square&logo=rust" alt="Rust"></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg?style=flat-square" alt="Platform">
   <a href="https://github.com/tr-nam/rustype/actions/workflows/ci.yml"><img src="https://github.com/tr-nam/rustype/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/tr-nam/rustype/releases"><img src="https://img.shields.io/badge/release-v0.1.1-blue.svg?style=flat-square" alt="Latest Release"></a>
+  <a href="https://github.com/tr-nam/rustype/releases"><img src="https://img.shields.io/badge/release-v0.2.0-blue.svg?style=flat-square" alt="Latest Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License"></a>
 </p>
 
@@ -154,7 +154,14 @@ remember_state_per_app = true # nhớ trạng thái bật/tắt theo từng app 
 custom_words = this, test   # danh sách từ tiếng Anh không thêm dấu
 free_tone_order = true      # gõ dấu thanh f, j, x trước nguyên âm: thfi -> thì
 toggle_shortcut = ctrl_shift # ctrl_shift | off: nhấn và thả Ctrl+Shift để bật/tắt tiếng Việt
+simple_telex = false        # w đứng một mình không thành ư; aw, ow, uw vẫn hoạt động
+quick_telex = false         # ở đầu từ: cc -> ch, gg -> gi, kk -> kh, nn -> ng, pp -> ph, qq -> qu, tt -> th
+auto_capitalize = false     # tự viết hoa chữ đầu sau . ! ? và dấu cách
 ```
+
+- `simple_telex`, `quick_telex`, `auto_capitalize`: mặc định đều tắt. Trên Linux, bạn cũng bật hoặc tắt các mục này trong ứng dụng Cài đặt.
+- `auto_capitalize`: không áp dụng ở ô URL, ô mật khẩu và terminal. Chữ đầu tiên ngay sau khi vào một ô cũng không được viết hoa tự động.
+- `[app_modes]`: ngoài `preedit` và `auto`, có thể đặt `off` để ứng dụng đó luôn tắt tiếng Việt, ví dụ `"org.gnome.Terminal" = off`. Tính năng này trên GNOME cần extension `rustype-focus` để nhận diện ứng dụng đang focus. Trên Linux, trang "Ứng dụng luôn tắt" trong ứng dụng Cài đặt cũng đặt được danh sách này.
 
 - `free_tone_order`: trong Telex, các phím dấu thanh `f`, `j`, `x` gõ trước nguyên âm vẫn được áp dụng. Ví dụ `thfi` ra `thì`. Phím `s` và `r` không nằm trong danh sách này, vì chúng thường xuất hiện trong tiếng Anh.
 - `toggle_shortcut`: trên GNOME, nhấn và thả Ctrl và Shift cùng lúc, không nhấn phím nào khác, để bật hoặc tắt tiếng Việt. Đặt `off` để tắt phím tắt này.

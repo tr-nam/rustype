@@ -4,13 +4,20 @@
 
 ## [Chưa phát hành]
 
+## [0.2.0] - 2026-11-09
+
 ### Sửa lỗi
+- Ứng dụng Cài đặt không còn xóa các tùy chọn nó không quản lý khi lưu cấu hình.
 - Windows không còn bỏ qua phím do phần mềm khác chèn vào. Chỉ đầu ra của chính Rustype bị bỏ qua (đã biên dịch, chưa chạy thử trên Windows).
 - `rustype-linux` tự chạy lại khi lỗi (`Restart=on-failure`).
 - Sáu từ tiếng Anh giữ nguyên, không thêm dấu: is, of, or, was, her, here.
 - Ô URL: gõ Backspace rất nhanh ngay sau một dấu có thể xóa nhầm chữ đúng. Đã sửa.
 
 ### Thêm
+- Simple Telex (`simple_telex`) và Quick Telex (`quick_telex`), tắt theo mặc định.
+- Tự viết hoa chữ đầu câu (`auto_capitalize`), tắt theo mặc định.
+- Ứng dụng luôn tắt tiếng Việt: giá trị `off` trong `[app_modes]`, và trang "Ứng dụng luôn tắt" trong ứng dụng Cài đặt.
+- Ứng dụng Cài đặt có công tắc cho các tùy chọn mới.
 - Phím tắt bật tắt tiếng Việt Ctrl+Shift ngay trong bộ gõ trên GNOME (`toggle_shortcut = ctrl_shift`, đặt `off` để tắt).
 - Gõ tự do: dấu thanh `f`, `j`, `x` gõ trước nguyên âm vẫn có hiệu lực, như `thfi` ra `thì` (`free_tone_order = true`).
 

@@ -58,7 +58,11 @@ Ngoài phạm vi, không có kế hoạch: KDE Plasma, Sway và Hyprland (kể c
 - [x] Phím tắt bật tắt tiếng Việt ngay trong bộ gõ, ví dụ Ctrl+Shift, không phải đổi nguồn nhập (`toggle_shortcut`).
 - [ ] Kiểu gõ VIQR.
 - [x] Gõ tự do: dấu thanh `f`, `j`, `x` gõ trước nguyên âm vẫn có hiệu lực, như `thfi` ra `thì` (`free_tone_order`).
-- [ ] Quick Telex, bật tắt kiểm tra chính tả.
+- [x] Quick Telex (`quick_telex`): ở đầu từ, cc, gg, kk, nn, pp, qq, tt thành ch, gi, kh, ng, ph, qu, th.
+- [x] Simple Telex (`simple_telex`): `w` đứng một mình không thành ư.
+- [x] Tự viết hoa chữ đầu câu sau `.`, `!`, `?` và dấu cách (`auto_capitalize`).
+- [x] Danh sách ứng dụng luôn tắt tiếng Việt (`[app_modes]` với giá trị `off`, và trang "Ứng dụng luôn tắt" trong Cài đặt).
+- [ ] Bật tắt kiểm tra chính tả.
 - [ ] Bảng mã cũ như TCVN3, VNI-Windows và công cụ chuyển mã clipboard. Ưu tiên thấp, chỉ làm khi có người cần.
 
 ## Giai đoạn 3: Giao diện
