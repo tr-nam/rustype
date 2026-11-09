@@ -34,6 +34,11 @@ pub struct Config {
     /// Telex only: a tone key typed before the vowel ('thfi') is kept as a pending letter and
     /// applied when the vowel arrives ('thì'). false: the old behaviour.
     pub free_tone_order: bool,
+    /// Telex only: 'w' with no vowel to horn or breve is a plain letter, not 'ư'.
+    pub simple_telex: bool,
+    /// Telex only: at the start of a word, a doubled consonant expands to a digraph
+    /// (cc=ch, gg=gi, kk=kh, nn=ng, pp=ph, qq=qu, tt=th), as in OpenKey's Quick Telex.
+    pub quick_telex: bool,
 }
 
 impl Default for Config {
@@ -46,6 +51,8 @@ impl Default for Config {
             macros: HashMap::new(),
             enable_macro: false,
             free_tone_order: true,
+            simple_telex: false,
+            quick_telex: false,
         }
     }
 }
@@ -181,6 +188,24 @@ fn unw(c: char) -> Option<char> {
         'Ư' => 'U',
         _ => return None,
     })
+}
+
+/// Quick Telex (OpenKey): the letter that follows a doubled consonant, e.g. 'tt' -> 'th'.
+fn quick_second(first: char, second: char) -> Option<char> {
+    if first != second {
+        return None;
+    }
+    Some(match first {
+        'c' | 'k' | 'p' | 't' => 'h',
+        'g' => 'i',
+        'n' => 'g',
+        'q' => 'u',
+        _ => return None,
+    })
+}
+
+fn upper_char(c: char) -> char {
+    c.to_uppercase().next().unwrap_or(c)
 }
 
 fn tone_key(c: char) -> Option<u8> {
@@ -951,6 +976,22 @@ impl Telex {
         let cl = lower(ch);
         let restore = self.cfg.auto_restore_english;
 
+        // Quick Telex: only the second key of a doubled consonant at the very start of a word.
+        if self.cfg.quick_telex
+            && self.chars.len() == 1
+            && self.raw.len() == 2
+            && self.pending.is_none()
+            && lower(self.raw[0]) == lower(self.chars[0])
+        {
+            if let Some(second) = quick_second(lower(self.chars[0]), cl) {
+                let upper = self.chars[0].is_uppercase() && ch.is_uppercase();
+                self.chars
+                    .push(if upper { upper_char(second) } else { second });
+                self.last_mod = None;
+                return;
+            }
+        }
+
         // The first vowel arrives: the pending letter goes, its tone applies to the vowel.
         if let Some((p, t)) = self.pending {
             if matches!(cl, 'a' | 'e' | 'i' | 'o' | 'u' | 'y') {
@@ -1141,7 +1182,7 @@ impl Telex {
                     }
                 }
             }
-            if s.vidx.is_empty() {
+            if s.vidx.is_empty() && !self.cfg.simple_telex {
                 let init: String = self.chars.iter().map(|&c| lower(c)).collect();
                 if in_set(VALID_INITIALS, &init) && init != "q" {
                     self.chars.push(cased('ư', ch));

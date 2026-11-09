@@ -461,3 +461,112 @@ fn pending_tone_screen_stays_consistent() {
         }
     }
 }
+
+fn with(simple: bool, quick: bool) -> Config {
+    Config {
+        simple_telex: simple,
+        quick_telex: quick,
+        ..Default::default()
+    }
+}
+
+/// simple_telex: 'w' with nothing to horn or breve is a plain letter.
+#[test]
+fn simple_telex_on_and_off() {
+    for (input, on, off) in [
+        ("was ", "was ", "was "),
+        ("win ", "win ", "win "),
+        ("w ", "w ", "ư "),
+        ("tw ", "tw ", "tư "),
+        // 'w' still modifies an existing vowel, with or without the option.
+        ("aw ", "ă ", "ă "),
+        ("ow ", "ơ ", "ơ "),
+        ("uw ", "ư ", "ư "),
+        ("tuw ", "tư ", "tư "),
+        ("nguowif ", "người ", "người "),
+        ("Ww ", "Ww ", "W "),
+    ] {
+        assert_eq!(
+            Telex::new(with(true, false)).feed(input),
+            on,
+            "on {input:?}"
+        );
+        assert_eq!(
+            Telex::new(with(false, false)).feed(input),
+            off,
+            "off {input:?}"
+        );
+    }
+}
+
+/// quick_telex: the seven OpenKey pairs, only at the start of a word.
+#[test]
+fn quick_telex_pairs_on_and_off() {
+    for (input, on, off) in [
+        ("cca ", "cha ", "cca "),
+        ("gga ", "gia ", "gga "),
+        ("kka ", "kha ", "kka "),
+        ("nna ", "nga ", "nna "),
+        ("ppo ", "pho ", "ppo "),
+        ("qqa ", "qua ", "qqa "),
+        ("tto ", "tho ", "tto "),
+        ("ccoong ", "chông ", "ccoong "),
+        ("ttoo ", "thô ", "ttoo "),
+        // Uppercase: the second letter takes the case of the typed key.
+        ("Ttoo ", "Thô ", "Ttoo "),
+        ("TTOO ", "THÔ ", "TTOO "),
+        ("TToo ", "THô ", "TToo "),
+        ("TTo ", "THo ", "TTo "),
+        ("tToo ", "thô ", "tToo "),
+        // A new word after a space starts again; a doubled pair in the middle of a word is unchanged.
+        ("ban nna ", "ban nga ", "ban nna "),
+        ("ban nan ", "ban nan ", "ban nan "),
+        ("bnn ", "bnn ", "bnn "),
+        ("ccc ", "ccc ", "ccc "),
+    ] {
+        assert_eq!(
+            Telex::new(with(false, true)).feed(input),
+            on,
+            "on {input:?}"
+        );
+        assert_eq!(
+            Telex::new(with(false, false)).feed(input),
+            off,
+            "off {input:?}"
+        );
+    }
+}
+
+/// Backspace after an expansion leaves the screen and the composition in step.
+#[test]
+fn quick_telex_backspace_is_consistent() {
+    let cfg = || with(false, true);
+    assert_eq!(Telex::new(cfg()).feed("cc\u{8}a "), "ca ");
+    assert_eq!(Telex::new(cfg()).feed("cca\u{8}\u{8}"), "c");
+    assert_eq!(Telex::new(cfg()).feed("TTo\u{8}"), "TH");
+    assert_eq!(Telex::new(cfg()).feed("ttoo\u{8}\u{8}"), "t");
+    assert_eq!(Telex::new(cfg()).feed("ttoo\u{8}\u{8}\u{8}a "), "a ");
+}
+
+/// Both options on together, and with the default config: identical to the pre-option output.
+#[test]
+fn default_config_is_unchanged_by_the_new_options() {
+    for input in [
+        "was ",
+        "w ",
+        "ww ",
+        "cca ",
+        "ttoo ",
+        "nguowif ",
+        "Vieetj Nam ",
+        "tfi ",
+    ] {
+        assert_eq!(
+            Telex::new(Config::default()).feed(input),
+            Telex::new(with(false, false)).feed(input),
+            "{input:?}"
+        );
+    }
+    assert!(!Config::default().simple_telex);
+    assert!(!Config::default().quick_telex);
+}
