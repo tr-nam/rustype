@@ -213,16 +213,22 @@ else
 fi
 
 say "==> Thêm Rustype vào nguồn nhập của GNOME"
-sources="$(gsettings get org.gnome.desktop.input-sources sources)"
-if [[ "$sources" != *"('ibus', 'rustype')"* ]]; then
-    new="$(python3 -I -c '
+# Rustype is already running at this point. If the sources cannot be read, only this step is
+# skipped; the rest of the install goes on and the user adds the source by hand.
+if sources="$(gsettings get org.gnome.desktop.input-sources sources)"; then
+    if [[ "$sources" != *"('ibus', 'rustype')"* ]]; then
+        new="$(python3 -I -c '
 import ast, sys
 s = sys.argv[1].replace("@a(ss) ", "")
 items = ast.literal_eval(s) if s.strip() != "[]" else []
 items.insert(1 if items else 0, ("ibus", "rustype"))
 print("[" + ", ".join("(%r, %r)" % t for t in items) + "]")
 ' "$sources")"
-    gsettings set org.gnome.desktop.input-sources sources "$new"
+        gsettings set org.gnome.desktop.input-sources sources "$new"
+    fi
+else
+    say "CẢNH BÁO: không đọc được nguồn nhập của GNOME, nên chưa thêm Rustype vào đó."
+    say "Hãy thêm thủ công: Cài đặt > Bàn phím > Nguồn nhập (Settings > Keyboard > Input Sources), chọn Rustype."
 fi
 
 EXT_SRC="gnome-shell-extension/rustype-focus@namtr.dev"

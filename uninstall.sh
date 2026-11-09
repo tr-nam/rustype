@@ -40,23 +40,29 @@ if [ -f "$DROPIN" ]; then
 fi
 rmdir "$DROPIN_DIR" 2>/dev/null || true
 if $SYSTEMCTL --user cat "$UNIT" >/dev/null 2>&1; then
-    $SYSTEMCTL --user daemon-reload
+    # Under set -e a failed systemctl would stop the cleanup below, so failures are reported instead.
+    if ! $SYSTEMCTL --user daemon-reload; then
+        echo "CẢNH BÁO: systemctl --user daemon-reload thất bại; vẫn tiếp tục gỡ cài đặt."
+    fi
     pid=$(main_pid)
     if [ "$had_dropin" = 1 ] || [ "$(basename "$(exe_of "$pid")" 2>/dev/null)" != ibus-daemon ]; then
-        $SYSTEMCTL --user restart "$UNIT"
-        tries=0
-        while :; do
-            pid=$(main_pid)
-            case "$(exe_of "$pid")" in
-                */ibus-daemon) echo "ibus-daemon đang chạy (PID $pid)."; break ;;
-            esac
-            tries=$((tries + 1))
-            if [ "$tries" -ge 10 ]; then
-                echo "CẢNH BÁO: MainPID ($pid) chưa phải ibus-daemon. Kiểm tra: $SYSTEMCTL --user status $UNIT"
-                break
-            fi
-            sleep 0.5
-        done
+        if ! $SYSTEMCTL --user restart "$UNIT"; then
+            echo "CẢNH BÁO: systemctl --user restart thất bại; bỏ qua bước chờ ibus-daemon. Kiểm tra: $SYSTEMCTL --user status $UNIT"
+        else
+            tries=0
+            while :; do
+                pid=$(main_pid)
+                case "$(exe_of "$pid")" in
+                    */ibus-daemon) echo "ibus-daemon đang chạy (PID $pid)."; break ;;
+                esac
+                tries=$((tries + 1))
+                if [ "$tries" -ge 10 ]; then
+                    echo "CẢNH BÁO: MainPID ($pid) chưa phải ibus-daemon. Kiểm tra: $SYSTEMCTL --user status $UNIT"
+                    break
+                fi
+                sleep 0.5
+            done
+        fi
     fi
 fi
 

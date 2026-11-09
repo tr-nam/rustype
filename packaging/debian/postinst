@@ -26,8 +26,9 @@ case "$1" in
             [ "$uid" -ge 1000 ] 2>/dev/null || continue
             name=$(getent passwd "$uid" 2>/dev/null | cut -d: -f1) || continue
             [ -n "$name" ] || continue
-            active=1
-            runuser -u "$name" -- env XDG_RUNTIME_DIR="$runtime_root/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_root/$uid/bus" timeout 20 /usr/libexec/rustype-linux --activate --restart </dev/null >/dev/null 2>&1 || true
+            if runuser -u "$name" -- env XDG_RUNTIME_DIR="$runtime_root/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_root/$uid/bus" timeout 20 /usr/libexec/rustype-linux --activate --restart </dev/null >/dev/null 2>&1; then
+                active=1
+            fi
         done
 
         if [ "$active" = 1 ]; then
