@@ -305,6 +305,19 @@ pub mod win {
         if GetKeyboardState(key_state.as_mut_ptr()) == 0 {
             return None;
         }
+        // A low-level hook runs on Rustype's own thread, whose keyboard state does not follow
+        // the keys pressed in the foreground app, so Shift and Caps Lock would read as off and
+        // a composed capital ('DD' -> 'Đ', 'AA' -> 'Â') would come out lowercase. Take Shift
+        // from the async state, which is already down when the letter key reaches the hook,
+        // and Caps Lock from its toggle bit.
+        for shift in [VK_SHIFT, VK_LSHIFT, VK_RSHIFT] {
+            key_state[shift as usize] = if GetAsyncKeyState(shift as i32) < 0 {
+                0x80
+            } else {
+                0
+            };
+        }
+        key_state[VK_CAPITAL as usize] = (GetKeyState(VK_CAPITAL as i32) & 1) as u8;
 
         let mut buffer = [0u16; 4];
         let ret = ToUnicode(
