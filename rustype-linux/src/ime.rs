@@ -16,6 +16,10 @@ pub const CAP_SURROUNDING_TEXT: u32 = 1 << 5;
 const PURPOSE_PASSWORD: u32 = 8;
 const PURPOSE_PIN: u32 = 9;
 const PURPOSE_URL: u32 = 5;
+/// VTE and other terminals: they never report text, so the engine only composes in preedit.
+const PURPOSE_TERMINAL: u32 = 10;
+/// Words a non-URL field remembers per key, see `track_key`.
+const WORD_STATES_MAX: usize = 32;
 
 const CONTROL_MASK: u32 = 1 << 2;
 const MOD1_MASK: u32 = 1 << 3; // Alt
@@ -174,8 +178,17 @@ pub struct Ime {
     enabled: bool,
     /// Config that arrived while a word was composing; applied once the word ends.
     pending_cfg: Option<Config>,
-    /// Surrounding Text was requested in this focus (URL fields ask once).
+    /// Surrounding Text was requested in this focus (once per focus).
     surrounding_requested: bool,
+    /// The field has reported its text since this focus. The app's capability flag alone is not
+    /// trusted: GNOME Shell 45-48 advertise it even for terminals that never report.
+    surrounding_seen: bool,
+    /// Non-URL fields: the word's display after each key, see `track_key`.
+    word_states: Vec<String>,
+    /// The field reported a text that ends with one of `word_states`.
+    word_confirmed: bool,
+    /// Keys since the last report that replaced letters (a delete and a commit).
+    replace_pending: u32,
     /// What the URL field's tail may hold, see `FieldModel`.
     model: FieldModel,
 }
@@ -338,13 +351,21 @@ impl Ime {
             enabled: true,
             pending_cfg: None,
             surrounding_requested: false,
+            surrounding_seen: false,
+            word_states: Vec::new(),
+            word_confirmed: false,
+            replace_pending: 0,
             model: FieldModel::default(),
         }
     }
 
-    /// The app focused the field again: Surrounding Text is requested again.
-    pub(crate) fn focus_in(&mut self) {
-        self.surrounding_requested = false;
+    /// The app focused the field: Surrounding Text is requested once for this focus, for every
+    /// field. Until a report arrives the field counts as one that does not report.
+    pub fn focus_in(&mut self, out: &mut Vec<Out>) {
+        self.surrounding_requested = true;
+        out.push(Out::RequireSurrounding);
+        self.surrounding_seen = false;
+        self.clear_word_track();
         self.model.clear();
         self.chord = Chord::default();
         self.sentence = Sentence::Unknown;
@@ -412,8 +433,10 @@ impl Ime {
         anchor_pos: u32,
         out: &mut Vec<Out>,
     ) {
-        // Only URL fields use Surrounding Text: the other fields never asked for it.
+        self.surrounding_seen = true;
+        // Only URL fields use the suggestion repair below; other fields only track their word.
         if self.purpose != PURPOSE_URL {
+            self.track_plain_report(text, cursor_pos, anchor_pos);
             return;
         }
         let has_sel = cursor_pos != anchor_pos;
@@ -467,15 +490,20 @@ impl Ime {
                 self.telex.cfg = cfg.telex.clone();
                 self.mode = cfg.mode_for_app(self.app_id.as_deref());
             }
-            if self.purpose == PURPOSE_URL && !self.surrounding_requested {
+            if !self.surrounding_requested {
+                // A focus that did not ask (after a recover, or enabled mid-focus): ask now.
                 self.surrounding_requested = true;
                 out.push(Out::RequireSurrounding);
             }
-            let surrounding = self.caps & CAP_SURROUNDING_TEXT != 0;
-            self.show = match self.mode {
-                Mode::Preedit | Mode::Off => Show::Preedit,
-                Mode::Auto | Mode::Direct if surrounding => Show::Surrounding,
-                Mode::Auto | Mode::Direct => Show::Preedit,
+            let surrounding = self.caps & CAP_SURROUNDING_TEXT != 0 && self.surrounding_seen;
+            self.show = if self.purpose == PURPOSE_TERMINAL {
+                Show::Preedit
+            } else {
+                match self.mode {
+                    Mode::Preedit | Mode::Off => Show::Preedit,
+                    Mode::Auto | Mode::Direct if surrounding => Show::Surrounding,
+                    Mode::Auto | Mode::Direct => Show::Preedit,
+                }
             };
         }
         self.show
@@ -530,6 +558,7 @@ impl Ime {
         self.telex.reset();
         self.has_selection = false;
         self.model.clear();
+        self.clear_word_track();
     }
 
     pub fn process_key(
@@ -587,7 +616,15 @@ impl Ime {
                 Show::Preedit => self.printable_preedit(ch, out),
                 _ => {
                     let url_tail = self.purpose == PURPOSE_URL && show == Show::Surrounding;
+                    let plain = show == Show::Surrounding && !url_tail;
+                    let word_start = self.telex.is_empty();
                     let r = self.telex.key(ch);
+                    if plain {
+                        if word_start {
+                            self.clear_word_track();
+                        }
+                        self.track_key(r.backspaces);
+                    }
                     if !r.handled {
                         if capped {
                             // The engine has the capital; the field gets it from us.
@@ -676,6 +713,7 @@ impl Ime {
         // Backspace shrinks the tail back to an earlier state, so a late report of that state
         // would look like a dropped delete and a repair would erase good text. Stop tracking.
         self.model.clear();
+        self.clear_word_track();
         if self.purpose == PURPOSE_URL && self.has_selection {
             // Omnibox: native Backspace removes the selected suggestion; the typed text stays.
             self.has_selection = false;
@@ -701,6 +739,55 @@ impl Ime {
             self.telex.reset();
         }
         true
+    }
+
+    fn clear_word_track(&mut self) {
+        self.word_states.clear();
+        self.word_confirmed = false;
+        self.replace_pending = 0;
+    }
+
+    /// A key of a word in a non-URL field: remember the word's display. A key that replaced
+    /// letters leaves a replace pending until a report shows the newest display.
+    fn track_key(&mut self, backspaces: usize) {
+        if backspaces > 0 {
+            self.replace_pending += 1;
+        }
+        if self.word_states.len() == WORD_STATES_MAX {
+            self.word_states.remove(0);
+        }
+        self.word_states.push(self.telex.displayed());
+    }
+
+    /// Non-URL fields, Surrounding Text: the app emptied or changed the field under a word in
+    /// progress, so the word is gone and the engine forgets it. Two reports must not do that: an
+    /// older report that matches an earlier display of the word (lag), and the transient report
+    /// between a delete and its commit, which shows the letters already removed. The second is
+    /// why a replace stays pending until the newest display is reported.
+    fn track_plain_report(&mut self, text: &str, cursor: u32, anchor: u32) {
+        if self.show != Show::Surrounding {
+            return;
+        }
+        if self.telex.is_empty() {
+            self.clear_word_track();
+            return;
+        }
+        if cursor != anchor {
+            return;
+        }
+        let before: String = text.chars().take(cursor as usize).collect();
+        let shows = |s: &str| !s.is_empty() && before.ends_with(s);
+        if self.word_states.iter().any(|s| shows(s)) {
+            self.word_confirmed = true;
+            if self.word_states.last().is_some_and(|n| shows(n)) {
+                self.replace_pending = 0;
+            }
+            return;
+        }
+        if self.word_confirmed && self.replace_pending == 0 {
+            self.telex.reset();
+            self.clear_word_track();
+        }
     }
 
     /// Settles the tracked tail at a word boundary, once the telex word is empty.
@@ -781,6 +868,7 @@ mod tests {
     fn gui_app_uses_surrounding_text() {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
         let mut text = String::new();
         for ch in "kieemr tra ".chars() {
             let mut out = Vec::new();
@@ -795,6 +883,7 @@ mod tests {
                         }
                     }
                     Out::Commit(s) => text.push_str(&s),
+                    Out::RequireSurrounding => {}
                     other => panic!("unexpected {other:?}"),
                 }
             }
@@ -825,10 +914,17 @@ mod tests {
         assert!(out.is_empty());
     }
 
+    /// The empty report every field sends when it gains focus. Until one arrives, an engine with
+    /// the Surrounding Text flag still composes in preedit.
+    fn report_at_focus(ime: &mut Ime) {
+        ime.set_surrounding_text("", 0, 0, &mut Vec::new());
+    }
+
     /// A URL field (Omnibox): Surrounding Text is reported, but purpose is URL.
     fn url_field() -> Ime {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
         ime.set_content_type(PURPOSE_URL, 0);
         ime
     }
@@ -1132,12 +1228,15 @@ mod tests {
         for ch in "Rus".chars() {
             ime.process_key(ch as u32, 0, 0, &mut out);
         }
+        // Without a focus this field asks at its first key, once.
         assert_eq!(count(&out), 1);
         keys(&mut ime, "\n"); // word ends
-        ime.focus_in();
+        let mut out = Vec::new();
+        ime.focus_in(&mut out);
+        assert_eq!(count(&out), 1);
         let mut out = Vec::new();
         ime.process_key('a' as u32, 0, 0, &mut out);
-        assert_eq!(count(&out), 1);
+        assert_eq!(count(&out), 0);
         let mut out = Vec::new();
         ime.process_key('b' as u32, 0, 0, &mut out);
         assert_eq!(count(&out), 0);
@@ -1147,6 +1246,7 @@ mod tests {
     fn non_url_fields_ignore_surrounding_text() {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
         let mut out = Vec::new();
         ime.set_surrounding_text("Rú", 2, 0, &mut out);
         assert!(out.is_empty());
@@ -1397,7 +1497,7 @@ mod tests {
         let mut ime = engine();
         press(&mut ime, KEY_CTRL_L);
         press(&mut ime, KEY_SHIFT_L);
-        ime.focus_in();
+        ime.focus_in(&mut Vec::new());
         assert_eq!(toggles(&release(&mut ime, KEY_SHIFT_L)), 0);
         release(&mut ime, KEY_CTRL_L);
 
@@ -1435,6 +1535,7 @@ mod tests {
         };
         let mut ime = Ime::new(&cfg);
         ime.set_capabilities(CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
         ime
     }
 
@@ -1500,6 +1601,7 @@ mod tests {
     fn off_by_default() {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
         let mut field = String::new();
         type_into(&mut ime, &mut field, "a. b");
         assert_eq!(field, "a. b");
@@ -1577,5 +1679,208 @@ mod tests {
         ime.set_enabled(true, &mut Vec::new());
         type_into(&mut ime, &mut field, "b");
         assert_eq!(field, "a. xb");
+    }
+
+    /// A plain text field: what the app holds, driven by the engine's outputs. It reports its
+    /// text after each key unless the test says otherwise.
+    struct Plain {
+        ime: Ime,
+        text: String,
+    }
+
+    impl Plain {
+        fn new() -> Self {
+            let mut ime = Ime::new(&Config::default());
+            ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+            let mut plain = Plain {
+                ime,
+                text: String::new(),
+            };
+            let mut out = Vec::new();
+            plain.ime.focus_in(&mut out);
+            plain.apply(out);
+            let outs = plain.report();
+            plain.apply(outs);
+            plain
+        }
+
+        fn apply(&mut self, outs: Vec<Out>) {
+            for o in outs {
+                match o {
+                    Out::Commit(s) => self.text.push_str(&s),
+                    Out::DeleteSurrounding { nchars, .. } => {
+                        for _ in 0..nchars {
+                            self.text.pop();
+                        }
+                    }
+                    Out::RequireSurrounding => {}
+                    other => panic!("unexpected {other:?} in a plain field"),
+                }
+            }
+        }
+
+        /// The report of the current text, caret at its end.
+        fn report(&mut self) -> Vec<Out> {
+            let n = self.text.chars().count() as u32;
+            let text = self.text.clone();
+            let mut out = Vec::new();
+            self.ime.set_surrounding_text(&text, n, n, &mut out);
+            out
+        }
+
+        fn key_quiet(&mut self, ch: char) {
+            let mut out = Vec::new();
+            if !self.ime.process_key(ch as u32, 0, 0, &mut out) {
+                self.text.push(ch);
+            }
+            self.apply(out);
+        }
+
+        fn key(&mut self, ch: char) {
+            self.key_quiet(ch);
+            let outs = self.report();
+            self.apply(outs);
+        }
+
+        fn type_text(&mut self, s: &str) {
+            for ch in s.chars() {
+                self.key(ch);
+            }
+        }
+    }
+
+    fn outs_of(ime: &mut Ime, keys: &str) -> Vec<Out> {
+        let mut out = Vec::new();
+        for ch in keys.chars() {
+            ime.process_key(ch as u32, 0, 0, &mut out);
+        }
+        out
+    }
+
+    #[test]
+    fn flag_without_a_report_composes_in_preedit() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        let out = outs_of(&mut ime, "tuaa");
+        assert!(out.iter().any(|o| matches!(o, Out::Preedit(_))));
+        assert!(!out
+            .iter()
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+    }
+
+    #[test]
+    fn a_report_enables_surrounding_text() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
+        let out = outs_of(&mut ime, "tuaa");
+        assert!(out
+            .iter()
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+    }
+
+    #[test]
+    fn focus_out_and_in_forgets_the_report() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        report_at_focus(&mut ime);
+        ime.focus_in(&mut Vec::new());
+        let out = outs_of(&mut ime, "tuaa");
+        assert!(out.iter().any(|o| matches!(o, Out::Preedit(_))));
+        assert!(!out
+            .iter()
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+    }
+
+    #[test]
+    fn terminal_purpose_stays_in_preedit_after_a_report() {
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
+        ime.set_content_type(PURPOSE_TERMINAL, 0);
+        report_at_focus(&mut ime);
+        let out = outs_of(&mut ime, "tuaa");
+        assert!(out.iter().any(|o| matches!(o, Out::Preedit(_))));
+        assert!(!out
+            .iter()
+            .any(|o| matches!(o, Out::DeleteSurrounding { .. })));
+    }
+
+    #[test]
+    fn surrounding_is_requested_once_per_focus_for_every_field() {
+        let count = |out: &[Out]| {
+            out.iter()
+                .filter(|o| **o == Out::RequireSurrounding)
+                .count()
+        };
+        let mut ime = Ime::new(&Config::default());
+        ime.set_capabilities(0x9);
+        let mut out = Vec::new();
+        ime.focus_in(&mut out);
+        assert_eq!(count(&out), 1);
+        assert_eq!(count(&outs_of(&mut ime, "ab")), 0);
+        let mut out = Vec::new();
+        ime.focus_in(&mut out);
+        assert_eq!(count(&out), 1);
+        // A focus that never asked (recover, enabled mid-focus) asks at its first key, once.
+        let mut ime = Ime::new(&Config::default());
+        assert_eq!(count(&outs_of(&mut ime, "ab")), 1);
+    }
+
+    #[test]
+    fn external_clear_resets_a_confirmed_word_once() {
+        let mut f = Plain::new();
+        f.type_text("vieej");
+        // The app empties the field under the word in progress.
+        f.text.clear();
+        let outs = f.report();
+        assert!(outs.is_empty());
+        assert_eq!(f.ime.telex.displayed(), "");
+        f.type_text("tr");
+        assert_eq!(f.text, "tr");
+        f.type_text("tieengs");
+        f.text.clear();
+        let outs = f.report();
+        assert!(outs.is_empty());
+        f.type_text("Traanf");
+        assert_eq!(f.text, "Trần");
+    }
+
+    #[test]
+    fn a_lagging_report_does_not_reset_the_word() {
+        let mut f = Plain::new();
+        f.key('v'); // reported at once: "v" is confirmed
+        f.key_quiet('i'); // its report is late
+        let mut out = Vec::new();
+        f.ime.set_surrounding_text("v", 1, 1, &mut out);
+        assert!(out.is_empty());
+        assert_eq!(f.ime.telex.displayed(), "vi");
+        f.key('e');
+        assert_eq!(f.text, "vie");
+    }
+
+    #[test]
+    fn transient_report_between_delete_and_commit_does_not_reset() {
+        // "dd" becomes "đ" and "aa" becomes "â", both as first letters of a word.
+        for (first, want) in [("d", "đ"), ("a", "â")] {
+            let mut f = Plain::new();
+            f.key(first.chars().next().unwrap());
+            // The engine deletes the first letter, then commits the composed one. Chrome reports
+            // in between: the field without the letter, the commit not yet there.
+            let mut out = Vec::new();
+            f.ime
+                .process_key(first.chars().next().unwrap() as u32, 0, 0, &mut out);
+            let (delete, commit) = (out[0].clone(), out[1].clone());
+            assert!(matches!(delete, Out::DeleteSurrounding { nchars: 1, .. }));
+            assert_eq!(commit, Out::Commit(want.into()));
+            f.text.pop();
+            let mut out = Vec::new();
+            f.ime.set_surrounding_text("", 0, 0, &mut out);
+            assert!(out.is_empty());
+            assert_eq!(f.ime.telex.displayed(), want);
+            f.apply(vec![commit]);
+            let outs = f.report();
+            assert!(outs.is_empty());
+            assert_eq!(f.text, want);
+        }
     }
 }

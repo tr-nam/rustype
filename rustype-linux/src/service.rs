@@ -747,7 +747,7 @@ impl IBusService {
         let mut outs = Vec::new();
         let mut has_ime = false;
         if let Some(ime) = self.ctxs.get_mut(path).and_then(|c| c.ime.as_mut()) {
-            ime.focus_in();
+            ime.focus_in(&mut outs);
             ime.reset(&mut outs);
             ime.set_app_id(app, &cfg);
             ime.set_enabled(enabled, &mut outs);

@@ -24,7 +24,7 @@ def pump(t=0.05):
 class App:
     """A text field. surrounding: reports Surrounding Text. client_commit: commits a COMMIT-mode
     preedit itself on reset/focus-out, like GNOME Shell; otherwise the IBus bus does it (X11 apps)."""
-    def __init__(self, name, surrounding, client_commit, table=None):
+    def __init__(self, name, surrounding, client_commit, table=None, silent=False):
         self.name, self.text, self.preedit, self.mode, self.modes = name, "", "", 0, set()
         self.client_commit, self.latency = client_commit, []
         self.shown, self.deletes, self.fwd = [], 0, []
@@ -47,7 +47,7 @@ class App:
         pump(0.2)
         bus.set_global_engine(ENGINE)
         pump(1.0)
-        if surrounding:
+        if surrounding and not silent:
             self._sync()
 
     def _sync(self):
@@ -152,6 +152,18 @@ term.focus_out()
 results.append(check("terminal focus-out keeps word once", term.text[-5:], "tiếng"))
 lat += term.latency
 term.ic.destroy()
+
+# GNOME 45-48 advertise the Surrounding Text flag even for VTE, which sets the terminal purpose and
+# never reports text. The engine must compose in preedit and never send a delete.
+vte = App("vte", surrounding=True, client_commit=True, silent=True)
+vte.ic.set_content_type(10, 0)
+pump(0.3)
+vte.type(SENT)
+results.append(check("vte flag without report: sentence", vte.text, WANT))
+results.append(check("vte flag without report: preedit mode", sorted(vte.modes), ["COMMIT"]))
+results.append(check("vte flag without report: no delete-surrounding-text", vte.deletes, 0))
+lat += vte.latency
+vte.ic.destroy()
 
 gui = App("gui", surrounding=True, client_commit=True)
 gui.type(SENT)

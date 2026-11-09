@@ -70,7 +70,7 @@ impl Field {
         let mut ime = Ime::new(&Config::default());
         ime.set_capabilities(0x9 | CAP_SURROUNDING_TEXT);
         ime.set_content_type(PURPOSE_URL, 0);
-        Field {
+        let mut field = Field {
             ime,
             text: String::new(),
             sugg: String::new(),
@@ -81,7 +81,13 @@ impl Field {
             queue: VecDeque::new(),
             key: 0,
             plain: HashSet::new(),
-        }
+        };
+        // The field gains focus: it asks for Surrounding Text and reports its empty text at once.
+        let mut outs = Vec::new();
+        field.ime.focus_in(&mut outs);
+        field.apply(outs);
+        field.drain();
+        field
     }
 
     fn next_rand(&mut self) -> u64 {

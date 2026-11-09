@@ -136,7 +136,13 @@ def sequence(bus_m, bus_i, tag):
     on(ctx, "show-preedit-text", lambda c: None)
     on(ctx, "delete-surrounding-text", lambda c, off, n: ed.delete(n))
     on(ctx, "forward-key-event", lambda c, kv, kc, st: ed.forward(kv, st))
-    on(ctx, "require-surrounding-text", lambda c: got_require.append(1))
+    def on_require(c):
+        # Like GNOME Shell: a focused field with text support reports its text at once.
+        got_require.append(1)
+        n = len(ed.text)
+        c.set_surrounding_text(IBus.Text.new_from_string(ed.text + ed.sugg), n, n + len(ed.sugg))
+
+    on(ctx, "require-surrounding-text", on_require)
     on(ctx, "destroy", lambda c: None)
     ctx.set_client_commit_preedit(True)
     caps = IBus.Capabilite.PREEDIT_TEXT | IBus.Capabilite.FOCUS | IBus.Capabilite.SURROUNDING_TEXT
